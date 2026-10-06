@@ -77,7 +77,10 @@ textarea.paste.short { min-height: 160px; }
 .account-btn .via { font-size: 11px; color: var(--ink-3); }
 .account-btn .more { color: var(--ink-3); }
 .sign-in { display: grid; gap: 8px; }
-.btn.provider { justify-content: center; padding: 10px 12px; font-size: 14px; }
+.btn.provider { justify-content: center; padding: 10px 12px; font-size: 14px; gap: 10px; }
+.btn.provider .provider-logo { flex: none; }
+.btn.provider.google { background: #fff; border-color: #dadce0; color: #1f1f1f; }
+.btn.provider.google:hover { background: #f8f9fa; border-color: #c6c9cc; }
 .btn.provider.discord { background: #5865f2; border-color: #5865f2; color: #fff; }
 .btn.provider.discord:hover { filter: brightness(1.08); }
 .dev-sign-in { margin-top: 6px; padding-top: 12px; border-top: 1px dashed var(--line); display: grid; gap: 6px; }

@@ -10,6 +10,7 @@ import { requestRender } from './bus.ts';
 import { esc, must } from './dom.ts';
 import { monIcon } from './icons.ts';
 import { formOf } from './names.ts';
+import { PASTE_LINK_HINT } from './paste-links.ts';
 import { confirmDialog, modal, openMenu, toast } from './overlays.ts';
 import { turnResult } from './turn-results.ts';
 import type { MenuItem } from './overlays.ts';
@@ -20,9 +21,9 @@ import { renderTabBar, rerenderCanvas } from './views/plan-view.ts';
 
 export async function createTeam(): Promise<void> {
   const input = await modal<{ name: string; paste: string }>({
-    title: 'New team', desc: 'Paste your team in Showdown format.',
+    title: 'New team', desc: `Paste your team in Showdown format, ${PASTE_LINK_HINT}.`,
     body: `<div><label class="lbl" for="nt-name">Team name</label><input class="field" id="nt-name" placeholder="e.g. Rain offense"></div>
-           <div><label class="lbl" for="nt-paste">Showdown paste</label><textarea class="paste" id="nt-paste" placeholder="Rillaboom @ Assault Vest&#10;Ability: Grassy Surge&#10;- Fake Out&#10;- Grassy Glide"></textarea></div>`,
+           <div><label class="lbl" for="nt-paste">Showdown paste</label><textarea class="paste" id="nt-paste" data-team-paste data-name-field="#nt-name" placeholder="Rillaboom @ Assault Vest&#10;Ability: Grassy Surge&#10;- Fake Out&#10;- Grassy Glide&#10;&#10;…${PASTE_LINK_HINT}"></textarea></div>`,
     actions: [
       { label: 'Cancel', value: null },
       { label: 'Create team', cls: 'primary', run: (ov) => ({ name: must<HTMLInputElement>('#nt-name', ov).value.trim(), paste: must<HTMLTextAreaElement>('#nt-paste', ov).value }) },
@@ -45,7 +46,7 @@ export async function createPlan(teamId: string): Promise<void> {
   const input = await modal<{ name: string; paste: string }>({
     title: 'New gameplan', desc: `Against which team? Gameplans are saved inside “${team.name}”.`,
     body: `<div><label class="lbl" for="np-name">Opponent team name (optional)</label><input class="field" id="np-name" placeholder="e.g. Sun balance from Regionals"></div>
-           <div><label class="lbl" for="np-paste">Opponent Showdown paste (optional)</label><textarea class="paste" id="np-paste"></textarea></div>`,
+           <div><label class="lbl" for="np-paste">Opponent Showdown paste (optional)</label><textarea class="paste" id="np-paste" data-team-paste data-name-field="#np-name" placeholder="Showdown paste, ${PASTE_LINK_HINT}"></textarea></div>`,
     actions: [
       { label: 'Cancel', value: null },
       { label: 'Create gameplan', cls: 'primary', run: (ov) => ({ name: must<HTMLInputElement>('#np-name', ov).value.trim(), paste: must<HTMLTextAreaElement>('#np-paste', ov).value }) },
@@ -68,9 +69,9 @@ export async function editPaste(kind: Side): Promise<void> {
   if (!team || (kind === 'opp' && !plan)) return;
   const current = kind === 'opp' ? plan!.opponent.paste : team.paste;
   const input = await modal<{ paste: string; name: string }>({
-    title: kind === 'opp' ? 'Opponent team' : 'Your team', desc: 'Paste the team in Showdown format.',
+    title: kind === 'opp' ? 'Opponent team' : 'Your team', desc: `Paste the team in Showdown format, ${PASTE_LINK_HINT}.`,
     body: (kind === 'opp' ? `<div><label class="lbl" for="ep-name">Team name (optional)</label><input class="field" id="ep-name" value="${esc(plan!.opponent.name)}"></div>` : '')
-      + `<textarea class="paste tall" id="ep-paste" aria-label="Showdown paste">${esc(current)}</textarea>`,
+      + `<textarea class="paste tall" id="ep-paste" data-team-paste${kind === 'opp' ? ' data-name-field="#ep-name"' : ''} aria-label="Showdown paste">${esc(current)}</textarea>`,
     actions: [
       { label: 'Cancel', value: null },
       { label: 'Save', cls: 'primary', run: (ov) => ({ paste: must<HTMLTextAreaElement>('#ep-paste', ov).value, name: (ov.querySelector<HTMLInputElement>('#ep-name')?.value ?? '').trim() }) },

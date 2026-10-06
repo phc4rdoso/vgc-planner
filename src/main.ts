@@ -6,10 +6,12 @@ import { openSharedLink } from './ui/share.ts';
 import { installEvents, reportError } from './ui/events.ts';
 import { installIconFallbacks } from './ui/icons.ts';
 import { toast } from './ui/overlays.ts';
+import { installPasteLinks } from './ui/paste-links.ts';
 
 async function main(): Promise<void> {
   installIconFallbacks();
   installEvents();
+  installPasteLinks();
   window.addEventListener('error', (e) => reportError(e.error ?? e.message));
   window.addEventListener('unhandledrejection', (e) => reportError(e.reason));
 

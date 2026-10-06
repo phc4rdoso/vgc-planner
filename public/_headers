@@ -1,7 +1,9 @@
 # Response headers for the static site on Cloudflare (Workers static assets). Same policy as deploy/security-headers.inc:
 # the app has no inline scripts or styles, so the Content-Security-Policy can be strict. API responses set their own.
+# Cloudflare Web Analytics (enabled in the dashboard) injects its beacon from static.cloudflareinsights.com and reports to cloudflareinsights.com.
+# Team links are read straight from pokepast.es and the VR Pastes API (src/domain/paste-links.ts).
 /*
-  Content-Security-Policy: default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self'; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
+  Content-Security-Policy: default-src 'none'; script-src 'self' https://static.cloudflareinsights.com; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://cloudflareinsights.com https://pokepast.es https://vrpaste-backend.vercel.app; manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'none'; frame-ancestors 'none'
   X-Content-Type-Options: nosniff
   Referrer-Policy: no-referrer
   Permissions-Policy: camera=(), microphone=(), geolocation=(), payment=()

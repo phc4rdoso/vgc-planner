@@ -193,7 +193,8 @@ const turn = (ril: string, chomp: string, inci: string, gambit: string, targets:
 ] });
 
 test('a burn carries down the branch: it halves physical damage and chips 1/16 every turn', () => {
-  const { team, plan } = setup();
+  // No Grassy Surge: Grassy Terrain's healing would make up for the burn's chip damage.
+  const { team, plan } = setup(MY_TEAM.replace('Grassy Surge', 'Overgrow'));
   const t1 = turn('Protect', 'Swords Dance', 'Will-O-Wisp', 'Protect', { inci: 'Garchomp' });
   const t2 = turn('Protect', 'Close Combat', 'Swords Dance', 'Protect', { chomp: 'Incineroar' });
   t1.children.push(t2); plan.children.push(t1);
@@ -282,7 +283,7 @@ test('field effects in play are reported per turn and inherited by follow-up tur
 });
 
 /** The Pokémon that acted, in order (switches, boosts, hits...), ignoring entry effects. */
-const actors = (r: Extract<TurnResult, { status: 'ready' }>): string[] => r.log.filter((l) => l.type !== 'field' || l.move !== '').map((l) => l.mon);
+const actors = (r: Extract<TurnResult, { status: 'ready' }>): string[] => r.log.filter((l) => (l.type !== 'field' || l.move !== '') && l.type !== 'residual').map((l) => l.mon);
 /** Why `move` didn't affect its first target (the block reason), from an attack, stat-lowering or status move. */
 const whyBlocked = (r: Extract<TurnResult, { status: 'ready' }>, move: string): string | undefined => {
   for (const l of r.log) {

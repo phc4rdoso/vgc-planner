@@ -68,9 +68,14 @@ Dependencies point one way: `ui` → `state` → `infra`/`domain`; `domain` impo
 
 Needs an `EVs:` line on every Pokémon in both pastes. Champions pastes put Stat Points there (max 32 per stat, 66 total); larger numbers are read as real EVs and converted (4 for the first point, 8 for each after). Level is 50, IVs are 31.
 
-Modeled: turn order (switches, priority, speed, Choice Scarf, Tailwind, Trick Room), Protect/Wide Guard/Quick Guard, Fake Out flinch, Helping Hand, Mega Evolution, Intimidate, weather/terrain/screens (from moves and lead abilities), setup moves, always-on stat drops, spread-move reduction, and HP/stat stages carried down each branch.
+Each branch keeps a full battle state (HP, held item, stat stages, condition, field) and hands it to the calculator for every attack, so damage modifiers (Life Orb, resist berries, Knock Off's power, Multiscale, burn, weather, screens...) come from the calculator itself. The simulator only decides the order things happen in and applies what follows:
 
-Not modeled: accuracy, critical hits, recoil, recovery, status conditions, items that trigger mid-turn, abilities with triggers, and anything specific to Champions balance changes that the calculator doesn't know. HP uses the average damage roll; the range is shown next to it.
+- **Order:** switches, then Mega Evolution (fastest first, so a Mega's weather replaces what a switch-in just set), then moves by priority and Speed (Choice Scarf, Unburden, Tailwind, Trick Room, paralysis), then end of turn: weather (Sandstorm, Rain Dish, Dry Skin...), Grassy Terrain and Leftovers / Black Sludge, poison, burn, Speed Boost. Anything that faints in one step is out of the later ones.
+- **Items:** used up or removed for the rest of the battle, even after switching (Knock Off, Thief, Trick, Incinerate). Terrain seeds when their terrain comes up, HP berries at their threshold, status berries on the condition, resist berries and Gems when the calculator applied them, Focus Sash, Air Balloon, White Herb, Adrenaline Orb, Rocky Helmet, Life Orb's 10%, weather rocks, Light Clay, Terrain Extender.
+- **Abilities:** entry effects (weather, terrain, Intimidate and the abilities that answer it, Hospitality, Download, Intrepid Sword, Costar, Curious Medicine, Screen Cleaner), Defiant / Competitive on any drop from a foe, Contrary and Simple on every stat change, Clear Body and friends, Rough Skin / Iron Barbs, Sturdy, Unburden, Regenerator, Natural Cure, Lightning Rod / Storm Drain and the other absorbing abilities, Sheer Force.
+- **Moves:** Protect variants (including contact punishment), Wide Guard and Quick Guard, Follow Me / Rage Powder (not on Grass types; a fainted redirector draws nothing), recoil and drain (from the calculator), Fake Out, Helping Hand, setup and stat-lowering moves, status moves, pivots, field moves, spread reduction.
+
+Not modeled: accuracy, critical hits, chance-based effects, and anything specific to Champions balance changes that the calculator doesn't know. HP uses the average damage roll; the range is shown next to it.
 
 ## Sprites
 

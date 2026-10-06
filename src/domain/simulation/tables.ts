@@ -107,3 +107,71 @@ export const PIVOT_MOVES: Readonly<Record<string, PivotMove>> = {
   uturn: { needsHit: true }, voltswitch: { needsHit: true }, flipturn: { needsHit: true },
   partingshot: {}, teleport: {}, chillyreception: {}, shedtail: {}, batonpass: { passBoosts: true },
 };
+
+/*
+ * Items and abilities with a trigger. Their damage effects (Life Orb's boost, resist berries, Knock Off's power,
+ * Multiscale...) come from the calculator, which gets each Pokémon's current item and HP; these tables only say
+ * when something happens and what it changes afterwards.
+ */
+
+/** Items that make the holder's own weather or terrain last 8 turns instead of 5. */
+export const WEATHER_ROCKS: Readonly<Record<string, 'Sun' | 'Rain' | 'Sand' | 'Snow'>> = { heatrock: 'Sun', damprock: 'Rain', smoothrock: 'Sand', icyrock: 'Snow' };
+export const TERRAIN_EXTENDER = 'terrainextender';
+
+/** Seeds: eaten as soon as their terrain is up while the holder is on the field, raising one stat. */
+export const TERRAIN_SEEDS: Readonly<Record<string, { terrain: 'Electric' | 'Grassy' | 'Psychic' | 'Misty'; stat: BoostKey }>> = {
+  electricseed: { terrain: 'Electric', stat: 'def' }, grassyseed: { terrain: 'Grassy', stat: 'def' },
+  psychicseed: { terrain: 'Psychic', stat: 'spd' }, mistyseed: { terrain: 'Misty', stat: 'spd' },
+};
+
+/** Berries eaten once the holder's HP falls to `at` of its maximum: they heal (a fraction, or a flat amount) or raise a stat. */
+export interface HpBerry { at: number; heal?: number; flat?: number; boost?: BoostKey }
+const pinch = (heal: number): HpBerry => ({ at: 1 / 4, heal });
+export const HP_BERRIES: Readonly<Record<string, HpBerry>> = {
+  sitrusberry: { at: 1 / 2, heal: 1 / 4 }, oranberry: { at: 1 / 2, flat: 10 },
+  figyberry: pinch(1 / 3), wikiberry: pinch(1 / 3), magoberry: pinch(1 / 3), aguavberry: pinch(1 / 3), iapapaberry: pinch(1 / 3),
+  liechiberry: { at: 1 / 4, boost: 'atk' }, ganlonberry: { at: 1 / 4, boost: 'def' }, petayaberry: { at: 1 / 4, boost: 'spa' },
+  apicotberry: { at: 1 / 4, boost: 'spd' }, salacberry: { at: 1 / 4, boost: 'spe' },
+};
+/** Opposing abilities that stop berries from being eaten. */
+export const UNNERVE: readonly string[] = ['unnerve', 'asoneglastrier', 'asonespectrier'];
+
+/** Contact with the holder hurts the attacker by this fraction of the attacker's maximum HP. */
+export const CONTACT_ABILITIES: Readonly<Record<string, number>> = { roughskin: 1 / 8, ironbarbs: 1 / 8 };
+export const CONTACT_ITEMS: Readonly<Record<string, number>> = { rockyhelmet: 1 / 6 };
+/** Protect variants that punish contact: damage (fraction of the attacker's max HP) or a condition. */
+export const CONTACT_PROTECT: Readonly<Record<string, { damage?: number; status?: StatusId; drop?: BoostChange }>> = {
+  spikyshield: { damage: 1 / 8 }, banefulbunker: { status: 'psn' }, burningbulwark: { status: 'brn' },
+  kingsshield: { drop: { atk: -1 } }, silktrap: { drop: { spe: -1 } }, obstruct: { drop: { def: -2 } },
+};
+
+/** Entry abilities that raise the user's own stats (once per battle in Scarlet/Violet and Champions). */
+export const ENTRY_BOOSTS: Readonly<Record<string, BoostChange>> = { intrepidsword: { atk: 1 }, dauntlessshield: { def: 1 } };
+
+/** Sandstorm doesn't hurt these types, abilities or items. */
+export const SAND_IMMUNE_TYPES: readonly string[] = ['Rock', 'Ground', 'Steel'];
+export const SAND_IMMUNE: readonly string[] = ['sandveil', 'sandrush', 'sandforce', 'overcoat', 'safetygoggles'];
+
+/** Moves that draw the opponents' single-target moves to the user this turn. Rage Powder is a powder move. */
+export const REDIRECT_MOVES: Readonly<Record<string, { powder?: true }>> = { followme: {}, ragepowder: { powder: true } };
+/** Abilities and moves that ignore redirection. */
+export const IGNORES_REDIRECT: readonly string[] = ['stalwart', 'propellertail', 'snipeshot'];
+
+/**
+ * Abilities that absorb one move type (the calculator already treats the holder as immune): what they give
+ * instead. `redirect` also draws single-target moves of that type, like Lightning Rod.
+ */
+export const ABSORB_ABILITIES: Readonly<Record<string, { type: string; boost?: BoostChange; heal?: number; redirect?: true }>> = {
+  lightningrod: { type: 'Electric', boost: { spa: 1 }, redirect: true }, stormdrain: { type: 'Water', boost: { spa: 1 }, redirect: true },
+  motordrive: { type: 'Electric', boost: { spe: 1 } }, sapsipper: { type: 'Grass', boost: { atk: 1 } }, wellbakedbody: { type: 'Fire', boost: { def: 2 } },
+  voltabsorb: { type: 'Electric', heal: 1 / 4 }, waterabsorb: { type: 'Water', heal: 1 / 4 }, dryskin: { type: 'Water', heal: 1 / 4 }, eartheater: { type: 'Ground', heal: 1 / 4 },
+};
+
+/** Items that stop other Pokémon from lowering the holder's stats. */
+export const STAT_DROP_ITEMS: readonly string[] = ['clearamulet'];
+/** Abilities that keep the holder's item from being removed (Knock Off, Thief, Trick). */
+export const STICKY_ABILITIES: readonly string[] = ['stickyhold'];
+/** Attacks that take the target's item: knocked off, stolen by a user with no item, or burned (berries and gems). */
+export const ITEM_REMOVAL: Readonly<Record<string, 'knock' | 'steal' | 'burn'>> = { knockoff: 'knock', thief: 'steal', covet: 'steal', incinerate: 'burn' };
+/** Status moves that swap the user's and the target's items. */
+export const ITEM_SWAP: ReadonlySet<string> = new Set(['trick', 'switcheroo']);
