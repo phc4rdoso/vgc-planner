@@ -6,7 +6,7 @@ const env = import.meta.env as ImportMetaEnv | undefined;
 
 export const config = {
   sprites: {
-    /** Base URL for Pokémon and item icons. Self-hosted ("/sprites") in production. */
+    /** Base URL for Pokémon and item icons. The local copy in public/sprites (npm run sprites), unless a CDN is set. */
     baseUrl: (env?.VITE_SPRITE_BASE_URL ?? '/sprites').replace(/\/+$/, ''),
     pokemonDir: 'pokemon-champions',
     itemDir: 'items',
