@@ -11,11 +11,11 @@ export interface SpriteConfig {
 /**
  * A name can map to a few file spellings (accents, punctuation). Returns URL-safe file stems in the order
  * they should be tried: hyphenated spellings first (as written, decomposed accents, accent/punctuation-free),
- * then the same with spaces kept (the Pokémon folder has e.g. "Mr. Mime.webp"; "Flabébé" is stored decomposed).
+ * then the same with spaces kept. `npm run sprites` stores unusual names in the accent/punctuation-free form ("Mr-Mime.webp").
  */
 export function fileStems(name: string, aliases: Readonly<Record<string, string>> = {}): string[] {
   const base = (aliases[name] ?? name).trim().normalize('NFC');
-  const folded = base.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[.'’:]/g, '');
+  const folded = base.normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[.'’:%()]/g, '');
   const spellings = [base, base.normalize('NFD'), folded];
   const stems = [...spellings.map((n) => n.replace(/\s+/g, '-')), ...spellings];
   return [...new Set(stems)].map(encodeURIComponent);

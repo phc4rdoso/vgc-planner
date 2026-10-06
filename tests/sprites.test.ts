@@ -23,3 +23,15 @@ test('item icons use their own folder with lowercase file names', () => {
   assert.equal(urls.item('Never-Melt Ice')[0], '/sprites/items/never-melt-ice.webp');
   assert.equal(urls.item("King's Rock")[0], "/sprites/items/king's-rock.webp");
 });
+
+test('every plain file name the sprite copy uses is among the spellings the app tries', () => {
+  const tries = (name: string, file: string): boolean => fileStems(name).includes(encodeURIComponent(file));
+  assert.ok(tries('Mr. Mime', 'Mr-Mime'));
+  assert.ok(tries('Mime Jr.', 'Mime-Jr'));
+  assert.ok(tries('Flabébé', 'Flabebe'));
+  assert.ok(tries('Farfetch’d-Galar', 'Farfetchd-Galar'));
+  assert.ok(tries('Oricorio-Pa\'u', 'Oricorio-Pau'));
+  assert.ok(tries('Tapu Koko', 'Tapu-Koko'));
+  assert.ok(tries('Zygarde-10%', 'Zygarde-10'));
+  assert.ok(tries("king's-rock", 'kings-rock'));
+});

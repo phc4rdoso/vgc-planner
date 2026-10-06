@@ -20,5 +20,7 @@ git -C "$tmp/repo" sparse-checkout set "$SRC"
 rm -rf "$DEST"
 mkdir -p "$(dirname "$DEST")"
 cp -R "$tmp/repo/$SRC" "$DEST"
+# Plain ASCII file names (Cloudflare's asset upload rejects some characters, e.g. "%").
+node "$(dirname "$0")/normalize-sprite-names.mjs" "$DEST"
 echo "Sprites copied to $DEST:"
 for dir in "$DEST"/*/; do echo "  $(basename "$dir"): $(find "$dir" -type f | wc -l | tr -d ' ') files"; done
