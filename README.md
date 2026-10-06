@@ -49,7 +49,7 @@ src/
   state/               AppStore (library + view state + debounced saving) and SimService (calculator lifecycle, caching)
   ui/                  Rendering and event handling; views/ has one module per screen area
   styles/              Plain CSS split by concern
-server/                API Worker: sign-in and sessions (src/app.ts), D1 store, migrations
+server/                API Worker: sign-in and sessions (src/app.ts), account library (src/library.ts), D1 store, migrations
 tests/                 Unit tests (+ helpers/stub-calc.ts, a deterministic stand-in for the calculator)
 e2e/                   Playwright smoke test
 deploy/                nginx config and security headers
@@ -89,7 +89,11 @@ The image runs nginx as a non-root user, fingerprinted assets are cached for a y
 
 ## Accounts (sign in with Discord or Google)
 
-Accounts are optional: without the API the app works on this device only, and the sign-in button is hidden. The API is a Cloudflare Worker (`server/`) with a D1 (SQLite) database. It stores only a provider id and display name per account (no passwords, no e-mail) and a hash of each session token. Gameplans are not stored on the server yet.
+Accounts are optional: without the API the app works on this device only, and the sign-in button is hidden. The API is a Cloudflare Worker (`server/`) with a D1 (SQLite) database. It stores only a provider id and display name per account (no passwords, no e-mail), a hash of each session token, and the account's teams and gameplans.
+
+**How the library syncs.** Signed in, the app loads the whole library in one request and from then on sends only what changed: one small request per edited team or gameplan (about 1.5 s after you stop typing), plus deletions. The sidebar shows "Saving…" / "All changes saved". Damage and turn results are never stored; the browser recomputes them. Each record has a version, so if the same gameplan is edited on two devices, the later save is refused with a message to reload instead of overwriting the other. Signed out, the app uses this device's own library; on the first sign-in from a device that has gameplans, it offers once to add them to the account (merged like an import).
+
+**Limits per account:** 200 teams, 1,000 gameplans, 5 MB in total, 512 KB per request. Every upload is validated with the same rules as JSON imports (`src/domain/codec.ts`).
 
 **Run it locally**
 

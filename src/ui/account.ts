@@ -1,6 +1,11 @@
+import { buildExport, mergeImport, readExport } from '../domain/codec.ts';
+import { AccountRepository } from '../infra/account-repository.ts';
 import type { ProviderId } from '../infra/auth.ts';
 import { devSignIn, loadAccount, markOnboarded, signOut, startSignIn } from '../infra/auth.ts';
 import { session } from '../state/account.ts';
+import { device, deviceFlags, store } from '../state/instance.ts';
+import type { AppStore } from '../state/store.ts';
+import { requestRender } from './bus.ts';
 import { esc, must, qs } from './dom.ts';
 import { modal, openMenu, toast } from './overlays.ts';
 import { showWelcome } from './welcome.ts';
@@ -20,7 +25,7 @@ export function renderAccount(): void {
   host.innerHTML = state.status === 'signed-in'
     ? `<button class="account-btn" data-act="account-menu" aria-label="Account: ${esc(state.account.name)}">
         <span class="avatar" aria-hidden="true">${esc(initials(state.account.name))}</span>
-        <span class="who"><span class="nm">${esc(state.account.name)}</span><span class="via">${esc(state.account.provider === 'dev' ? 'Local test account' : `Signed in with ${PROVIDER_LABEL[state.account.provider]}`)}</span></span>
+        <span class="who"><span class="nm">${esc(state.account.name)}</span><span class="via" title="${esc(state.account.provider === 'dev' ? 'Local test account' : `Signed in with ${PROVIDER_LABEL[state.account.provider]}`)}" id="save-state">${esc(SAVE_LABEL[store.saveState])}</span></span>
         <span class="more" aria-hidden="true">⋯</span></button>`
     : '<button class="btn block" data-act="sign-in">Sign in</button>';
 }
@@ -67,30 +72,70 @@ function handleReturn(): void {
   history.replaceState(null, '', `${window.location.pathname}${query ? `?${query}` : ''}${window.location.hash}`);
 }
 
-/** Loads the account on startup and, right after a first sign-in, shows the welcome tour once. */
-export async function initAccount(): Promise<void> {
+/**
+ * Finds out who is signed in and, if someone is, makes the account's library the one the app shows and saves to.
+ * Runs before the first render so a signed-in user never sees this device's library flash by.
+ */
+export async function connectAccount(): Promise<void> {
   handleReturn();
   session.state = await loadAccount();
+  if (session.state.status === 'signed-in') {
+    await store.useRepository(new AccountRepository());
+    if (store.loadError) toast(store.loadError, true);
+  }
   renderAccount();
+}
+
+/** After the screen is drawn: the welcome tour on a first sign-in, then the offer to bring this device's gameplans. */
+export async function greetAccount(): Promise<void> {
   const state = session.state;
-  if (state.status === 'signed-in' && !state.account.onboarded) {
+  if (state?.status !== 'signed-in') return;
+  if (!state.account.onboarded) {
     await showWelcome(state.account.name);
     state.account.onboarded = true;
     await markOnboarded().catch(() => undefined);
   }
+  await offerDeviceUpload(state.account.id);
+}
+
+/**
+ * If this device has gameplans saved while signed out, offers once (per account and device) to add them to the
+ * account. They are merged like an import: teams with the same name receive the gameplans, everything gets new ids.
+ */
+async function offerDeviceUpload(accountId: string): Promise<void> {
+  const flag = `offered-upload:${accountId}`;
+  if (deviceFlags.get(flag) || store.loadError) return;
+  const local = await device.repo.load().catch(() => null);
+  const plans = local?.teams.reduce((n, t) => n + t.plans.length, 0) ?? 0;
+  if (!local || !local.teams.length) return;
+  const t = local.teams.length;
+  const add = await modal<boolean>({
+    title: 'Add this device’s gameplans to your account?',
+    desc: `This browser has ${t} team${t === 1 ? '' : 's'} and ${plans} gameplan${plans === 1 ? '' : 's'} saved while you were signed out. Add them to your account so they’re available wherever you sign in. Teams with the same name are merged.`,
+    actions: [{ label: 'Not now', value: false }, { label: 'Add to account', cls: 'primary', value: true }],
+  });
+  deviceFlags.set(flag);
+  if (!add) return;
+  const summary = mergeImport(store.library, readExport(JSON.parse(JSON.stringify(buildExport(local, { type: 'all' })))));
+  store.persist();
+  await store.flush();
+  requestRender();
+  toast(`Added ${summary.plans} gameplan${summary.plans === 1 ? '' : 's'} to your account`);
+}
+
+/** Sign out: back to this device's library (what was saved here while signed out is still there). */
+async function leaveAccount(): Promise<void> {
+  await store.flush();
+  await signOut().catch(() => undefined);
+  session.state = await loadAccount();
+  await store.useRepository(device.repo, device.persistent);
+  renderAccount();
+  requestRender();
+  toast('Signed out');
 }
 
 export function accountMenu(anchor: HTMLElement): void {
-  openMenu(anchor, [{
-    label: 'Sign out',
-    run: () => {
-      void signOut().finally(async () => {
-        session.state = await loadAccount();
-        renderAccount();
-        toast('Signed out');
-      });
-    },
-  }]);
+  openMenu(anchor, [{ label: 'Sign out', run: () => void leaveAccount() }]);
 }
 
 export function signInWith(provider: string): void {
@@ -100,5 +145,17 @@ export function signInWith(provider: string): void {
 /** The local test sign-in (development only). */
 async function signInDev(name: string): Promise<void> {
   if (!await devSignIn(name)) { toast('Sign-in didn’t complete. Try again.', true); return; }
-  await initAccount();
+  await connectAccount();
+  requestRender();
+  await greetAccount();
+}
+
+const SAVE_LABEL: Readonly<Record<AppStore['saveState'], string>> = { saved: 'All changes saved', pending: 'Saving…', saving: 'Saving…', error: 'Not saved' };
+
+/** "Saving… / All changes saved" under the account name while signed in. */
+export function renderSaveState(): void {
+  const label = qs('#save-state');
+  if (!label || session.state?.status !== 'signed-in') return;
+  label.textContent = SAVE_LABEL[store.saveState];
+  label.classList.toggle('err-text', store.saveState === 'error');
 }

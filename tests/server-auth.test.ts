@@ -1,29 +1,10 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import type { ApiConfig, ApiDeps, Store, User } from '../server/src/app.ts';
+import type { ApiConfig, ApiDeps } from '../server/src/app.ts';
 import { handleApi } from '../server/src/app.ts';
+import { MemoryStore } from './helpers/memory-store.ts';
 
 const APP = 'https://gameplans.example';
-
-class MemoryStore implements Store {
-  users: User[] = [];
-  sessions = new Map<string, { userId: string; expiresAt: number }>();
-  async upsertUser(provider: User['provider'], providerId: string, name: string, now: number) {
-    const found = this.users.find((u) => u.provider === provider && u.providerId === providerId);
-    if (found) { found.name = name; return { user: { ...found }, created: false }; }
-    const user: User = { id: `u${this.users.length + 1}`, provider, providerId, name, createdAt: now, onboardedAt: null };
-    this.users.push(user);
-    return { user: { ...user }, created: true };
-  }
-  async createSession(hash: string, userId: string, expiresAt: number) { this.sessions.set(hash, { userId, expiresAt }); }
-  async sessionUser(hash: string, now: number) {
-    const s = this.sessions.get(hash);
-    const user = s && s.expiresAt > now ? this.users.find((u) => u.id === s.userId) : undefined;
-    return user ? { ...user } : null;
-  }
-  async deleteSession(hash: string) { this.sessions.delete(hash); }
-  async markOnboarded(userId: string, now: number) { const u = this.users.find((x) => x.id === userId); if (u) u.onboardedAt ??= now; }
-}
 
 /** A fake Discord: issues a token for code "good" and returns a fixed profile. Records what it was sent. */
 function fakeDiscord(calls: { url: string; body?: string }[]): typeof fetch {

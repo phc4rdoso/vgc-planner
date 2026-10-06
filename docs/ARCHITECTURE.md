@@ -32,15 +32,15 @@ ui  ──►  state  ──►  infra  ──►  domain
 - Version 2 (both the stored schema and export files): a gameplan holds `tabs`, each with its own `name`, `selection` (leads/backs) and turns. Version 1 gameplans, with one `selection` and one turn tree, are read as a single tab named "Plan 1".
 - Ids are UUIDs, so records can be merged or synced later without remapping.
 
-## Moving to a server
+## Server (accounts)
 
-The only code that knows where data lives is `infra/repository.ts` and the wiring in `state/instance.ts`.
+The server is deliberately thin: the browser plans and simulates, the server signs people in and stores what they typed.
 
-1. **Add `HttpLibraryRepository`** implementing `LibraryRepository` (`GET /api/library`, `PUT /api/library` with `If-Match` for optimistic concurrency). Change one line in `state/instance.ts`. The UI needs no change, because it already treats saving as asynchronous and reports failures.
-2. **Validate on the server with the same code**: import `readLibrary` from `src/domain/codec.ts` in the API (it has no browser dependencies). Keep `LIMITS` as request limits.
-3. **Auth and tenancy**: a library per user (OIDC or sessions). Nothing in the client assumes a single user beyond the repository.
-4. **Finer-grained API (when whole-library PUT gets heavy)**: `POST /api/teams`, `PATCH /api/plans/:id`, etc. `AppStore.persist()` is the single place that decides when to save, so switching to per-record saves is local.
-5. **Calculator on the server (optional)**: `simulatePlan` is pure given a `CalcEngine`; a server can run it with `@smogon/calc` on Node to avoid shipping the calculator to every browser, or to cache results.
+- **Worker** (`server/src/index.ts`): Cloudflare Worker serving `dist/` and `/api/*`. `server/src/app.ts` (sign-in, sessions) and `server/src/library.ts` (teams/gameplans) use only standard web APIs and run in Node tests against an in-memory store (`tests/helpers/memory-store.ts`); `store-d1.ts` is the D1 implementation.
+- **Sign-in**: OAuth authorization-code flow with Discord (`identify`) or Google (`openid profile`); `state` in a short-lived HttpOnly cookie; 30-day sessions as random tokens in an HttpOnly, SameSite=Lax cookie, stored only as SHA-256. State-changing requests must carry the app's `Origin`.
+- **Library**: rows are scoped by `(user_id, id)`, so ids chosen by a client can never reach another account. Each team / gameplan is one JSON document validated with `codec.ts` (the same rules as imports) and versioned; writes carry `baseVersion` and get 409 on mismatch. Quotas cap teams, gameplans, bytes and request size.
+- **Client**: `AccountRepository` implements `LibraryRepository`: one `GET /api/library` on sign-in, then per-record `PUT`/`DELETE` for what changed since the last confirmed save. `AppStore.useRepository()` swaps between it and the device's `LocalStorageRepository` on sign-in / sign-out; nothing else in the UI knows where data lives.
+- **Possible next steps**: Cloudflare rate-limiting rules on `/api/auth/*` and writes; sharing read-only gameplans by link; resolving edit conflicts in place instead of asking for a reload.
 
 ## Testing strategy
 

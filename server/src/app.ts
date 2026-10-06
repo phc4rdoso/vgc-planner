@@ -10,6 +10,9 @@
  * - Requests that change something must come from the app's own origin (checked on `Origin`), on top of SameSite.
  */
 
+import type { LibraryStore } from './library.ts';
+import { handleLibrary } from './library.ts';
+
 export type ProviderId = 'discord' | 'google';
 export const PROVIDER_IDS: readonly ProviderId[] = ['discord', 'google'];
 
@@ -23,8 +26,8 @@ export interface User {
   onboardedAt: number | null;
 }
 
-/** Persistence for users and sessions (D1 in production, in memory in tests). Times are epoch milliseconds. */
-export interface Store {
+/** Persistence for users, sessions and libraries (D1 in production, in memory in tests). Times are epoch milliseconds. */
+export interface Store extends LibraryStore {
   /** Returns the user for this provider account, creating it on first sign-in. */
   upsertUser(provider: User['provider'], providerId: string, name: string, now: number): Promise<{ user: User; created: boolean }>;
   createSession(tokenHash: string, userId: string, expiresAt: number, now: number): Promise<void>;
@@ -255,6 +258,13 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
     if (!user) return json({ error: 'signed out' }, 401);
     await deps.store.markOnboarded(user.id, deps.now());
     return json({ ok: true });
+  }
+
+  if (path === '/api/library' || path.startsWith('/api/teams/') || path.startsWith('/api/plans/')) {
+    const user = await currentUser();
+    if (!user) return json({ error: 'signed out' }, 401);
+    const res = await handleLibrary(req, path, user.id, deps.store, deps.now());
+    if (res) return res;
   }
 
   return json({ error: 'not found' }, 404);

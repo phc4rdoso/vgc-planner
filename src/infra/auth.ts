@@ -21,7 +21,9 @@ const isJson = (res: Response): boolean => (res.headers.get('Content-Type') ?? '
 /** Who is signed in, and which sign-in options the server offers. */
 export async function loadAccount(): Promise<AccountState> {
   try {
-    const [providersRes, meRes] = await Promise.all([send('/api/auth/providers'), send('/api/me')]);
+    // Startup waits for this, so a slow or missing API must not hold the app for long.
+    const signal = AbortSignal.timeout(5000);
+    const [providersRes, meRes] = await Promise.all([send('/api/auth/providers', { signal }), send('/api/me', { signal })]);
     if (!providersRes.ok || !isJson(providersRes)) return { status: 'unavailable' };
     const { providers, dev } = (await providersRes.json()) as { providers: ProviderId[]; dev: boolean };
     const user = meRes.ok && isJson(meRes) ? ((await meRes.json()) as { user: Account | null }).user : null;

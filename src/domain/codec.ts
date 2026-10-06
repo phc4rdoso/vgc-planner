@@ -130,6 +130,17 @@ function readTeam(raw: unknown, path: string, keepIds: boolean, planKey: 'plans'
   };
 }
 
+/* ------------------------ single records (account API) ------------------------ */
+
+/** A team's own fields (its gameplans are stored separately), validated. */
+export function readTeamFields(raw: unknown): Pick<Team, 'name' | 'paste'> {
+  const o = asObj(raw, 'team');
+  return { name: asStr(o.name, 'team.name', LIMITS.nameLength) || 'Imported team', paste: asStr(o.paste, 'team.paste') };
+}
+
+/** One gameplan with its tabs and turns, validated and capped like an import; `id` and the turn/tab ids are kept. */
+export const readPlanRecord = (raw: unknown, id: string): Plan => readPlan({ ...asObj(raw, 'gameplan'), id }, 'gameplan', true, 'children');
+
 /* ---------------------------- stored library ---------------------------- */
 
 export interface StoredLibrary {

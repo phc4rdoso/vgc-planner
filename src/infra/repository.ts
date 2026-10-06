@@ -8,6 +8,8 @@ import type { Library } from '../domain/types.ts';
 export interface LibraryRepository {
   load(): Promise<Library>;
   save(library: Library): Promise<void>;
+  /** How long to wait after an edit before saving (default: `config.storage.saveDelayMs`). */
+  readonly saveDelayMs?: number;
 }
 
 export class RepositoryError extends Error {
