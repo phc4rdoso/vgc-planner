@@ -17,6 +17,8 @@ run_worker_first = ["/api/*"]
 [[d1_databases]]
 binding = "DB"
 database_name = "vgc-gameplans"
-# Placeholder for local development. Replace with the id printed by `npx wrangler d1 create vgc-gameplans`.
-database_id = "00000000-0000-0000-0000-000000000000"
+# The production database (created with `npx wrangler d1 create vgc-gameplans`).
+database_id = "e8b0ab5f-2f04-42fa-b57f-3932ac49b436"
+# Local development (`wrangler dev`, `--local` commands) keeps its own database under this id.
+preview_database_id = "00000000-0000-0000-0000-000000000000"
 migrations_dir = "server/migrations"
