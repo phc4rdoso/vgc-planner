@@ -8,6 +8,7 @@ import { requestRender } from '../bus.ts';
 import { esc, must } from '../dom.ts';
 import { itemIcon, monIcon } from '../icons.ts';
 import { toast } from '../overlays.ts';
+import { PASTE_LINK_HINT } from '../paste-links.ts';
 import { renderNav } from './sidebar.ts';
 
 function monCard(m: PokemonSet): string {
@@ -30,7 +31,7 @@ export function renderTeamView(main: HTMLElement, team: Team): void {
     <button class="btn danger" data-act="delete-team" data-team="${esc(team.id)}">Delete</button></div>
   <div class="page"><div class="page-inner">
     <div class="section"><div class="section-head"><h3>Team</h3><button class="btn primary sm" id="save-paste">Update team</button></div>
-      <textarea class="paste" id="team-paste" placeholder="Paste your team in Showdown format">${esc(team.paste)}</textarea>
+      <textarea class="paste" id="team-paste" data-team-paste placeholder="Paste your team in Showdown format, ${PASTE_LINK_HINT}">${esc(team.paste)}</textarea>
       ${warnings.map((w) => `<div class="warn">${esc(w)}</div>`).join('')}
       ${mons.length ? `<div class="mon-grid">${mons.map(monCard).join('')}</div>` : '<p class="hint mt-s">No Pokémon parsed yet.</p>'}
     </div>
