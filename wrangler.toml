@@ -3,6 +3,9 @@
 name = "vgc-gameplan-planner"
 main = "server/src/index.ts"
 compatibility_date = "2026-09-01"
+# Served at https://vgc-gameplan-planner.vgc-gameplan-planner.workers.dev. No extra public preview URL per version.
+workers_dev = true
+preview_urls = false
 
 [assets]
 directory = "./dist"
