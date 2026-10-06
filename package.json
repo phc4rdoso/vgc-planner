@@ -19,7 +19,8 @@
     "sprites": "bash scripts/fetch-sprites.sh",
     "check": "npm run typecheck && npm run lint && npm test",
     "dev:api": "wrangler dev --port 8787",
-    "db:migrate:local": "wrangler d1 migrations apply vgc-gameplans --local"
+    "db:migrate:local": "wrangler d1 migrations apply vgc-gameplans --local",
+    "avatars": "node scripts/fetch-portraits.mjs"
   },
   "dependencies": {
     "@smogon/calc": "^0.12.0"

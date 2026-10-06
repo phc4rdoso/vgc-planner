@@ -126,3 +126,13 @@ textarea.paste.short { min-height: 160px; }
 .shared-row .who { flex: 1; min-width: 0; display: grid; }
 .shared-row .nm { font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .shared-row .sub { font-size: 11.5px; color: var(--ink-3); }
+
+/* ---------- profile pictures (40 px pixel-art portraits) ---------- */
+.avatar-img { flex: none; width: 30px; height: 30px; border-radius: 50%; background: var(--me-soft); image-rendering: pixelated; object-fit: cover; }
+.avatar-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(76px, 1fr)); gap: 6px; max-height: 340px; overflow-y: auto; padding: 2px; }
+.avatar-tile { display: grid; justify-items: center; gap: 3px; padding: 6px 2px; border: 1.5px solid transparent; border-radius: 10px; background: var(--bg); font-size: 10.5px; color: var(--ink-2); }
+.avatar-tile[hidden] { display: none; }
+.avatar-tile:hover { border-color: var(--line); }
+.avatar-tile.on { border-color: var(--me); background: var(--me-soft); color: var(--me); font-weight: 600; }
+.avatar-tile img { width: 48px; height: 48px; border-radius: 50%; image-rendering: pixelated; }
+.avatar-tile span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

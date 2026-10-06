@@ -95,6 +95,8 @@ Accounts are optional: without the API the app works on this device only, and th
 
 **Share links.** **Share** (top bar of a gameplan, or its ⋯ menu) creates a read-only link, `<APP_URL>/?share=<token>`, with a 256-bit random token. It shows the gameplan as it is now (all tabs, plus its team's name and paste) and the owner's display name, never ids. Opening it signed in (not as the owner) offers to add a copy to your gameplans; signed out, you can save it on this device or sign in first (the link is remembered through sign-in). The copy gets new ids; it joins your team of the same name only if the paste matches, otherwise it gets its own team "Name (from Owner)". **Stop sharing**, or deleting the gameplan or its team, makes the link stop working.
 
+**Profile pictures.** Every account has one of 1,025 Pokémon portraits (`public/avatars/<Name>.png`, one per National Dex number). A random one is picked when the account is created and stored with it, so it's the same everywhere you sign in; **Change profile picture** in the account menu picks another (searchable by name or number). The server only accepts names from `src/domain/avatars.ts`. The portraits come from the [PMD Sprite Repository](https://github.com/PMDCollab/SpriteCollab) under **CC BY-NC 4.0** (non-commercial use, with credit): the artists are listed in `public/avatars/CREDITS.md`. `npm run avatars` downloads them again and regenerates the list and credits.
+
 **Limits per account:** 200 teams, 1,000 gameplans, 5 MB in total, 512 KB per request. Every upload is validated with the same rules as JSON imports (`src/domain/codec.ts`).
 
 **Run it locally**

@@ -10,10 +10,10 @@ export class MemoryStore implements Store {
   teams: Scoped<StoredTeam>[] = [];
   plans: Scoped<StoredPlan>[] = [];
 
-  async upsertUser(provider: User['provider'], providerId: string, name: string, now: number) {
+  async upsertUser(provider: User['provider'], providerId: string, name: string, now: number, avatar = 'Pikachu') {
     const found = this.users.find((u) => u.provider === provider && u.providerId === providerId);
     if (found) { found.name = name; return { user: { ...found }, created: false }; }
-    const user: User = { id: `u${this.users.length + 1}`, provider, providerId, name, createdAt: now, onboardedAt: null };
+    const user: User = { id: `u${this.users.length + 1}`, provider, providerId, name, createdAt: now, onboardedAt: null, avatar };
     this.users.push(user);
     return { user: { ...user }, created: true };
   }
@@ -24,6 +24,7 @@ export class MemoryStore implements Store {
     return user ? { ...user } : null;
   }
   async deleteSession(hash: string) { this.sessions.delete(hash); }
+  async setAvatar(userId: string, avatar: string) { const u = this.users.find((x) => x.id === userId); if (u) u.avatar = avatar; }
   async markOnboarded(userId: string, now: number) { const u = this.users.find((x) => x.id === userId); if (u) u.onboardedAt ??= now; }
 
   async loadLibrary(userId: string) {

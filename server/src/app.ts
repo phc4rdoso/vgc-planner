@@ -10,6 +10,7 @@
  * - Requests that change something must come from the app's own origin (checked on `Origin`), on top of SameSite.
  */
 
+import { AVATARS } from '../../src/domain/avatars.ts';
 import type { LibraryStore } from './library.ts';
 import { handleLibrary } from './library.ts';
 import type { ShareStore } from './shares.ts';
@@ -26,12 +27,16 @@ export interface User {
   name: string;
   createdAt: number;
   onboardedAt: number | null;
+  /** Profile picture: a name from AVATARS (null only for accounts made before profile pictures). */
+  avatar: string | null;
 }
 
 /** Persistence for users, sessions and libraries (D1 in production, in memory in tests). Times are epoch milliseconds. */
 export interface Store extends LibraryStore, ShareStore {
   /** Returns the user for this provider account, creating it on first sign-in. */
-  upsertUser(provider: User['provider'], providerId: string, name: string, now: number): Promise<{ user: User; created: boolean }>;
+  /** `avatar` is used only when the account is created. */
+  upsertUser(provider: User['provider'], providerId: string, name: string, now: number, avatar: string): Promise<{ user: User; created: boolean }>;
+  setAvatar(userId: string, avatar: string): Promise<void>;
   createSession(tokenHash: string, userId: string, expiresAt: number, now: number): Promise<void>;
   /** The session's user, or null when the session is unknown or expired. */
   sessionUser(tokenHash: string, now: number): Promise<User | null>;
@@ -151,7 +156,15 @@ function redirect(location: string, cookies: string[] = []): Response {
   return new Response(null, { status: 302, headers });
 }
 
-const publicUser = (u: User) => ({ id: u.id, name: u.name, provider: u.provider, onboarded: u.onboardedAt !== null });
+const publicUser = (u: User) => ({ id: u.id, name: u.name, provider: u.provider, onboarded: u.onboardedAt !== null, avatar: u.avatar });
+
+const ALLOWED_AVATARS: ReadonlySet<string> = new Set(AVATARS);
+
+/** A profile picture chosen at random, for a new account. */
+function randomAvatar(): string {
+  const [n] = crypto.getRandomValues(new Uint32Array(1));
+  return AVATARS[n! % AVATARS.length]!;
+}
 
 /* -------------------------------- routes -------------------------------- */
 
@@ -228,7 +241,7 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
       if (!profileRes.ok) return back('error');
       const profile = spec.profile((await profileRes.json()) as Record<string, unknown>);
       if (!profile) return back('error');
-      const { user } = await deps.store.upsertUser(id, profile.id, cleanName(profile.name), deps.now());
+      const { user } = await deps.store.upsertUser(id, profile.id, cleanName(profile.name), deps.now(), randomAvatar());
       return redirect(`${app.origin}/`, [clearState, await startSession(user)]);
     } catch {
       return back('error');
@@ -239,7 +252,7 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
     if (!deps.config.devLogin) return json({ error: 'not found' }, 404);
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const name = cleanName(str(body.name));
-    const { user } = await deps.store.upsertUser('dev', name.toLowerCase(), name, deps.now());
+    const { user } = await deps.store.upsertUser('dev', name.toLowerCase(), name, deps.now(), randomAvatar());
     return json({ user: publicUser(user) }, 200, { 'Set-Cookie': await startSession(user) });
   }
 
@@ -252,7 +265,23 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
   if (req.method === 'GET' && path === '/api/me') {
     // Being signed out is a normal answer here (not a 401), so a visitor's first page load logs no errors.
     const user = await currentUser();
-    return json({ user: user ? publicUser(user) : null });
+    if (!user) return json({ user: null });
+    // Accounts from before profile pictures get theirs now; it is stored, so it stays the same from then on.
+    if (!user.avatar || !ALLOWED_AVATARS.has(user.avatar)) {
+      user.avatar = randomAvatar();
+      await deps.store.setAvatar(user.id, user.avatar);
+    }
+    return json({ user: publicUser(user) });
+  }
+
+  if (req.method === 'POST' && path === '/api/me/avatar') {
+    const user = await currentUser();
+    if (!user) return json({ error: 'signed out' }, 401);
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    const avatar = str(body.avatar);
+    if (!ALLOWED_AVATARS.has(avatar)) return json({ error: 'Pick one of the available profile pictures.' }, 400);
+    await deps.store.setAvatar(user.id, avatar);
+    return json({ user: publicUser({ ...user, avatar }) });
   }
 
   if (req.method === 'POST' && path === '/api/me/onboarded') {

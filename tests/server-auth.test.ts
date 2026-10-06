@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import type { ApiConfig, ApiDeps } from '../server/src/app.ts';
 import { handleApi } from '../server/src/app.ts';
 import { MemoryStore } from './helpers/memory-store.ts';
+import { AVATARS } from '../src/domain/avatars.ts';
 
 const APP = 'https://gameplans.example';
 
@@ -78,8 +79,10 @@ test('a first sign-in creates the account and a session; the welcome tour is pen
   assert.ok(!s.store.sessions.has(sid), 'only a hash of the token is stored');
   assert.match(s.calls.find((c) => c.url.includes('/token'))?.body ?? '', /client_secret=shh/);
 
-  const me = await (await s.call('/api/me', { cookie: `sid=${sid}` })).json() as { user: { name: string; onboarded: boolean } };
-  assert.deepEqual(me.user, { id: 'u1', name: 'Ash Ketchum', provider: 'discord', onboarded: false }, 'control characters are stripped from names');
+  const me = await (await s.call('/api/me', { cookie: `sid=${sid}` })).json() as { user: { name: string; onboarded: boolean; avatar: string } };
+  const { avatar, ...rest } = me.user;
+  assert.deepEqual(rest, { id: 'u1', name: 'Ash Ketchum', provider: 'discord', onboarded: false }, 'control characters are stripped from names');
+  assert.ok(AVATARS.includes(avatar), 'a profile picture from the allowed list');
 
   assert.equal((await s.call('/api/me/onboarded', { method: 'POST', cookie: `sid=${sid}`, headers: { Origin: APP } })).status, 200);
   const again = await (await s.call('/api/me', { cookie: `sid=${sid}` })).json() as { user: { onboarded: boolean } };

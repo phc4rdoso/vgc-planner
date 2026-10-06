@@ -8,6 +8,7 @@ import type { AppStore } from '../state/store.ts';
 import { requestRender } from './bus.ts';
 import { esc, must, qs } from './dom.ts';
 import { modal, openMenu, toast } from './overlays.ts';
+import { avatarUrl, openAvatarPicker } from './avatar-picker.ts';
 import { openSharedLink, openSharedLinks, refreshShares } from './share.ts';
 import { showWelcome } from './welcome.ts';
 
@@ -25,7 +26,9 @@ export function renderAccount(): void {
   host.hidden = false;
   host.innerHTML = state.status === 'signed-in'
     ? `<button class="account-btn" data-act="account-menu" aria-label="Account: ${esc(state.account.name)}">
-        <span class="avatar" aria-hidden="true">${esc(initials(state.account.name))}</span>
+        ${state.account.avatar
+          ? `<img class="avatar-img" src="${avatarUrl(state.account.avatar)}" alt="" width="30" height="30">`
+          : `<span class="avatar" aria-hidden="true">${esc(initials(state.account.name))}</span>`}
         <span class="who"><span class="nm">${esc(state.account.name)}</span><span class="via" title="${esc(state.account.provider === 'dev' ? 'Local test account' : `Signed in with ${PROVIDER_LABEL[state.account.provider]}`)}" id="save-state">${esc(SAVE_LABEL[store.saveState])}</span></span>
         <span class="more" aria-hidden="true">⋯</span></button>`
     : '<button class="btn block" data-act="sign-in">Sign in</button>';
@@ -140,6 +143,7 @@ async function leaveAccount(): Promise<void> {
 export function accountMenu(anchor: HTMLElement): void {
   const count = session.shared.size;
   openMenu(anchor, [
+    { label: 'Change profile picture', run: () => void openAvatarPicker(renderAccount) },
     { label: count ? `Shared links (${count})` : 'Shared links', run: () => void openSharedLinks() },
     '-',
     { label: 'Sign out', run: () => void leaveAccount() },

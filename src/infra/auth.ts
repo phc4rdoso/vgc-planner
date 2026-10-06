@@ -6,7 +6,8 @@
 
 export type ProviderId = 'discord' | 'google';
 
-export interface Account { id: string; name: string; provider: ProviderId | 'dev'; onboarded: boolean }
+/** `avatar`: the profile picture, a name from AVATARS (file public/avatars/<avatar>.png). */
+export interface Account { id: string; name: string; provider: ProviderId | 'dev'; onboarded: boolean; avatar: string | null }
 
 export type AccountState =
   | { status: 'unavailable' }
@@ -46,6 +47,14 @@ export async function devSignIn(name: string): Promise<boolean> {
 
 export async function signOut(): Promise<void> {
   await send('/api/auth/logout', { method: 'POST', body: '{}' });
+}
+
+/** Changes the profile picture to one of AVATARS. Returns the updated account. */
+export async function setAvatar(avatar: string): Promise<Account> {
+  const res = await send('/api/me/avatar', { method: 'POST', body: JSON.stringify({ avatar }) });
+  const body = (await res.json().catch(() => ({}))) as { user?: Account; error?: string };
+  if (!res.ok || !body.user) throw new Error(body.error ?? 'Couldn’t change the profile picture. Try again.');
+  return body.user;
 }
 
 /** Remembers on the account that the welcome tour was seen, so it shows only after the first sign-in. */

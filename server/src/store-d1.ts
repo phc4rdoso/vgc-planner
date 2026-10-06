@@ -2,10 +2,10 @@ import type { Store, User } from './app.ts';
 import type { PutResult, StoredPlan, StoredTeam } from './library.ts';
 import type { SharedRecord } from './shares.ts';
 
-interface UserRow { id: string; provider: User['provider']; provider_id: string; name: string; created_at: number; onboarded_at: number | null }
+interface UserRow { id: string; provider: User['provider']; provider_id: string; name: string; created_at: number; onboarded_at: number | null; avatar: string | null }
 
 const toUser = (r: UserRow): User => ({
-  id: r.id, provider: r.provider, providerId: r.provider_id, name: r.name, createdAt: r.created_at, onboardedAt: r.onboarded_at,
+  id: r.id, provider: r.provider, providerId: r.provider_id, name: r.name, createdAt: r.created_at, onboardedAt: r.onboarded_at, avatar: r.avatar ?? null,
 });
 
 /** {@link Store} on Cloudflare D1 (SQLite). Every query is parameterised. */
@@ -14,10 +14,10 @@ export class D1Store implements Store {
 
   constructor(db: D1Database) { this.db = db; }
 
-  async upsertUser(provider: User['provider'], providerId: string, name: string, now: number): Promise<{ user: User; created: boolean }> {
+  async upsertUser(provider: User['provider'], providerId: string, name: string, now: number, avatar: string): Promise<{ user: User; created: boolean }> {
     const inserted = await this.db
-      .prepare('INSERT INTO users (id, provider, provider_id, name, created_at) VALUES (?, ?, ?, ?, ?) ON CONFLICT (provider, provider_id) DO NOTHING')
-      .bind(crypto.randomUUID(), provider, providerId, name, now)
+      .prepare('INSERT INTO users (id, provider, provider_id, name, created_at, avatar) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (provider, provider_id) DO NOTHING')
+      .bind(crypto.randomUUID(), provider, providerId, name, now, avatar)
       .run();
     const created = (inserted.meta.changes ?? 0) > 0;
     // Returning users keep their account; their display name follows the provider.
@@ -44,6 +44,10 @@ export class D1Store implements Store {
 
   async deleteSession(tokenHash: string): Promise<void> {
     await this.db.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(tokenHash).run();
+  }
+
+  async setAvatar(userId: string, avatar: string): Promise<void> {
+    await this.db.prepare('UPDATE users SET avatar = ? WHERE id = ?').bind(avatar, userId).run();
   }
 
   async markOnboarded(userId: string, now: number): Promise<void> {
