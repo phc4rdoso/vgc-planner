@@ -1,6 +1,8 @@
-import { esc, must } from './dom.ts';
+import { applyDynamicStyles, esc, must } from './dom.ts';
+import { PREVIEWS } from './welcome-previews.ts';
 
-interface Step { title: string; text: string; icon: string }
+/** `preview`: a small picture of that part of the app (see welcome-previews.ts). */
+interface Step { title: string; text: string; icon: string; preview: string }
 
 const svg = (path: string): string =>
   `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
@@ -14,12 +16,24 @@ const ICONS = {
 } as const;
 
 const steps = (name: string): Step[] => [
-  { icon: ICONS.hello, title: `Welcome, ${name}!`, text: 'Plan every VGC matchup as a flowchart of turns, with damage calculated for Pokémon Champions. Here’s a quick look around.' },
-  { icon: ICONS.team, title: 'Start with your team', text: 'Press New team and paste your team in Showdown format. Each team becomes a folder in the sidebar.' },
-  { icon: ICONS.tabs, title: 'One gameplan per opponent', text: 'Inside a team, create a gameplan for each opponent you expect. Tabs at the bottom hold different leads and backs for the same matchup.' },
-  { icon: ICONS.turns, title: 'Build turns and branches', text: 'Pick both sides’ leads and backs, then add turns with +. Click a turn to choose each Pokémon’s move; add sibling turns to plan for different opponent plays.' },
-  { icon: ICONS.results, title: 'Read the results', text: 'Each card shows who’s left after the turn. Open the log with ⌄ for damage rolls, KOs and stat changes. Export JSON to back up or share a plan.' },
+  { icon: ICONS.hello, preview: PREVIEWS.hello, title: `Welcome, ${name}!`, text: 'Plan every VGC matchup as a flowchart of turns, with damage calculated for Pokémon Champions. Here’s a quick look around.' },
+  { icon: ICONS.team, preview: PREVIEWS.team, title: 'Start with your team', text: 'Press New team and paste your team in Showdown format. Each team becomes a folder in the sidebar.' },
+  { icon: ICONS.tabs, preview: PREVIEWS.tabs, title: 'One gameplan per opponent', text: 'Inside a team, create a gameplan for each opponent you expect. Tabs at the bottom hold different leads and backs for the same matchup.' },
+  { icon: ICONS.turns, preview: PREVIEWS.turns, title: 'Build turns and branches', text: 'Pick both sides’ leads and backs, then add turns with +. Click a turn to choose each Pokémon’s move; add sibling turns to plan for different opponent plays.' },
+  { icon: ICONS.results, preview: PREVIEWS.results, title: 'Read the results', text: 'Each card shows who’s left after the turn. Open its log with the arrow at the top right for damage rolls, KOs and stat changes. Export JSON to back up or share a plan.' },
 ];
+
+/** Scales the step's picture so it fits its frame whatever its content (never above 85% of real size). */
+function fitPreview(root: HTMLElement): void {
+  const frame = root.querySelector<HTMLElement>('.welcome-preview');
+  const stage = root.querySelector<HTMLElement>('.pv-stage');
+  if (!frame || !stage) return;
+  stage.style.zoom = '1';
+  const { width, height } = stage.getBoundingClientRect();
+  if (!width || !height) return;
+  const scale = Math.min(0.85, (frame.clientWidth - 16) / width, (frame.clientHeight - 16) / height);
+  stage.style.zoom = String(Math.max(0.4, Math.round(scale * 100) / 100));
+}
 
 /**
  * The first-sign-in welcome: a small centered box that walks through the main features. Resolves when it is
@@ -54,8 +68,8 @@ export function showWelcome(name: string): Promise<void> {
       const step = list[index]!;
       const last = index === list.length - 1;
       overlay.innerHTML = `<div class="modal welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-title" aria-describedby="welcome-text">
-        <div class="welcome-icon">${step.icon}</div>
-        <h2 id="welcome-title">${esc(step.title)}</h2>
+        <div class="welcome-preview" aria-hidden="true" inert><div class="pv-stage">${step.preview}</div></div>
+        <h2 id="welcome-title"><span class="welcome-icon">${step.icon}</span>${esc(step.title)}</h2>
         <p id="welcome-text">${esc(step.text)}</p>
         <div class="welcome-dots" aria-label="Step ${index + 1} of ${list.length}">${list.map((_, i) => `<span class="${i === index ? 'on' : ''}"></span>`).join('')}</div>
         <div class="modal-foot">
@@ -63,6 +77,8 @@ export function showWelcome(name: string): Promise<void> {
           ${index > 0 ? '<button class="btn" data-step="back">Back</button>' : ''}
           <button class="btn primary" data-step="next">${index === 0 ? 'Show me around' : last ? 'Get started' : 'Next'}</button>
         </div></div>`;
+      applyDynamicStyles(overlay);
+      fitPreview(overlay);
       must<HTMLButtonElement>('[data-step="next"]', overlay).focus();
     };
 

@@ -83,11 +83,30 @@ textarea.paste.short { min-height: 160px; }
 .dev-sign-in { margin-top: 6px; padding-top: 12px; border-top: 1px dashed var(--line); display: grid; gap: 6px; }
 
 /* ---------- first sign-in welcome tour ---------- */
-.modal.welcome { width: 420px; padding: 28px 24px 4px; text-align: center; align-items: center; }
-.welcome-icon { width: 52px; height: 52px; border-radius: 14px; background: var(--me-soft); color: var(--me); display: inline-flex; align-items: center; justify-content: center; margin-bottom: 14px; }
-.modal.welcome h2 { margin: 0 0 8px; font-size: 18px; }
-.modal.welcome p { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.55; max-width: 340px; }
-.welcome-dots { display: flex; gap: 6px; margin: 18px 0 6px; }
+.modal.welcome { width: 500px; padding: 20px 22px 4px; text-align: center; align-items: center; }
+.modal.welcome h2 { margin: 16px 0 8px; font-size: 18px; display: inline-flex; align-items: center; gap: 8px; }
+.welcome-icon { width: 30px; height: 30px; border-radius: 9px; background: var(--me-soft); color: var(--me); display: inline-flex; align-items: center; justify-content: center; flex: none; }
+.welcome-icon svg { width: 18px; height: 18px; }
+.modal.welcome p { margin: 0; color: var(--ink-2); font-size: 14px; line-height: 1.55; max-width: 400px; }
+.welcome-dots { display: flex; gap: 6px; margin: 16px 0 6px; }
 .welcome-dots span { width: 7px; height: 7px; border-radius: 50%; background: var(--line); }
 .welcome-dots span.on { background: var(--me); width: 18px; border-radius: 4px; }
 .modal.welcome .modal-foot { width: 100%; padding: 12px 0 18px; align-items: center; }
+
+/* The step's picture: real app components on the canvas background, scaled down and inert. */
+.welcome-preview { width: 100%; height: 200px; border-radius: 12px; border: 1px solid var(--line-soft); overflow: hidden; display: flex; align-items: center; justify-content: center; pointer-events: none; user-select: none;
+  background: radial-gradient(circle, var(--line) 1px, transparent 1px) 0 0 / 18px 18px, var(--bg); }
+/* Scaled to fit by welcome.ts (fitPreview); this zoom is only the starting point. */
+/* welcome.ts (fitPreview) scales each picture to fit its frame; this zoom is only the starting point. */
+.pv-stage { zoom: .72; text-align: left; padding: 12px; }
+.pv-row { display: flex; align-items: center; gap: 14px; }
+.pv-row.pv-top { align-items: flex-start; }
+.pv-col { display: grid; gap: 10px; justify-items: center; }
+.pv-vs { font-weight: 700; color: var(--ink-3); }
+.welcome-preview .box { width: 290px; }
+.welcome-preview .turn { width: 300px; cursor: default; }
+.welcome-preview .turn.open { width: 360px; }
+.welcome-preview .turn.pv-alt { opacity: .7; }
+.pv-side { width: 210px; background: var(--panel); border: 1.5px solid var(--line); border-radius: var(--radius); padding: 8px; font-size: 14px; }
+.pv-tabs { width: 300px; border: 1.5px solid var(--line); border-radius: 10px; }
+.pv-tabs .tab-add { font-size: 18px; font-weight: 600; }
