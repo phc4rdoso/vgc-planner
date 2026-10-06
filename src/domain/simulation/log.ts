@@ -19,6 +19,8 @@ export interface HitResult {
   /** Condition inflicted by the hit (e.g. Nuzzle), and the berry that cured it straight away. */
   status?: StatusId;
   cured?: string;
+  /** Focus Sash or Sturdy left it at 1 HP (on at least the highest roll). */
+  endured?: string;
 }
 
 export interface DebuffTarget { side: Side; mon: string; protected?: boolean; blocked?: string; changes?: StatChange[] }
@@ -32,8 +34,10 @@ export type LogEntry =
   | { type: 'boost'; side: Side; mon: string; move: string; changes: StatChange[] }
   | { type: 'debuff'; side: Side; mon: string; move: string; targets: DebuffTarget[] }
   | { type: 'status'; side: Side; mon: string; move: string; targets: StatusTarget[] }
-  /** End-of-turn HP change from a condition; `pct` is negative for damage. */
+  /** HP change outside the damage roll (recoil, Life Orb, berries, weather, poison, Leftovers...); `pct` is negative for damage. */
   | { type: 'residual'; side: Side; mon: string; text: string; pct: number; fainted: boolean }
+  /** An item or ability doing something with no HP or stat change of its own (an item knocked off, Unburden...). */
+  | { type: 'effect'; side: Side; mon: string; source: string; text: string }
   | { type: 'cure'; side: Side; mon: string; text: string }
   /** `replace`: a fainted Pokémon is replaced before the turn starts. `via`: the status move that switched it out (Teleport, Baton Pass...). */
   | { type: 'switch'; side: Side; mon: string; in: string; replace?: true; via?: string }
@@ -59,6 +63,8 @@ export interface EndMon {
   mayLive: boolean;
   boosts: { stat: BoostKey; delta: number }[];
   condition: StatusId | null;
+  /** The item from the paste, when it has been used up or removed. */
+  lostItem?: string;
 }
 
 /** `field` is the field during the turn (before the end-of-turn countdown), so it includes what was set up this turn. */

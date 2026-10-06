@@ -4,8 +4,9 @@ import { toID } from '../strings.ts';
 import type { BoostKey, BoostTable, PlanTab, PokemonSet, Side, StatTable, TurnAction } from '../types.ts';
 import { SIDES } from '../types.ts';
 import type { CalcEngine } from './engine.ts';
-import type { LogEntry, StatChange } from './log.ts';
-import { ENTRY_TERRAIN, ENTRY_WEATHER, INTIMIDATE_IMMUNE, type ScreenKey, type StatusId } from './tables.ts';
+import { Effects } from './effects.ts';
+import type { LogEntry } from './log.ts';
+import type { ScreenKey, StatusId } from './tables.ts';
 
 export interface MonState {
   /** Name from the paste; the stable key used by plans and actions. */
@@ -36,6 +37,15 @@ export interface MonState {
   toxic: number;
   /** Turns spent asleep so far. */
   slept: number;
+  /**
+   * The item it holds now ('' once eaten, used up, knocked off or stolen). It stays that way after switching out:
+   * items don't come back during a battle. `set.item` keeps what the paste says.
+   */
+  item: string;
+  /** Unburden is active: it lost its item while on the field (Speed doubles until it switches out). */
+  unburden: boolean;
+  /** Once-per-battle entry abilities (Intrepid Sword, Dauntless Shield) have triggered. */
+  entryBoosted: boolean;
 }
 
 export interface FieldState {
@@ -50,7 +60,12 @@ export interface FieldState {
 
 /** Things that only matter within one turn. */
 export interface TurnScratch {
-  protect: Record<string, boolean>;
+  /** The Protect variant each Pokémon used this turn, by {@link monKey}. */
+  protect: Record<string, string>;
+  /** Follow Me / Rage Powder in effect on each side this turn. */
+  redirect: Record<Side, { name: string; powder: boolean } | null>;
+  /** Pokémon that came in during this turn (Speed Boost skips them). */
+  entered: Record<string, boolean>;
   wide: Record<Side, boolean>;
   quick: Record<Side, boolean>;
   helped: Record<string, boolean>;
@@ -103,7 +118,9 @@ export function fieldEffects(f: FieldState): FieldEffect[] {
   return out;
 }
 
-export const newScratch = (): TurnScratch => ({ protect: {}, wide: { me: false, opp: false }, quick: { me: false, opp: false }, helped: {}, flinched: {} });
+export const newScratch = (): TurnScratch => ({
+  protect: {}, redirect: { me: null, opp: null }, entered: {}, wide: { me: false, opp: false }, quick: { me: false, opp: false }, helped: {}, flinched: {},
+});
 
 /** Mon that must have stats; throws a plain Error (shown as a calculator problem) otherwise. */
 export function statsOf(mon: MonState): StatTable {
@@ -214,43 +231,12 @@ export function outcomeOf(st: BattleState): Outcome | null {
 
 export function effSpeed(st: BattleState, side: Side, mon: MonState): number {
   let speed = Math.floor(statsOf(mon).spe * boostMult(mon.boosts.spe));
-  if (toID(mon.set.item) === 'choicescarf') speed = Math.floor(speed * 1.5);
+  if (toID(mon.item) === 'choicescarf') speed = Math.floor(speed * 1.5);
+  if (mon.unburden && !mon.item) speed *= 2;
   if (mon.status && toID(mon.ability) === 'quickfeet') speed = Math.floor(speed * 1.5);
   else if (mon.status === 'par') speed = Math.floor(speed / 2);
   if (st.field.tailwind[side] > 0) speed *= 2;
   return speed;
-}
-
-/** Weather/terrain abilities and Intimidate when a Pokémon enters the field. */
-export function enterMon(st: BattleState, side: Side, name: string, log: LogEntry[]): void {
-  const mon = st.mons[side][name];
-  if (!mon) return;
-  const ability = toID(mon.ability);
-  const f = st.field;
-  const weather = ENTRY_WEATHER[ability];
-  if (weather) {
-    f.weather = weather; f.wTurns = 5;
-    log.push({ type: 'field', side, mon: name, move: mon.ability, text: `${weather} for 5 turns` });
-  }
-  const terrain = ENTRY_TERRAIN[ability];
-  if (terrain) {
-    f.terrain = terrain; f.tTurns = 5;
-    log.push({ type: 'field', side, mon: name, move: mon.ability, text: `${terrain} Terrain for 5 turns` });
-  }
-  if (ability !== 'intimidate') return;
-  const foe = otherSide(side);
-  for (const foeName of aliveActive(st, foe)) {
-    const target = st.mons[foe][foeName]!;
-    const targetAbility = toID(target.ability);
-    if (INTIMIDATE_IMMUNE.includes(targetAbility)) {
-      log.push({ type: 'boost', side: foe, mon: foeName, move: `Intimidate (${target.ability})`, changes: [] });
-      continue;
-    }
-    const changes: StatChange[] = [{ stat: 'atk', delta: applyBoost(target, 'atk', targetAbility === 'contrary' || targetAbility === 'guarddog' ? 1 : -1) }];
-    if (targetAbility === 'defiant') changes[0]!.delta += applyBoost(target, 'atk', 2);
-    if (targetAbility === 'competitive') changes.push({ stat: 'spa', delta: applyBoost(target, 'spa', 2) });
-    log.push({ type: 'boost', side: foe, mon: foeName, move: `${mon.name}'s Intimidate`, changes });
-  }
 }
 
 export interface InitialState { st: BattleState; entry: LogEntry[] }
@@ -273,7 +259,7 @@ export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection'>, 
         mega: false, megaForm,
         megaAbility: megaForm ? (pastedMega && set.ability ? set.ability : engine.defaultAbility(megaForm)) : '',
         sp: (statPoints(set) ?? { sp: emptyStatTable() }).sp, stats: null, boosts: zeroBoosts(), hp: 0, hpLo: 0, hpHi: 0, fainted: false,
-        status: null, toxic: 0, slept: 0,
+        status: null, toxic: 0, slept: 0, item: set.item, unburden: false, entryBoosted: false,
       };
       refreshStats(engine, mon);
       st.mons[side][set.species] = mon;
@@ -296,7 +282,8 @@ export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection'>, 
       if (mon.stats) leads.push({ side, name, speed: effSpeed(st, side, mon) });
     }
   }
-  leads.sort((a, b) => b.speed - a.speed).forEach((l) => enterMon(st, l.side, l.name, entry));
+  const fx = new Effects(engine, st, entry);
+  leads.sort((a, b) => b.speed - a.speed).forEach((l) => fx.enter(l.side, l.name));
   return { st, entry };
 }
 

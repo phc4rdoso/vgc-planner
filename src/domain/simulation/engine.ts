@@ -14,7 +14,20 @@ export interface MoveInfo {
   type: string;
   /** Showdown target type: "normal", "allAdjacent", "allAdjacentFoes", "self", ... */
   target: string;
+  /** Makes contact (Rough Skin, Rocky Helmet, Spiky Shield). */
+  contact: boolean;
+  /** Hits more than once (Focus Sash and Sturdy don't hold against it). */
+  multihit: boolean;
+  /** Has secondary effects (Sheer Force removes them, and with them Life Orb's recoil). */
+  secondaries: boolean;
 }
+
+/**
+ * One attack worked out by the calculator from both Pokémon's current state (HP, item, ability, boosts, status).
+ * `attackerItem` / `defenderItem` name a held item that took part (Life Orb, a Gem, a resist berry...);
+ * `recoil` and `drain` are the user's HP lost / regained on the average roll, before anything caps the damage.
+ */
+export interface HitCalc { rolls: number[]; attackerItem: string; defenderItem: string; recoil: number; drain: number }
 
 /** What the simulator needs from the damage calculator. */
 export interface CalcEngine {
@@ -27,8 +40,9 @@ export interface CalcEngine {
   defaultAbility(species: string): string;
   moveInfo(name: string): MoveInfo;
   megaOf(species: string, item: string): string | null;
-  /** The 16 damage rolls (summed across hits for multi-hit moves). */
-  damage(attacker: MonState, defender: MonState, moveName: string, field: FieldOptions): number[];
+  isBerry(item: string): boolean;
+  /** The 16 damage rolls (summed across hits for multi-hit moves), plus the side effects the calculator knows. */
+  damage(attacker: MonState, defender: MonState, moveName: string, field: FieldOptions): HitCalc;
 }
 
 /** Calculator results can be a number, a list of rolls, or a list of lists (multi-hit). Normalises to one list of rolls. */
@@ -72,7 +86,8 @@ export function createEngine(lib: CalcLib): CalcEngine {
   const typeCache = new Map<string, string[]>();
   const buildPoke = (mon: MonState): InstanceType<CalcLib['Pokemon']> => {
     const options: Record<string, unknown> = { level: 50, nature: mon.set.nature || 'Serious', evs: { ...mon.sp }, boosts: { ...mon.boosts } };
-    if (mon.set.item) options.item = mon.set.item;
+    // The item it holds now: consumed or removed items no longer count.
+    if (mon.item) options.item = mon.item;
     // The calculator applies burn's Attack cut (and Guts / Facade) from the status.
     if (mon.status) options.status = mon.status;
     // The current form's ability: the base form's until Mega Evolution, then the Mega's.
@@ -108,11 +123,16 @@ export function createEngine(lib: CalcLib): CalcEngine {
     },
     moveInfo(name) {
       try {
-        const known = generation.moves ? generation.moves.get(toID(name)) !== undefined : true;
+        const data = generation.moves?.get(toID(name)) as { multihit?: unknown } | undefined;
+        const known = generation.moves ? data !== undefined : true;
         const m = new lib.Move(generation, name);
-        return { exists: known, name: m.name || name, priority: m.priority ?? 0, category: m.category ?? 'Status', type: m.type ?? '', target: m.target ?? 'normal' };
+        return {
+          exists: known, name: m.name || name, priority: m.priority ?? 0, category: m.category ?? 'Status', type: m.type ?? '', target: m.target ?? 'normal',
+          contact: !!m.flags?.contact, multihit: (m.hits ?? 1) > 1 || data?.multihit !== undefined,
+          secondaries: Array.isArray(m.secondaries) ? m.secondaries.length > 0 : !!m.secondaries,
+        };
       } catch {
-        return { exists: false, name, priority: 0, category: 'Status', type: '', target: 'normal' };
+        return { exists: false, name, priority: 0, category: 'Status', type: '', target: 'normal', contact: false, multihit: false, secondaries: false };
       }
     },
     megaOf(species, item) {
@@ -122,9 +142,25 @@ export function createEngine(lib: CalcLib): CalcEngine {
         return typeof stone === 'string' ? stone : (stone[species] ?? null);
       } catch { return null; }
     },
+    isBerry(item) {
+      if (!item) return false;
+      try { return generation.items?.get(toID(item))?.isBerry ?? / Berry$/.test(item); }
+      catch { return / Berry$/.test(item); }
+    },
     damage(attacker, defender, moveName, field) {
       const result = lib.calculate(generation, buildPoke(attacker), buildPoke(defender), new lib.Move(generation, moveName), new lib.Field(field));
-      return rollsOf(result.damage);
+      const rolls = rollsOf(result.damage);
+      const average = (xs: readonly number[]): number => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
+      const attackerMax = statsOf(attacker).hp;
+      let recoil = 0;
+      let drain = 0;
+      try {
+        const r = result.recoil?.('%').recoil ?? 0;
+        recoil = Math.round((average(typeof r === 'number' ? [r] : r) * attackerMax) / 100);
+      } catch { /* no recoil information */ }
+      try { drain = Math.round(average(result.recovery?.('%').recovery ?? [])); }
+      catch { /* no recovery information */ }
+      return { rolls, attackerItem: result.rawDesc?.attackerItem ?? '', defenderItem: result.rawDesc?.defenderItem ?? '', recoil, drain };
     },
   };
 }

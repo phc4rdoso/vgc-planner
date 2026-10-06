@@ -16,9 +16,15 @@ export interface CalcPokemon {
   ability?: string;
 }
 
-export interface CalcMove { name?: string; type?: string; priority?: number; category?: string; target?: string }
+export interface CalcMove {
+  name?: string; type?: string; priority?: number; category?: string; target?: string;
+  flags?: { contact?: number };
+  /** Number of hits the calculator applies (more than 1 for multi-hit moves). */
+  hits?: number;
+  secondaries?: unknown;
+}
 
-export interface CalcItem { megaStone?: string | Record<string, string> }
+export interface CalcItem { megaStone?: string | Record<string, string>; isBerry?: boolean }
 
 export interface CalcGeneration {
   num?: number;
@@ -42,12 +48,20 @@ export interface FieldOptions {
   defenderSide: SideOptions;
 }
 
+/** A damage result: the rolls, which held items took part, and the user's recoil (% of its max HP) and recovery (HP). */
+export interface CalcResult {
+  damage: unknown;
+  rawDesc?: { attackerItem?: string; defenderItem?: string };
+  recoil?(notation?: string): { recoil: number | number[] };
+  recovery?(notation?: string): { recovery: number[] };
+}
+
 export interface CalcLib {
   Generations?: { get(num: number): CalcGeneration };
   Pokemon: new (gen: CalcGeneration, name: string, options?: Record<string, unknown>) => CalcPokemon;
   Move: new (gen: CalcGeneration, name: string) => CalcMove;
   Field: new (options?: FieldOptions) => object;
-  calculate(gen: CalcGeneration, attacker: CalcPokemon, defender: CalcPokemon, move: CalcMove, field: object): { damage: unknown };
+  calculate(gen: CalcGeneration, attacker: CalcPokemon, defender: CalcPokemon, move: CalcMove, field: object): CalcResult;
 }
 
 /** Loads the calculator on demand. The browser build uses a dynamic import so it stays out of the main bundle. */

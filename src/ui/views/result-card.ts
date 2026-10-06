@@ -44,7 +44,8 @@ function hitText(r: HitResult, n: Names): string {
   const ko = r.koChance ? ` <span class="ko-tag">${r.koChance === 100 ? 'KO' : `${r.koChance}% KO`}</span>` : '';
   const changes = r.changes?.length ? ` ${statChips(r.changes)}` : '';
   const status = r.status ? ` ${inflictedText(r.status, r.cured)}` : '';
-  return `<span class="dmg">${range}</span>${ko}${changes}${status}`;
+  const endured = r.endured ? ` <span class="muted">holds on with ${esc(r.endured)}</span>` : '';
+  return `<span class="dmg">${range}</span>${ko}${endured}${changes}${status}`;
 }
 
 function statusTargetText(t: StatusTarget, n: Names): string {
@@ -81,6 +82,7 @@ function logRow(e: LogEntry, n: Names): string {
     case 'switch':
       body = `${e.via ? `<b>${esc(e.via)}</b> ` : ''}${e.replace ? 'fainted, replaced by' : 'switches to'} ${icon(e.side, e.in)} <b>${name(e.side, e.in)}</b>`;
       break;
+    case 'effect': body = `<b>${esc(n.text(e.source))}</b> <span class="muted">${esc(n.text(e.text))}</span>`; break;
     case 'protect':
     case 'field': body = `<b>${esc(n.text(e.move))}</b> <span class="muted">${esc(n.text(e.text))}</span>`; break;
     case 'mega': body = `Mega Evolves into <b>${esc(e.species)}</b>`; break;
@@ -96,7 +98,8 @@ function hpRow(x: EndMon): string {
   const tip = x.fainted
     ? (x.mayLive ? `Faints on the average roll; could survive a low one (${x.lo}–${x.hi}%)` : 'Faints')
     : `${x.lo}–${x.hi}% depending on rolls`;
-  return `<div class="hp-row ${x.fainted ? 'ko' : ''}" title="${esc(tip)}">${monIcon(x.species, 'xs')}<span class="hp-name">${esc(x.species)}</span>${statusChip(x.condition)}
+  const lost = x.lostItem ? `<s class="muted lost-item" title="${esc(`${x.lostItem}: used up or removed`)}">${esc(x.lostItem)}</s>` : '';
+  return `<div class="hp-row ${x.fainted ? 'ko' : ''}" title="${esc(tip)}">${monIcon(x.species, 'xs')}<span class="hp-name">${esc(x.species)}</span>${statusChip(x.condition)}${lost}
     <span class="hp-bar"><i class="${tone}" data-w="${x.pct}"></i></span>
     <span class="hp-pct">${x.fainted ? 'KO' : `${x.pct}%`}</span>${range}${x.mayFaint ? '<span class="ko-tag">may KO</span>' : ''}
     ${statChips(x.boosts)}</div>`;
