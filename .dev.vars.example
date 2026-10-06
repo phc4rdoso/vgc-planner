@@ -8,5 +8,8 @@ DISCORD_CLIENT_SECRET=
 GOOGLE_CLIENT_ID=
 GOOGLE_CLIENT_SECRET=
 
+# Where the app runs locally (Vite dev server); the Worker builds OAuth redirect URIs from it.
+APP_URL=http://localhost:5173
+
 # Lets you sign in with just a name, to try accounts without OAuth apps. Local addresses only.
 DEV_LOGIN=true

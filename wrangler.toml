@@ -10,9 +10,9 @@ not_found_handling = "single-page-application"
 # /api/* always reaches the Worker, even though unknown paths otherwise fall back to index.html.
 run_worker_first = ["/api/*"]
 
-[vars]
-# Where the app runs; OAuth redirect URIs are built from it. In production set it to the real https origin.
-APP_URL = "http://localhost:5173"
+# APP_URL (where the app runs; OAuth redirect URIs are built from it) defaults to the address the Worker is served
+# from, so the workers.dev URL or a custom domain works without changes. Local development sets it in .dev.vars,
+# because there the app (Vite, :5173) and the Worker (:8787) are on different ports.
 
 [[d1_databases]]
 binding = "DB"

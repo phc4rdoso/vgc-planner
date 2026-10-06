@@ -116,16 +116,17 @@ With `DEV_LOGIN=true` (local addresses only) the sign-in box offers a **local te
 
 **Google.** In Google Cloud Console → APIs & Services → Credentials, create an OAuth client ID of type "Web application". Add the redirect `http://localhost:5173/api/auth/google/callback`, configure the consent screen, and copy the Client ID and Client Secret into `.dev.vars`. Scopes: `openid profile`.
 
-**Deploy**
+**Deploy to Cloudflare** (the static site on Cloudflare's CDN, plus the API Worker and D1, in one deployment):
 
 ```bash
-npx wrangler d1 create vgc-gameplans                        # put the printed database_id in wrangler.toml
-npx wrangler d1 migrations apply vgc-gameplans --remote
-npx wrangler secret put DISCORD_CLIENT_ID                   # and DISCORD_CLIENT_SECRET, GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET
-npm run build && npx wrangler deploy
+npx wrangler login                                          # once: sign in to your Cloudflare account in the browser
+npx wrangler d1 create vgc-gameplans                        # once: put the printed database_id in wrangler.toml
+npx wrangler d1 migrations apply vgc-gameplans --remote     # creates / updates the tables (again after new migrations)
+npm run sprites                                             # once per checkout: the icons ship with the site
+npm run deploy                                              # checks the sprites, builds and deploys; prints the URL
 ```
 
-Set `APP_URL` in `wrangler.toml` to the site's https address and register `<APP_URL>/api/auth/<provider>/callback` with each provider. Never set `DEV_LOGIN` in production; the Worker also refuses it on non-local addresses.
+The site is served at `https://vgc-gameplan-planner.<your-subdomain>.workers.dev` (a custom domain can be added in the Cloudflare dashboard). The Worker uses whatever address it is served from, so no URL needs configuring. To turn on sign-in, register `<site>/api/auth/discord/callback` and `<site>/api/auth/google/callback` with the providers and store the credentials as secrets: `npx wrangler secret put DISCORD_CLIENT_ID` (and `DISCORD_CLIENT_SECRET`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`). Each sign-in button appears once its credentials are set. Security headers and caching come from `public/_headers`. Never set `DEV_LOGIN` in production; the Worker also refuses it on non-local addresses.
 
 ## Status of this repository (read before first use)
 
