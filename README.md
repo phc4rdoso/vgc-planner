@@ -8,10 +8,11 @@ Requires Node 22.12 or newer.
 
 ```bash
 npm install
+npm run sprites      # once: copies the Pokémon / item sprites into public/sprites (see Sprites)
 npm run dev          # http://localhost:5173
 ```
 
-Icons load straight from the public sprite repository in development. For production, copy them next to the app (see [Sprites](#sprites)).
+The app serves every icon itself from `public/sprites`, in development and in production; without the copy it still works and shows letter badges.
 
 ## Scripts
 
@@ -25,7 +26,7 @@ Icons load straight from the public sprite repository in development. For produc
 | `npm run format` | Prettier (write) |
 | `npm test` | Unit tests (Node's built-in runner, no extra dependencies) |
 | `npm run test:e2e` | Browser smoke test against a running build (`BASE_URL` to change host) |
-| `npm run sprites` | Copy Pokémon/item sprites into `public/sprites` |
+| `npm run sprites` | Copy the whole vgc-multicalc sprites folder into `public/sprites` |
 | `npm run check` | typecheck + lint + tests (what CI runs) |
 | `npm run dev:api` | The API Worker locally on :8787 (see [Accounts](#accounts-sign-in-with-discord-or-google)) |
 | `npm run db:migrate:local` | Create or update the local database tables |
@@ -73,7 +74,7 @@ Not modeled: accuracy, critical hits, recoil, recovery, status conditions, items
 
 ## Sprites
 
-Icons are third-party artwork. `npm run sprites` copies `pokemon-champions/` and `items/` from `robsonbittencourt/vgc-multicalc` into `public/sprites/` (git-ignored). Check the licence/permission before redistributing them. Without them the app still works and shows letter badges. To use a CDN instead, set `VITE_SPRITE_BASE_URL` at build time and add the origin to `img-src` in `deploy/security-headers.inc`.
+`npm run sprites` makes a local copy of the whole `src/app/assets/sprites` folder of [robsonbittencourt/vgc-multicalc](https://github.com/robsonbittencourt/vgc-multicalc) (`pokemon-champions`, `pokemon-home`, `items`, `types`, `menu`; about 3,000 files, 50 MB) into `public/sprites/`. The app loads icons only from there, never from GitHub. The repository's code is MIT-licensed, but the artwork belongs to Nintendo / The Pokémon Company, so `public/sprites/` is git-ignored: run the script once per checkout and before every deployment build, and check the licence/permission before redistributing the images. Without them the app still works and shows letter badges. To use a CDN instead, set `VITE_SPRITE_BASE_URL` at build time and add the origin to `img-src` in `deploy/security-headers.inc`.
 
 ## Deployment
 
