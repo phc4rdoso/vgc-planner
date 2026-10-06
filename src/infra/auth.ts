@@ -1,0 +1,52 @@
+/**
+ * Talks to the sign-in API (server/src/app.ts). The session lives in an HttpOnly cookie the page can't read, so
+ * every call just sends same-origin credentials. When there is no API at all (the app deployed as a plain static
+ * site), accounts are reported as unavailable and the app keeps working locally.
+ */
+
+export type ProviderId = 'discord' | 'google';
+
+export interface Account { id: string; name: string; provider: ProviderId | 'dev'; onboarded: boolean }
+
+export type AccountState =
+  | { status: 'unavailable' }
+  | { status: 'signed-out'; providers: ProviderId[]; dev: boolean }
+  | { status: 'signed-in'; account: Account; providers: ProviderId[]; dev: boolean };
+
+const send = (path: string, init: RequestInit = {}): Promise<Response> =>
+  fetch(path, { credentials: 'same-origin', ...init, headers: { Accept: 'application/json', ...(init.body ? { 'Content-Type': 'application/json' } : {}), ...init.headers } });
+
+const isJson = (res: Response): boolean => (res.headers.get('Content-Type') ?? '').includes('application/json');
+
+/** Who is signed in, and which sign-in options the server offers. */
+export async function loadAccount(): Promise<AccountState> {
+  try {
+    const [providersRes, meRes] = await Promise.all([send('/api/auth/providers'), send('/api/me')]);
+    if (!providersRes.ok || !isJson(providersRes)) return { status: 'unavailable' };
+    const { providers, dev } = (await providersRes.json()) as { providers: ProviderId[]; dev: boolean };
+    const user = meRes.ok && isJson(meRes) ? ((await meRes.json()) as { user: Account | null }).user : null;
+    return user ? { status: 'signed-in', account: user, providers, dev } : { status: 'signed-out', providers, dev };
+  } catch {
+    return { status: 'unavailable' };
+  }
+}
+
+/** Leaves the page for the provider's consent screen; it comes back to the app signed in. */
+export function startSignIn(provider: ProviderId): void {
+  window.location.assign(`/api/auth/${provider}/start`);
+}
+
+/** Local development only: signs in with just a name. */
+export async function devSignIn(name: string): Promise<boolean> {
+  const res = await send('/api/auth/dev', { method: 'POST', body: JSON.stringify({ name }) });
+  return res.ok;
+}
+
+export async function signOut(): Promise<void> {
+  await send('/api/auth/logout', { method: 'POST', body: '{}' });
+}
+
+/** Remembers on the account that the welcome tour was seen, so it shows only after the first sign-in. */
+export async function markOnboarded(): Promise<void> {
+  await send('/api/me/onboarded', { method: 'POST', body: '{}' });
+}

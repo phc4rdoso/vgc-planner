@@ -1,0 +1,4 @@
+# Keep LF everywhere (the shell script and diffs depend on it), whatever core.autocrlf says.
+* text=auto eol=lf
+*.png binary
+*.webp binary

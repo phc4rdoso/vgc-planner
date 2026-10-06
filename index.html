@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="description" content="Plan VGC matchups as flowchart gameplans, with damage calculations for Pokémon Champions." />
+    <title>VGC Gameplan Planner</title>
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+  </head>
+  <body>
+    <div class="app">
+      <aside class="sidebar">
+        <div class="brand"><h1>Gameplans</h1><span class="chip">Reg M-C</span>
+          <button class="nav-toggle" id="nav-toggle" data-act="toggle-nav" aria-controls="nav" aria-expanded="true" aria-label="Collapse sidebar" title="Collapse sidebar">
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="2.5" width="12" height="11" rx="2"/><path d="M6 2.5v11"/><path d="M10.5 6.5 9 8l1.5 1.5"/></svg>
+          </button></div>
+        <div class="side-actions"><button class="btn primary block" data-act="new-team">New team</button></div>
+        <nav class="tree-nav" id="nav" aria-label="Teams and gameplans"></nav>
+        <div class="account" id="account" hidden></div>
+        <div class="side-foot">
+          <button class="btn sm" data-act="import">Import JSON</button>
+          <button class="btn sm" data-act="export-all">Export all</button>
+        </div>
+      </aside>
+      <section class="main" id="main"></section>
+    </div>
+    <div id="layer"></div>
+    <noscript>This app needs JavaScript to run.</noscript>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>

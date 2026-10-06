@@ -1,0 +1,12 @@
+# Copy to .dev.vars (git-ignored) for local development with `npm run dev:api`.
+# Create the OAuth apps yourself and paste their credentials here; see README "Accounts".
+# Redirect URIs to register:
+#   Discord: http://localhost:5173/api/auth/discord/callback
+#   Google:  http://localhost:5173/api/auth/google/callback
+DISCORD_CLIENT_ID=
+DISCORD_CLIENT_SECRET=
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+
+# Lets you sign in with just a name, to try accounts without OAuth apps. Local addresses only.
+DEV_LOGIN=true
