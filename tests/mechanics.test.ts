@@ -170,6 +170,16 @@ test('switches happen before Mega Evolution: Charizard-Mega-Y\'s sun replaces th
   assert.equal(r1!.field.weather, 'Sun');
 });
 
+test('a paste naming the Mega with its base ability (Charizard-Mega-Y, Ability: Blaze) still gets Drought on Mega Evolving', () => {
+  const [r1] = play(
+    { me: [mon('Garchomp', 'Rough Skin'), mon('Kingambit', 'Defiant'), mon('Pelipper', 'Drizzle')], opp: [mon('Charizard-Mega-Y', 'Blaze', 'Charizardite Y'), mon('Incineroar', 'Blaze')],
+      leads: { me: ['Garchomp', 'Kingambit'], opp: ['Charizard-Mega-Y', 'Incineroar'] }, backs: { me: ['Pelipper'] } },
+    [sw('me', 'Garchomp', 'Pelipper'), act('me', 'Kingambit', 'move', 'Protect'), act('opp', 'Charizard-Mega-Y', 'mega', 'Protect'), act('opp', 'Incineroar', 'move', 'Protect')],
+  );
+  assert.equal(r1!.state.mons.opp['Charizard-Mega-Y']!.ability, 'Drought');
+  assert.equal(r1!.field.weather, 'Sun', JSON.stringify(r1!.log));
+});
+
 test('two Megas that set weather evolve fastest first, so the slower one\'s weather stays', () => {
   const [r1] = play(
     { me: [mon('Charizard', 'Blaze', 'Charizardite Y'), mon('Garchomp', 'Rough Skin')], opp: [mon('Tyranitar', 'Unnerve', 'Tyranitarite'), mon('Kingambit', 'Defiant')],

@@ -253,11 +253,16 @@ export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection'>, 
       const pastedMega = isMega(set.species);
       const base = pastedMega ? baseSpecies(set.species) : set.species;
       const megaForm = engine.megaOf(base, set.item) ?? (pastedMega ? set.species : null);
+      // A Mega has a single ability, so the calculator's data decides it (Charizard-Mega-Y: Drought), whatever the
+      // paste says. On a paste that names the Mega, a different ability line is the base form's (e.g. Blaze).
+      const megaAbility = megaForm ? engine.defaultAbility(megaForm) || (pastedMega ? set.ability : '') : '';
+      const baseAbility = pastedMega
+        ? (set.ability && toID(set.ability) !== toID(megaAbility) ? set.ability : engine.defaultAbility(base))
+        : set.ability;
       const mon: MonState = {
         name: set.species, set, species: base,
-        ability: pastedMega ? engine.defaultAbility(base) : set.ability,
-        mega: false, megaForm,
-        megaAbility: megaForm ? (pastedMega && set.ability ? set.ability : engine.defaultAbility(megaForm)) : '',
+        ability: baseAbility,
+        mega: false, megaForm, megaAbility,
         sp: (statPoints(set) ?? { sp: emptyStatTable() }).sp, stats: null, boosts: zeroBoosts(), hp: 0, hpLo: 0, hpHi: 0, fainted: false,
         status: null, toxic: 0, slept: 0, item: set.item, unburden: false, entryBoosted: false,
       };
