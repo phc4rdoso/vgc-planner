@@ -110,3 +110,12 @@ textarea.paste.short { min-height: 160px; }
 .pv-side { width: 210px; background: var(--panel); border: 1.5px solid var(--line); border-radius: var(--radius); padding: 8px; font-size: 14px; }
 .pv-tabs { width: 300px; border: 1.5px solid var(--line); border-radius: 10px; }
 .pv-tabs .tab-add { font-size: 18px; font-weight: 600; }
+
+/* ---------- share links ---------- */
+.share-link .field { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }
+.share-preview { border: 1px solid var(--line-soft); border-radius: 12px; background: var(--bg); padding: 12px 14px; display: grid; gap: 6px; }
+.sp-row { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.sp-who { width: 130px; flex: none; font-weight: 600; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sp-icons { display: flex; gap: 2px; flex-wrap: wrap; }
+.sp-vs { font-size: 11px; font-weight: 700; color: var(--ink-3); padding-left: 2px; }
+.sp-meta { margin-top: 4px; padding-top: 8px; border-top: 1px solid var(--line-soft); color: var(--ink-2); font-size: 13px; }

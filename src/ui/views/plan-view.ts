@@ -139,6 +139,7 @@ export function renderPlanView(main: HTMLElement, team: Team, plan: Plan): void 
     <input class="title-input" id="plan-name" value="${esc(plan.name)}" aria-label="Gameplan name">
     <span class="spacer"></span>
     <div class="zoom-ctl"><button class="btn sm" data-act="zoom" data-d="-1" aria-label="Zoom out">−</button><span class="lvl" id="zlvl">${Math.round(store.ui.zoom * 100)}%</span><button class="btn sm" data-act="zoom" data-d="1" aria-label="Zoom in">+</button></div>
+    <button class="btn" data-act="share-plan" data-plan="${esc(plan.id)}">Share</button>
     <button class="btn" data-act="export-plan" data-team="${esc(team.id)}" data-plan="${esc(plan.id)}">Export</button>
   </div>
   <div id="notice">${noticeHTML(sim)}</div>

@@ -1,5 +1,6 @@
 import type { Store, User } from './app.ts';
 import type { PutResult, StoredPlan, StoredTeam } from './library.ts';
+import type { SharedRecord } from './shares.ts';
 
 interface UserRow { id: string; provider: User['provider']; provider_id: string; name: string; created_at: number; onboarded_at: number | null }
 
@@ -89,6 +90,7 @@ export class D1Store implements Store {
 
   async deleteTeam(userId: string, id: string): Promise<void> {
     await this.db.batch([
+      this.db.prepare('DELETE FROM shares WHERE user_id = ? AND plan_id IN (SELECT id FROM plans WHERE user_id = ? AND team_id = ?)').bind(userId, userId, id),
       this.db.prepare('DELETE FROM plans WHERE user_id = ? AND team_id = ?').bind(userId, id),
       this.db.prepare('DELETE FROM teams WHERE user_id = ? AND id = ?').bind(userId, id),
     ]);
@@ -105,6 +107,37 @@ export class D1Store implements Store {
   }
 
   async deletePlan(userId: string, id: string): Promise<void> {
-    await this.db.prepare('DELETE FROM plans WHERE user_id = ? AND id = ?').bind(userId, id).run();
+    await this.db.batch([
+      this.db.prepare('DELETE FROM shares WHERE user_id = ? AND plan_id = ?').bind(userId, id),
+      this.db.prepare('DELETE FROM plans WHERE user_id = ? AND id = ?').bind(userId, id),
+    ]);
+  }
+
+  /* -------------------------------- shares -------------------------------- */
+
+  async shareToken(userId: string, planId: string): Promise<string | null> {
+    const row = await this.db.prepare('SELECT token FROM shares WHERE user_id = ? AND plan_id = ?').bind(userId, planId).first<{ token: string }>();
+    return row?.token ?? null;
+  }
+
+  async createShare(userId: string, planId: string, token: string, now: number): Promise<boolean> {
+    const plan = await this.db.prepare('SELECT 1 AS ok FROM plans WHERE user_id = ? AND id = ?').bind(userId, planId).first();
+    if (!plan) return false;
+    await this.db.prepare('INSERT INTO shares (token, user_id, plan_id, created_at) VALUES (?, ?, ?, ?) ON CONFLICT (user_id, plan_id) DO NOTHING')
+      .bind(token, userId, planId, now).run();
+    return true;
+  }
+
+  async deleteShare(userId: string, planId: string): Promise<void> {
+    await this.db.prepare('DELETE FROM shares WHERE user_id = ? AND plan_id = ?').bind(userId, planId).run();
+  }
+
+  async readShare(token: string): Promise<SharedRecord | null> {
+    const row = await this.db.prepare(`SELECT s.user_id AS owner_id, u.name AS owner_name, p.id AS plan_id, p.data AS plan_data, t.data AS team_data
+        FROM shares s JOIN users u ON u.id = s.user_id
+        JOIN plans p ON p.user_id = s.user_id AND p.id = s.plan_id
+        JOIN teams t ON t.user_id = p.user_id AND t.id = p.team_id
+        WHERE s.token = ?`).bind(token).first<{ owner_id: string; owner_name: string; plan_id: string; plan_data: string; team_data: string }>();
+    return row ? { ownerId: row.owner_id, ownerName: row.owner_name, planId: row.plan_id, team: { data: row.team_data }, plan: { data: row.plan_data } } : null;
   }
 }

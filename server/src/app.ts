@@ -12,6 +12,8 @@
 
 import type { LibraryStore } from './library.ts';
 import { handleLibrary } from './library.ts';
+import type { ShareStore } from './shares.ts';
+import { handleShares } from './shares.ts';
 
 export type ProviderId = 'discord' | 'google';
 export const PROVIDER_IDS: readonly ProviderId[] = ['discord', 'google'];
@@ -27,7 +29,7 @@ export interface User {
 }
 
 /** Persistence for users, sessions and libraries (D1 in production, in memory in tests). Times are epoch milliseconds. */
-export interface Store extends LibraryStore {
+export interface Store extends LibraryStore, ShareStore {
   /** Returns the user for this provider account, creating it on first sign-in. */
   upsertUser(provider: User['provider'], providerId: string, name: string, now: number): Promise<{ user: User; created: boolean }>;
   createSession(tokenHash: string, userId: string, expiresAt: number, now: number): Promise<void>;
@@ -258,6 +260,13 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
     if (!user) return json({ error: 'signed out' }, 401);
     await deps.store.markOnboarded(user.id, deps.now());
     return json({ ok: true });
+  }
+
+  // Share links come first: reading one works signed out, and /api/plans/:id/share isn't a library route.
+  if (path.startsWith('/api/shares/') || /^\/api\/plans\/[^/]+\/share$/.test(path)) {
+    const user = await currentUser();
+    const res = await handleShares(req, path, user?.id ?? null, deps.store, deps.now(), randomToken);
+    if (res) return res;
   }
 
   if (path === '/api/library' || path.startsWith('/api/teams/') || path.startsWith('/api/plans/')) {

@@ -8,6 +8,7 @@ import type { AppStore } from '../state/store.ts';
 import { requestRender } from './bus.ts';
 import { esc, must, qs } from './dom.ts';
 import { modal, openMenu, toast } from './overlays.ts';
+import { openSharedLink } from './share.ts';
 import { showWelcome } from './welcome.ts';
 
 const PROVIDER_LABEL: Readonly<Record<ProviderId, string>> = { discord: 'Discord', google: 'Google' };
@@ -148,6 +149,8 @@ async function signInDev(name: string): Promise<void> {
   await connectAccount();
   requestRender();
   await greetAccount();
+  // A share link opened while signed out is offered again now.
+  await openSharedLink();
 }
 
 const SAVE_LABEL: Readonly<Record<AppStore['saveState'], string>> = { saved: 'All changes saved', pending: 'Saving…', saving: 'Saving…', error: 'Not saved' };

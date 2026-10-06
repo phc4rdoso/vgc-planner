@@ -5,6 +5,7 @@ import { simService, store } from '../state/instance.ts';
 import { addNode, addTab, selectTab, startRenameTab, tabMenu, createPlan, createTeam, deleteNode, deletePlan, deleteTeam, duplicatePlan, editPaste, loadImportFile, pickSlot, renameTeam, showExport, showImport } from './actions.ts';
 import { accountMenu, openSignIn, signInWith } from './account.ts';
 import { requestRender } from './bus.ts';
+import { openShareDialog } from './share.ts';
 import { qs } from './dom.ts';
 import { openMenu, toast } from './overlays.ts';
 import { isPivotMove, renderDrawer } from './views/drawer.ts';
@@ -72,12 +73,14 @@ async function handleClick(el: HTMLElement, e: MouseEvent): Promise<void> {
       e.stopPropagation();
       openMenu(el, [
         { label: 'Duplicate', run: () => duplicatePlan(team, plan) },
+        { label: 'Share link', run: () => void openShareDialog(plan) },
         { label: 'Export gameplan', run: () => void showExport({ type: 'plan', teamId: team, planId: plan }) },
         '-',
         { label: 'Delete', cls: 'danger', run: () => void deletePlan(team, plan) },
       ]);
       return;
     case 'new-plan': e.stopPropagation(); return createPlan(team);
+    case 'share-plan': return openShareDialog(plan);
     case 'export-team': return showExport({ type: 'team', teamId: team });
     case 'delete-team': return deleteTeam(team);
     case 'export-plan': return showExport({ type: 'plan', teamId: team, planId: plan });

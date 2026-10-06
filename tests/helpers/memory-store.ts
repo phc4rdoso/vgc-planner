@@ -49,10 +49,32 @@ export class MemoryStore implements Store {
   async deleteTeam(userId: string, id: string) {
     this.plans = this.plans.filter((p) => !(p.userId === userId && p.teamId === id));
     this.teams = this.teams.filter((t) => !(t.userId === userId && t.id === id));
+    this.dropOrphanShares();
   }
   async putPlan(userId: string, plan: Omit<StoredPlan, 'version'>, baseVersion: number) {
     if (!this.teams.some((t) => t.userId === userId && t.id === plan.teamId)) return null;
     return this.put(this.plans, userId, plan, baseVersion);
   }
-  async deletePlan(userId: string, id: string) { this.plans = this.plans.filter((p) => !(p.userId === userId && p.id === id)); }
+  async deletePlan(userId: string, id: string) {
+    this.plans = this.plans.filter((p) => !(p.userId === userId && p.id === id));
+    this.dropOrphanShares();
+  }
+
+  shares: { token: string; userId: string; planId: string }[] = [];
+  /** Like the foreign key: a link ends with its gameplan. */
+  private dropOrphanShares() { this.shares = this.shares.filter((s) => this.plans.some((p) => p.userId === s.userId && p.id === s.planId)); }
+  async shareToken(userId: string, planId: string) { return this.shares.find((s) => s.userId === userId && s.planId === planId)?.token ?? null; }
+  async createShare(userId: string, planId: string, token: string) {
+    if (!this.plans.some((p) => p.userId === userId && p.id === planId)) return false;
+    if (!this.shares.some((s) => s.userId === userId && s.planId === planId)) this.shares.push({ token, userId, planId });
+    return true;
+  }
+  async deleteShare(userId: string, planId: string) { this.shares = this.shares.filter((s) => !(s.userId === userId && s.planId === planId)); }
+  async readShare(token: string) {
+    const share = this.shares.find((s) => s.token === token);
+    const plan = share && this.plans.find((p) => p.userId === share.userId && p.id === share.planId);
+    const team = plan && this.teams.find((t) => t.userId === plan.userId && t.id === plan.teamId);
+    const owner = share && this.users.find((u) => u.id === share.userId);
+    return share && plan && team && owner ? { ownerId: owner.id, ownerName: owner.name, planId: plan.id, team: { data: team.data }, plan: { data: plan.data } } : null;
+  }
 }

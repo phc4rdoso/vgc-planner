@@ -93,6 +93,8 @@ Accounts are optional: without the API the app works on this device only, and th
 
 **How the library syncs.** Signed in, the app loads the whole library in one request and from then on sends only what changed: one small request per edited team or gameplan (about 1.5 s after you stop typing), plus deletions. The sidebar shows "Saving…" / "All changes saved". Damage and turn results are never stored; the browser recomputes them. Each record has a version, so if the same gameplan is edited on two devices, the later save is refused with a message to reload instead of overwriting the other. Signed out, the app uses this device's own library; on the first sign-in from a device that has gameplans, it offers once to add them to the account (merged like an import).
 
+**Share links.** **Share** (top bar of a gameplan, or its ⋯ menu) creates a read-only link, `<APP_URL>/?share=<token>`, with a 256-bit random token. It shows the gameplan as it is now (all tabs, plus its team's name and paste) and the owner's display name, never ids. Opening it signed in (not as the owner) offers to add a copy to your gameplans; signed out, you can save it on this device or sign in first (the link is remembered through sign-in). The copy gets new ids; it joins your team of the same name only if the paste matches, otherwise it gets its own team "Name (from Owner)". **Stop sharing**, or deleting the gameplan or its team, makes the link stop working.
+
 **Limits per account:** 200 teams, 1,000 gameplans, 5 MB in total, 512 KB per request. Every upload is validated with the same rules as JSON imports (`src/domain/codec.ts`).
 
 **Run it locally**
