@@ -132,6 +132,11 @@ export class D1Store implements Store {
     await this.db.prepare('DELETE FROM shares WHERE user_id = ? AND plan_id = ?').bind(userId, planId).run();
   }
 
+  async listShares(userId: string): Promise<{ planId: string; token: string; createdAt: number }[]> {
+    const rows = await this.db.prepare('SELECT plan_id, token, created_at FROM shares WHERE user_id = ? ORDER BY created_at DESC').bind(userId).all<{ plan_id: string; token: string; created_at: number }>();
+    return (rows.results ?? []).map((r) => ({ planId: r.plan_id, token: r.token, createdAt: Number(r.created_at) }));
+  }
+
   async readShare(token: string): Promise<SharedRecord | null> {
     const row = await this.db.prepare(`SELECT s.user_id AS owner_id, u.name AS owner_name, p.id AS plan_id, p.data AS plan_data, t.data AS team_data
         FROM shares s JOIN users u ON u.id = s.user_id

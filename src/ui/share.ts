@@ -1,8 +1,8 @@
 import { mergeImport } from '../domain/codec.ts';
-import { countPlanTurns, findPlan, oppMons, teamMons } from '../domain/model.ts';
+import { countPlanTurns, oppMons, teamMons } from '../domain/model.ts';
 import type { SharedPlan } from '../domain/share.ts';
-import type { Team } from '../domain/types.ts';
-import { createShare, openShare, shareTokenOf, shareUrl, stopSharing } from '../infra/shares.ts';
+import type { Plan, Team } from '../domain/types.ts';
+import { createShare, listShares, openShare, shareTokenOf, shareUrl, stopSharing } from '../infra/shares.ts';
 import { session } from '../state/account.ts';
 import { store } from '../state/instance.ts';
 import { openSignIn } from './account.ts';
@@ -10,7 +10,7 @@ import { requestRender } from './bus.ts';
 import { esc, must } from './dom.ts';
 import { monIcon } from './icons.ts';
 import { formOf } from './names.ts';
-import { modal, toast } from './overlays.ts';
+import { confirmDialog, modal, toast } from './overlays.ts';
 
 /** A link opened while signed out is kept here through the sign-in redirect, then offered again. */
 const PENDING_KEY = 'vgc-planner:pending-share';
@@ -36,7 +36,7 @@ export async function openShareDialog(planId: string): Promise<void> {
     if (go) await openSignIn();
     return;
   }
-  const plan = findPlan(store.team, planId) ?? store.library.teams.flatMap((t) => t.plans).find((p) => p.id === planId);
+  const plan = planById(planId)?.plan;
   if (!plan) return;
   // The link serves what the account has, so send any pending edits first.
   await store.flush();
@@ -54,6 +54,7 @@ export async function openShareDialog(planId: string): Promise<void> {
     if (!create) return;
     try { token = await createShare(planId); } catch (e) { toast(message(e, 'Couldn’t create the link.'), true); return; }
   }
+  markShared(planId, token);
 
   const url = shareUrl(token);
   const stop = await modal<boolean>({
@@ -73,9 +74,89 @@ export async function openShareDialog(planId: string): Promise<void> {
       { label: 'Done', cls: 'primary', value: false },
     ],
   });
-  if (!stop) return;
-  try { await stopSharing(planId); toast('Sharing stopped. The link no longer works.'); } catch (e) { toast(message(e, 'Couldn’t stop sharing.'), true); }
+  if (stop) await stopSharingPlan(planId);
 }
+
+/* ------------------------------ managing your links ------------------------------ */
+
+const planById = (planId: string): { team: Team; plan: Plan } | null => {
+  for (const team of store.library.teams) {
+    const plan = team.plans.find((p) => p.id === planId);
+    if (plan) return { team, plan };
+  }
+  return null;
+};
+
+/** Updates which gameplans show as shared (sidebar mark, Shared button). */
+function markShared(planId: string, token: string | null): void {
+  const had = session.shared.get(planId);
+  if (token) session.shared.set(planId, token); else session.shared.delete(planId);
+  if (had !== (token ?? undefined)) requestRender();
+}
+
+/** Loads which of the account's gameplans are shared. Quietly keeps the last known state if it fails. */
+export async function refreshShares(): Promise<void> {
+  if (session.state?.status !== 'signed-in') { session.shared = new Map(); return; }
+  try { session.shared = await listShares(); } catch { /* the marks are a convenience; sharing still works */ }
+}
+
+/**
+ * Stops sharing one gameplan, after confirming: everyone who has the link loses access straight away. Sharing
+ * again later makes a new link. Resolves true when sharing was stopped.
+ */
+export async function stopSharingPlan(planId: string): Promise<boolean> {
+  const name = planById(planId)?.plan.name ?? 'this gameplan';
+  const ok = await confirmDialog(`Stop sharing “${name}”?`, 'The link stops working for everyone who has it. You can share again later; that makes a new link.', 'Stop sharing');
+  if (!ok) return false;
+  try {
+    await stopSharing(planId);
+    markShared(planId, null);
+    toast('Sharing stopped. The link no longer works.');
+    return true;
+  } catch (e) {
+    toast(message(e, 'Couldn’t stop sharing.'), true);
+    return false;
+  }
+}
+
+export function copyShareLink(planId: string): void {
+  const token = session.shared.get(planId);
+  if (!token) return;
+  void navigator.clipboard.writeText(shareUrl(token)).then(() => toast('Link copied'), () => toast('Copy failed. Open Share to copy it by hand.', true));
+}
+
+function sharedListHTML(): string {
+  const rows = [...session.shared.keys()].map((planId) => {
+    const found = planById(planId);
+    if (!found) return '';
+    return `<li class="shared-row"><span class="link-mark" aria-hidden="true">${ICON_LINK}</span>
+      <span class="who"><span class="nm">${esc(found.plan.name)}</span><span class="sub">${esc(found.team.name)}</span></span>
+      <button class="btn sm" data-act="copy-share" data-plan="${esc(planId)}">Copy link</button>
+      <button class="btn sm danger" data-act="stop-share" data-plan="${esc(planId)}">Stop sharing</button></li>`;
+  }).join('');
+  return rows ? `<ul class="shared-list">${rows}</ul>` : '<p class="hint">You aren’t sharing any gameplans. Use Share on a gameplan to create a link.</p>';
+}
+
+/** Account menu → Shared links: every gameplan you share, each with Copy link and Stop sharing. */
+export async function openSharedLinks(): Promise<void> {
+  await refreshShares();
+  requestRender();
+  await modal<null>({
+    title: 'Shared links',
+    desc: 'Gameplans anyone with the link can view and copy. Stopping a link takes effect immediately.',
+    body: `<div id="shared-links">${sharedListHTML()}</div>`,
+    actions: [{ label: 'Done', cls: 'primary', value: null }],
+  });
+}
+
+/** Called after a row's Stop sharing: redraws the list in the open dialog. */
+export function redrawSharedLinks(): void {
+  const host = document.querySelector('#shared-links');
+  if (host) host.innerHTML = sharedListHTML();
+}
+
+/** A small link icon, used to mark shared gameplans. */
+export const ICON_LINK = '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6.5 9.5a3 3 0 0 0 4.2 0l2.1-2.1a3 3 0 0 0-4.2-4.2l-.7.7"/><path d="M9.5 6.5a3 3 0 0 0-4.2 0L3.2 8.6a3 3 0 0 0 4.2 4.2l.7-.7"/></svg>';
 
 /* ------------------------------ opening a link ------------------------------ */
 

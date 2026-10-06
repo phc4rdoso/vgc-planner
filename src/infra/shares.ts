@@ -37,3 +37,11 @@ export async function openShare(token: string): Promise<SharedPlan> {
   if (!res.ok) throw await errorOf(res, 'Couldn’t open this link. Try again later.');
   return readSharedPlan(await res.json());
 }
+
+/** Every gameplan you share, as gameplan id -> link token. */
+export async function listShares(): Promise<Map<string, string>> {
+  const res = await send('/api/shares');
+  if (!res.ok) throw await errorOf(res, 'Couldn\u2019t load your share links.');
+  const { shares } = (await res.json()) as { shares: { planId: string; token: string }[] };
+  return new Map(shares.map((s) => [s.planId, s.token]));
+}

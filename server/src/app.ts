@@ -263,7 +263,7 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
   }
 
   // Share links come first: reading one works signed out, and /api/plans/:id/share isn't a library route.
-  if (path.startsWith('/api/shares/') || /^\/api\/plans\/[^/]+\/share$/.test(path)) {
+  if (path === '/api/shares' || path.startsWith('/api/shares/') || /^\/api\/plans\/[^/]+\/share$/.test(path)) {
     const user = await currentUser();
     const res = await handleShares(req, path, user?.id ?? null, deps.store, deps.now(), randomToken);
     if (res) return res;

@@ -60,14 +60,17 @@ export class MemoryStore implements Store {
     this.dropOrphanShares();
   }
 
-  shares: { token: string; userId: string; planId: string }[] = [];
+  shares: { token: string; userId: string; planId: string; createdAt: number }[] = [];
   /** Like the foreign key: a link ends with its gameplan. */
   private dropOrphanShares() { this.shares = this.shares.filter((s) => this.plans.some((p) => p.userId === s.userId && p.id === s.planId)); }
   async shareToken(userId: string, planId: string) { return this.shares.find((s) => s.userId === userId && s.planId === planId)?.token ?? null; }
-  async createShare(userId: string, planId: string, token: string) {
+  async createShare(userId: string, planId: string, token: string, now = 0) {
     if (!this.plans.some((p) => p.userId === userId && p.id === planId)) return false;
-    if (!this.shares.some((s) => s.userId === userId && s.planId === planId)) this.shares.push({ token, userId, planId });
+    if (!this.shares.some((s) => s.userId === userId && s.planId === planId)) this.shares.push({ token, userId, planId, createdAt: now });
     return true;
+  }
+  async listShares(userId: string) {
+    return this.shares.filter((s) => s.userId === userId).sort((a, b) => b.createdAt - a.createdAt).map(({ planId, token, createdAt }) => ({ planId, token, createdAt }));
   }
   async deleteShare(userId: string, planId: string) { this.shares = this.shares.filter((s) => !(s.userId === userId && s.planId === planId)); }
   async readShare(token: string) {

@@ -8,7 +8,7 @@ import type { AppStore } from '../state/store.ts';
 import { requestRender } from './bus.ts';
 import { esc, must, qs } from './dom.ts';
 import { modal, openMenu, toast } from './overlays.ts';
-import { openSharedLink } from './share.ts';
+import { openSharedLink, openSharedLinks, refreshShares } from './share.ts';
 import { showWelcome } from './welcome.ts';
 
 const PROVIDER_LABEL: Readonly<Record<ProviderId, string>> = { discord: 'Discord', google: 'Google' };
@@ -83,6 +83,7 @@ export async function connectAccount(): Promise<void> {
   if (session.state.status === 'signed-in') {
     await store.useRepository(new AccountRepository());
     if (store.loadError) toast(store.loadError, true);
+    await refreshShares();
   }
   renderAccount();
 }
@@ -129,6 +130,7 @@ async function leaveAccount(): Promise<void> {
   await store.flush();
   await signOut().catch(() => undefined);
   session.state = await loadAccount();
+  session.shared = new Map();
   await store.useRepository(device.repo, device.persistent);
   renderAccount();
   requestRender();
@@ -136,7 +138,12 @@ async function leaveAccount(): Promise<void> {
 }
 
 export function accountMenu(anchor: HTMLElement): void {
-  openMenu(anchor, [{ label: 'Sign out', run: () => void leaveAccount() }]);
+  const count = session.shared.size;
+  openMenu(anchor, [
+    { label: count ? `Shared links (${count})` : 'Shared links', run: () => void openSharedLinks() },
+    '-',
+    { label: 'Sign out', run: () => void leaveAccount() },
+  ]);
 }
 
 export function signInWith(provider: string): void {

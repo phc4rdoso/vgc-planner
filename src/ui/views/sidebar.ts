@@ -1,5 +1,7 @@
 import { store } from '../../state/instance.ts';
+import { session } from '../../state/account.ts';
 import { esc, must } from '../dom.ts';
+import { ICON_LINK } from '../share.ts';
 
 /** Collapses the sidebar to a thin rail (or expands it), following `store.ui.navCollapsed`. */
 export function applyNavCollapsed(): void {
@@ -26,7 +28,7 @@ export function renderNav(): void {
     const plans = open
       ? `<div class="plans">${t.plans.map((p) => `
         <div class="plan-row ${store.ui.planId === p.id ? 'active' : ''}" data-act="open-plan" data-team="${esc(t.id)}" data-plan="${esc(p.id)}" tabindex="0" role="button">
-          <span class="name">${esc(p.name)}</span>
+          <span class="name">${esc(p.name)}</span>${session.shared.has(p.id) ? `<span class="link-mark" title="Shared by link" aria-label="Shared by link">${ICON_LINK}</span>` : ""}
           <button class="row-menu" data-act="plan-menu" data-team="${esc(t.id)}" data-plan="${esc(p.id)}" aria-label="Gameplan options">⋯</button>
         </div>`).join('')}
         <button class="add-plan" data-act="new-plan" data-team="${esc(t.id)}">+ New gameplan</button></div>`

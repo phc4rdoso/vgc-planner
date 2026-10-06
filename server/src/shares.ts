@@ -1,6 +1,7 @@
 /**
  * Read-only links to a gameplan.
  *
+ *   GET    /api/shares            every gameplan you share: [{ planId, token, createdAt }]   (signed in)
  *   GET    /api/plans/:id/share   the link's token for one of your gameplans, or null      (signed in)
  *   POST   /api/plans/:id/share   creates the link (or returns the existing one)          (signed in)
  *   DELETE /api/plans/:id/share   stops sharing: the link stops working                   (signed in)
@@ -25,6 +26,8 @@ export interface ShareStore {
   /** Creates the link; false when the gameplan isn't in this account (yet). */
   createShare(userId: string, planId: string, token: string, now: number): Promise<boolean>;
   deleteShare(userId: string, planId: string): Promise<void>;
+  /** Every link this user has, newest first. */
+  listShares(userId: string): Promise<{ planId: string; token: string; createdAt: number }[]>;
   readShare(token: string): Promise<SharedRecord | null>;
 }
 
@@ -39,6 +42,12 @@ const json = (body: unknown, status = 200): Response =>
  * reading a link works signed out). `newToken` makes the random link token.
  */
 export async function handleShares(req: Request, path: string, userId: string | null, store: ShareStore, now: number, newToken: () => string): Promise<Response | null> {
+  if (path === '/api/shares') {
+    if (!userId) return json({ error: 'signed out' }, 401);
+    if (req.method !== 'GET') return json({ error: 'method not allowed' }, 405);
+    return json({ shares: await store.listShares(userId) });
+  }
+
   const open = path.match(/^\/api\/shares\/([^/]+)$/);
   if (open) {
     if (req.method !== 'GET') return json({ error: 'method not allowed' }, 405);
