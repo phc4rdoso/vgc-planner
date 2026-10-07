@@ -88,7 +88,15 @@ export interface EndMon {
  * Two Pokémon whose turn order came down to a speed tie (same priority, same Speed): `first` moved first, either
  * picked on the turn (`picked`) or assumed (the first action listed).
  */
-export interface SpeedTie { keys: [string, string]; speed: number; first: string; picked: boolean }
+export interface SpeedTie {
+  keys: [string, string];
+  speed: number;
+  first: string;
+  picked: boolean;
+  /** Between entry abilities of Pokémon coming in together: the leads at the start of the battle (`start`), or replacements. */
+  entry?: true;
+  start?: true;
+}
 
 /** `field` is the field during the turn (before the end-of-turn countdown), so it includes what was set up this turn. */
 export type TurnResult =

@@ -344,3 +344,9 @@ export const hasMoveData = (id: string): boolean => id in MOVE_EFFECTS;
 /** The chance results a move can have, on the target and on the user (empty when it has none, or isn't known). */
 export const chanceEffects = (id: string): { target: string[]; self: string[] } =>
   ({ target: [...(MOVE_EFFECTS[id]?.chance ?? [])], self: [...(MOVE_EFFECTS[id]?.selfChance ?? [])] });
+
+/** Abilities that do something as their holder comes in, so the order of simultaneous entries can matter. */
+export const ENTRY_EFFECT_ABILITIES: ReadonlySet<string> = new Set([
+  ...Object.keys(ENTRY_WEATHER), ...Object.keys(ENTRY_TERRAIN), ...Object.keys(ENTRY_BOOSTS),
+  'intimidate', 'download', 'hospitality', 'curiousmedicine', 'costar', 'screencleaner', 'trace', 'imposter',
+]);

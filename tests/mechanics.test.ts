@@ -784,3 +784,46 @@ test('speed ties are flagged, assumed to go to the first action listed, and can 
   const [plain] = play({ me: ME, opp: OPP, leads: ME_LEADS }, [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)]);
   assert.deepEqual(plain!.ties, []);
 });
+
+test('a speed tie between the leads\' entry abilities is flagged on first turns and can be picked on the tab', () => {
+  const weatherWar: Battle = { me: [mon('Garchomp', 'Drizzle'), mon('Rillaboom', 'Overgrow')], opp: [mon('Garchomp', 'Drought'), mon('Incineroar', 'Blaze')], leads: { me: ['Garchomp', 'Rillaboom'], opp: ['Garchomp', 'Incineroar'] } };
+  const calm = [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Garchomp', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance')];
+  const [r1] = play(weatherWar, calm);
+  const tie = r1!.ties.find((t) => t.start);
+  assert.deepEqual({ keys: tie?.keys, first: tie?.first, picked: tie?.picked, entry: tie?.entry }, { keys: ['me:Garchomp', 'opp:Garchomp'], first: 'me:Garchomp', picked: false, entry: true });
+  assert.equal(r1!.field.weather, 'Sun', 'yours enters first (assumed), so the opponent\'s Drought is the one that stays');
+
+  // Picked on the tab: the opponent's Garchomp enters first, so your rain stays.
+  const team = newTeam('T', weatherWar.me.join('\n\n'));
+  const gameplan = newPlan('p', weatherWar.opp.join('\n\n'));
+  const tab = gameplan.tabs[0]!;
+  tab.selection.me.lead = weatherWar.leads.me; tab.selection.opp.lead = weatherWar.leads.opp;
+  tab.entryTieOrder = ['opp:Garchomp', 'me:Garchomp'];
+  const n = newNode({ actions: calm });
+  tab.children.push(n);
+  const picked = simulatePlan(createEngine(makeStubCalc().lib), team, sheetOf(gameplan, tab)).get(n.id) as Ready;
+  assert.equal(picked.field.weather, 'Rain');
+  assert.equal(picked.ties.find((t) => t.start)?.picked, true);
+
+  // Same Speed without entry abilities: nothing to flag.
+  const [plain] = play({ me: ME, opp: [mon('Garchomp', 'Rough Skin'), mon('Incineroar', 'Blaze')], leads: { me: ['Garchomp', 'Rillaboom'], opp: ['Garchomp', 'Incineroar'] } },
+    [act('me', 'Garchomp', 'move', 'Protect'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Garchomp', 'move', 'Protect'), act('opp', 'Incineroar', 'move', 'Swords Dance')]);
+  assert.equal(plain!.ties.filter((t) => t.entry).length, 0);
+});
+
+test('replacements come in fastest first, and a tie between their entry abilities is flagged on that turn', () => {
+  const frail = 'EVs: 1 Spe\nHardy Nature';
+  const battle: Battle = {
+    me: [mon('Smeargle', 'Own Tempo', '', frail), mon('Kingambit', 'Defiant'), mon('Garchomp', 'Drizzle')],
+    opp: [mon('Smeargle', 'Own Tempo', '', frail), mon('Kingambit', 'Defiant'), mon('Garchomp', 'Drought')],
+    leads: { me: ['Smeargle', 'Kingambit'], opp: ['Smeargle', 'Kingambit'] }, backs: { me: ['Garchomp'], opp: ['Garchomp'] },
+  };
+  const t1 = [act('me', 'Smeargle', 'move', 'Swords Dance'), act('me', 'Kingambit', 'move', 'Close Combat', 'Smeargle'), act('opp', 'Smeargle', 'move', 'Swords Dance'), act('opp', 'Kingambit', 'move', 'Close Combat', 'Smeargle')];
+  const t2 = [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Kingambit', 'move', 'Swords Dance'), act('opp', 'Garchomp', 'move', 'Swords Dance'), act('opp', 'Kingambit', 'move', 'Swords Dance')];
+  const [r1, r2] = play(battle, t1, t2);
+  assert.ok(r1!.end.filter((x) => x.name === 'Smeargle').every((x) => x.fainted), 'both Smeargle fainted');
+  const tie = r2!.ties.find((t) => t.entry);
+  assert.ok(tie && !tie.start);
+  assert.equal(tie.first, 'me:Garchomp');
+  assert.equal(r2!.field.weather, 'Sun');
+});

@@ -28,7 +28,7 @@ export function readSharedPlan(raw: unknown): SharedPlan {
     format: EXPORT_FORMAT, version: EXPORT_VERSION,
     teams: [{
       name: team.name, paste: team.paste,
-      plans: [{ name: plan.name, opponent: plan.opponent, tabs: plan.tabs.map((t) => ({ name: obj(t).name, selection: obj(t).selection, flow: obj(t).children })) }],
+      plans: [{ name: plan.name, opponent: plan.opponent, tabs: plan.tabs.map((t) => ({ name: obj(t).name, selection: obj(t).selection, flow: obj(t).children, ...(t.entryTieOrder ? { entryTieOrder: t.entryTieOrder } : {}) })) }],
     }],
   });
   return {

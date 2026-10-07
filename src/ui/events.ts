@@ -166,8 +166,14 @@ function onInput(e: Event): void {
     const winner = t.value;
     const loser = winner === a ? b : a;
     if (!winner || !loser) return;
-    const node = found.node;
-    node.tieOrder = [...(node.tieOrder ?? []).filter((k) => k !== winner && k !== loser), winner, loser];
+    const holder: { tieOrder?: string[]; entryTieOrder?: string[] } = t.dataset.tieScope === 'start' ? store.tab ?? {} : found.node;
+    const field = t.dataset.tieScope === 'start' ? 'entryTieOrder' : 'tieOrder';
+    holder[field] = [...(holder[field] ?? []).filter((k) => k !== winner && k !== loser), winner, loser];
+    // Both tied Pokémon show this pick: redraw the editor so they agree (and "(assumed)" goes away).
+    store.persist();
+    rerenderCanvas();
+    renderDrawer();
+    return;
   } else if (t.dataset.o) {
     const action = found.node.actions[Number(t.dataset.i)];
     if (!action) return;

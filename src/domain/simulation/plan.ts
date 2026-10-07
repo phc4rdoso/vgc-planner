@@ -25,7 +25,7 @@ export function simulateSheet(engine: CalcEngine, team: Team, plan: Sheet): { re
         walk(node.children, null, depth + 1, over);
         continue;
       }
-      const result = simulateTurn(engine, structuredClone(start), node, depth === 1 ? init.entry : []);
+      const result = simulateTurn(engine, structuredClone(start), node, depth === 1 ? init.entry : [], depth === 1 ? init.entryTies : []);
       results.set(node.id, result);
       const ended = result.status === 'ready' && result.outcome !== null;
       walk(node.children, result.status === 'ready' && !ended ? result.state : null, depth + 1, over || ended);

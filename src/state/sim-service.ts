@@ -37,7 +37,7 @@ export class SimService {
     this.ensureEngine();
     if (this.state === 'idle' || this.state === 'loading') return { enabled: true, status: 'loading' };
     if (this.state === 'error' || !this.engine) return { enabled: true, status: 'error', message: this.error };
-    const key = JSON.stringify([plan.id, team.paste, plan.opponent.paste, plan.selection, plan.children]);
+    const key = JSON.stringify([plan.id, team.paste, plan.opponent.paste, plan.selection, plan.entryTieOrder ?? [], plan.children]);
     if (this.memo?.key !== key) {
       try { this.memo = { key, ...simulateSheet(this.engine, team, plan) }; }
       catch (e) { return { enabled: true, status: 'error', message: e instanceof Error ? e.message : String(e) }; }

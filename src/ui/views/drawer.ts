@@ -12,6 +12,7 @@ import { formOf } from '../names.ts';
 import { startStateOf, turnResult } from '../turn-results.ts';
 import { rerenderCanvas } from './plan-view.ts';
 import { lockedAction, mayBeForcedOut, moveLock } from '../../domain/simulation/turn.ts';
+import type { SpeedTie } from '../../domain/simulation/log.ts';
 
 /** `label` turns a stored value (a paste name) into what is shown (its current form). */
 const options = (list: readonly string[], current: string, blank?: string, label: (v: string) => string = (v) => v): string =>
@@ -127,8 +128,38 @@ function outcomeTargets(a: TurnAction, st: BattleState | null, depth: number, ac
  * "Chance results" for a move action: what kept it from moving (or it woke up), and per target a miss, a critical
  * hit, the chance effect it caused, and the HP left afterwards. Filled in by hand or by a replay import.
  */
+/** The speed ties of the turn being edited (set by {@link renderDrawer}). */
+let editingTies: readonly SpeedTie[] = [];
+
+/**
+ * Speed ties this Pokémon is part of, as rows for its "Chance results": who goes first when their Speed is equal
+ * (the game's 50/50). Ties at the start of the battle are saved on the tab, the rest on the turn.
+ */
+function tieRows(a: TurnAction, st: BattleState | null): string {
+  const me = `${a.side}:${a.mon}`;
+  const label = (key: string): string => {
+    const [side, name] = key.split(':') as [Side, string];
+    return `${formOf(st, side, name)} (${side === 'me' ? 'you' : 'opp'})`;
+  };
+  return editingTies.filter((t) => t.keys.includes(me)).map((t) => {
+    const other = t.keys[0] === me ? t.keys[1] : t.keys[0];
+    const verb = t.entry ? 'enters first' : 'moves first';
+    const option = (key: string): string => `<option value="${esc(key)}" ${t.first === key ? 'selected' : ''}>${esc(label(key))} ${verb}${t.picked || t.first !== key ? '' : ' (assumed)'}</option>`;
+    const when = t.start ? ' at the start of the battle' : t.entry ? ' coming in' : '';
+    const tip = `Equal Speed (${t.speed})${when}: the game decides with a 50/50.${t.start ? ' This pick applies to every first turn of this tab.' : ''}`;
+    return `<div class="oc-row" title="${esc(tip)}"><span class="oc-name">Speed tie</span><span class="oc-check">with ${esc(label(other))}${when}</span>
+      <select class="field sm" data-tie="${esc(t.keys.join('|'))}"${t.start ? ' data-tie-scope="start"' : ''} aria-label="${esc(`Who wins the speed tie between ${label(t.keys[0])} and ${label(t.keys[1])}`)}">${option(me)}${option(other)}</select></div>`;
+  }).join('');
+}
+
 function outcomeEditor(a: TurnAction, i: number, st: BattleState | null, depth: number, actions: readonly TurnAction[]): string {
-  if (a.kind === 'switch' || !a.mon) return '';
+  if (!a.mon) return '';
+  const ties = tieRows(a, st);
+  const tiePicked = editingTies.some((t) => t.picked && t.keys.includes(`${a.side}:${a.mon}`));
+  // A switch has no chance results of its own, only a possible speed tie.
+  if (a.kind === 'switch') {
+    return ties ? `<details class="outcome"${tiePicked ? ' open' : ''}><summary>Chance results${tiePicked ? ' <span class="oc-dot" aria-label="set"></span>' : ''}</summary>${ties}</details>` : '';
+  }
   const info = simService.moveInfo(a.move);
   const o = a.outcome ?? {};
   const cant = o.wake ? 'wake' : o.cant ?? '';
@@ -154,31 +185,12 @@ function outcomeEditor(a: TurnAction, i: number, st: BattleState | null, depth: 
     ? `<label class="oc-check"><input type="checkbox" data-o="protectWorks" data-i="${i}" ${o.protectWorks ? 'checked' : ''}>Works even right after another Protect</label>` : '';
   const self = damaging && known.self.length
     ? `<label class="oc-check">Self ${effectSelect('self', i, a.mon, known.self, o.self?.[0] ?? '', `Added effect on ${a.mon} itself`)}</label>` : '';
-  const set = Object.keys(o).length > 0;
+  const set = Object.keys(o).length > 0 || tiePicked;
   const cantSelect = `<select class="field sm" data-o="cant" data-i="${i}" aria-label="Before moving">${CANT_OPTIONS.map(([v, l]) => `<option value="${v}" ${v === cant ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   return `<details class="outcome"${set ? ' open' : ''}><summary>Chance results${set ? ' <span class="oc-dot" aria-label="set"></span>' : ''}</summary>
-    ${cantSelect}${hits}${protect}${self}${rows}
+    ${cantSelect}${ties}${hits}${protect}${self}${rows}
     ${!info && a.move ? '<p class="hint">Move details appear once the calculator has loaded.</p>' : ''}
   </details>`;
-}
-
-/**
- * "Speed ties": for each pair of Pokémon whose order came down to equal Speed this turn, who moves first. The game
- * flips a coin; unless picked here, the first action listed is assumed to win.
- */
-function tieEditor(n: FlowNode, st: BattleState | null): string {
-  const r = turnResult(n.id);
-  if (r?.status !== 'ready' || !r.ties.length) return '';
-  const label = (key: string): string => {
-    const [side, name] = key.split(':') as [Side, string];
-    return `${formOf(st, side, name)} (${side === 'me' ? 'you' : 'opp'})`;
-  };
-  const rows = r.ties.map((t) => {
-    const pair = t.keys.join('|');
-    const option = (key: string): string => `<option value="${esc(key)}" ${t.first === key ? 'selected' : ''}>${esc(label(key))} moves first${t.picked || t.first !== key ? '' : ' (assumed)'}</option>`;
-    return `<div class="oc-row"><span class="oc-name">Speed ${t.speed}</span><select class="field sm" data-tie="${esc(pair)}" aria-label="${esc(`Who wins the speed tie between ${label(t.keys[0])} and ${label(t.keys[1])}`)}">${option(t.keys[0])}${option(t.keys[1])}</select></div>`;
-  }).join('');
-  return `<div class="tie-edit"><span class="lbl">Speed ties</span><p class="hint">Equal Speed: the game decides with a 50/50. Pick who moves first to plan each case.</p>${rows}</div>`;
 }
 
 function actionEditor(a: TurnAction, i: number, st: BattleState | null, depth: number, actions: readonly TurnAction[]): string {
@@ -225,7 +237,7 @@ function actionEditor(a: TurnAction, i: number, st: BattleState | null, depth: n
       <div><label class="lbl" for="a-kind-${i}">Action</label><select class="field" id="a-kind-${i}" data-a="kind" data-i="${i}">${kindOption('move', 'Move')}${mega}${kindOption('switch', 'Switch')}</select></div>
     </div>
     ${a.kind === 'switch'
-      ? `<div><label class="lbl" for="a-target-${i}">Switch to</label><select class="field" id="a-target-${i}" data-a="target" data-i="${i}">${options(incoming, a.target, 'Choose…', own)}</select></div>`
+      ? `<div><label class="lbl" for="a-target-${i}">Switch to</label><select class="field" id="a-target-${i}" data-a="target" data-i="${i}">${options(incoming, a.target, 'Choose…', own)}</select></div>${outcomeEditor(a, i, st, depth, actions)}`
       : `<div class="row2">
       <div><label class="lbl" for="a-move-${i}">Move</label>${moveField}</div>
       <div><label class="lbl" for="a-target-${i}">Target</label><select class="field" id="a-target-${i}" data-a="target" data-i="${i}">${options(targets, a.target, '—', anyone)}</select></div>
@@ -275,6 +287,8 @@ export function renderDrawer(): void {
   const n: FlowNode = found.node;
   const st = startStateOf(found.parent?.id);
   if (syncActions(n, st, found.depth)) { store.persist(); rerenderCanvas(); }
+  const result = turnResult(n.id);
+  editingTies = result?.status === 'ready' ? result.ties : [];
   drawer.classList.remove('hidden');
   drawer.innerHTML = `
   <div class="drawer-head"><h3>${esc(n.title || `Turn ${found.depth}`)}</h3><button class="icon-btn" data-act="close-drawer" aria-label="Close editor">✕</button></div>
@@ -284,7 +298,6 @@ export function renderDrawer(): void {
       <div><label class="lbl" for="d-cond">Branch condition</label><input class="field" id="d-cond" data-f="condition" placeholder="e.g. If they Protect" value="${esc(n.condition)}"></div>
     </div>
     <div id="acts">${n.actions.map((a, i) => actionEditor(a, i, st, found.depth, n.actions)).join('') || '<p class="hint">Pick the leads at the top of the plan: each Pokémon on the field gets an action here.</p>'}</div>
-    ${tieEditor(n, st)}
     <div><label class="lbl" for="d-note">Notes</label><textarea class="field" id="d-note" data-f="note" rows="4" placeholder="Reasoning, speed tiers, what to watch for…">${esc(n.note)}</textarea></div>
   </div>
   <div class="drawer-foot">${footHTML(n)}</div>`;

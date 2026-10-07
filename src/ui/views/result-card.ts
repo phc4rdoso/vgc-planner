@@ -165,7 +165,9 @@ export function tieText(t: SpeedTie, n: Names): string {
     const [side, name] = key.split(':') as [Side, string];
     return `${n.mon(side, name)} (${side === 'me' ? 'you' : 'opponent'})`;
   };
-  return `${who(t.keys[0])} and ${who(t.keys[1])} tie at Speed ${t.speed}: ${who(t.first)} moves first ${t.picked ? '(picked)' : '(assumed; it’s a 50/50)'}.`;
+  const what = t.start ? ' coming in at the start' : t.entry ? ' coming in together' : '';
+  const first = t.entry ? `${who(t.first)}’s ability triggers first` : `${who(t.first)} moves first`;
+  return `${who(t.keys[0])} and ${who(t.keys[1])} tie at Speed ${t.speed}${what}: ${first} ${t.picked ? '(picked)' : '(assumed; it’s a 50/50)'}.`;
 }
 
 const ordinal = (n: number): string => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;

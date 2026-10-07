@@ -118,6 +118,11 @@ export interface PlanTab {
   selection: Record<Side, SideSelection>;
   /** First-level turns (alternatives for turn 1). */
   children: FlowNode[];
+  /**
+   * Who wins speed ties between the leads' entry abilities at the start of the battle (keys `side:name`, first
+   * wins). Unset: the first one listed is assumed to win.
+   */
+  entryTieOrder?: string[];
 }
 
 /** A gameplan against one opponent team. It always has at least one tab. */

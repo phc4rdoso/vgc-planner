@@ -5,9 +5,9 @@ import type { BoostKey, BoostTable, PlanTab, PokemonSet, Side, StatTable, TurnAc
 import { SIDES } from '../types.ts';
 import type { CalcEngine } from './engine.ts';
 import { Effects } from './effects.ts';
-import type { LogEntry } from './log.ts';
+import type { LogEntry, SpeedTie } from './log.ts';
 import type { ScreenKey, StatusId } from './tables.ts';
-import { SPEED_WEATHER } from './tables.ts';
+import { ENTRY_EFFECT_ABILITIES, SPEED_WEATHER } from './tables.ts';
 
 export interface MonState {
   /** Name from the paste; the stable key used by plans and actions. */
@@ -361,10 +361,32 @@ export function effSpeed(st: BattleState, side: Side, mon: MonState): number {
   return speed;
 }
 
-export interface InitialState { st: BattleState; entry: LogEntry[] }
+/**
+ * Pokémon coming in at the same time (the leads, or replacements after a faint) trigger their entry abilities
+ * fastest first. Equal Speed is a coin flip in the game: the winner picked in `tieOrder` (keys `side:name`), or else
+ * the order given. Returns the order and the ties that matter (one of the two has an entry ability).
+ */
+export function entryOrder<T extends { side: Side; name: string }>(st: BattleState, list: readonly T[], tieOrder: readonly string[] = []): { order: T[]; ties: SpeedTie[] } {
+  const key = (x: T): string => monKey(x.side, x.name);
+  const speedOf = (x: T): number => { const m = st.mons[x.side][x.name]; return m?.stats ? effSpeed(st, x.side, m) : 0; };
+  const picked = (x: T): number => tieOrder.indexOf(key(x));
+  const order = list.map((x, i) => ({ x, i, speed: speedOf(x) }))
+    .sort((a, b) => b.speed - a.speed || (picked(a.x) >= 0 && picked(b.x) >= 0 ? picked(a.x) - picked(b.x) : 0) || a.i - b.i);
+  const ties: SpeedTie[] = [];
+  const matters = (x: T): boolean => ENTRY_EFFECT_ABILITIES.has(toID(st.mons[x.side][x.name]?.ability ?? ''));
+  order.forEach((a, i) => order.slice(i + 1).forEach((b) => {
+    if (a.speed !== b.speed || !(matters(a.x) || matters(b.x))) return;
+    const keys = [key(a.x), key(b.x)].sort() as [string, string];
+    ties.push({ keys, speed: a.speed, first: key(a.x), picked: picked(a.x) >= 0 && picked(b.x) >= 0, entry: true });
+  }));
+  return { order: order.map((o) => o.x), ties };
+}
+
+/** `entryTies`: speed ties between the leads' entry abilities (see {@link entryOrder}). */
+export interface InitialState { st: BattleState; entry: LogEntry[]; entryTies: SpeedTie[] }
 
 /** Battle start: everyone at full HP, leads on the field, entry abilities resolved (fastest first, so the slowest weather wins). */
-export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection'>, myMons: readonly PokemonSet[], oppMons: readonly PokemonSet[]): InitialState {
+export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection' | 'entryTieOrder'>, myMons: readonly PokemonSet[], oppMons: readonly PokemonSet[]): InitialState {
   const st: BattleState = {
     mons: { me: {}, opp: {} }, active: { me: [], opp: [] }, party: { me: [], opp: [] }, megaUsed: { me: null, opp: null },
     field: newField(), turn: newScratch(),
@@ -405,15 +427,10 @@ export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection'>, 
   }
 
   const entry: LogEntry[] = [];
-  const leads: { side: Side; name: string; speed: number }[] = [];
-  for (const side of SIDES) {
-    for (const name of st.active[side]) {
-      const mon = st.mons[side][name]!;
-      if (mon.stats) leads.push({ side, name, speed: effSpeed(st, side, mon) });
-    }
-  }
+  const leads = SIDES.flatMap((side) => st.active[side].filter((name) => st.mons[side][name]?.stats).map((name) => ({ side, name })));
+  const { order, ties } = entryOrder(st, leads, plan.entryTieOrder);
   const fx = new Effects(engine, st, entry);
-  leads.sort((a, b) => b.speed - a.speed).forEach((l) => fx.enter(l.side, l.name));
-  return { st, entry };
+  order.forEach((l) => fx.enter(l.side, l.name));
+  return { st, entry, entryTies: ties.map((t) => ({ ...t, start: true as const })) };
 }
 

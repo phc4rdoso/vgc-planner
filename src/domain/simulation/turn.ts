@@ -8,7 +8,7 @@ import { Effects, share } from './effects.ts';
 import type { CalcEngine, HitCalc, MoveInfo } from './engine.ts';
 import type { DebuffTarget, EndMon, HitResult, LogEntry, SpeedTie, StatusTarget, TurnResult } from './log.ts';
 import type { BattleState, FieldState, MonState } from './state.ts';
-import { aliveActive, bench, effSpeed, heldItem, monKey, newScratch, noHazards, otherSide, outcomeOf, refreshStats, statsOf, zeroBoosts } from './state.ts';
+import { aliveActive, bench, effSpeed, entryOrder, heldItem, monKey, newScratch, noHazards, otherSide, outcomeOf, refreshStats, statsOf, zeroBoosts } from './state.ts';
 import type { BoostChange, StatusId } from './tables.ts';
 import {
   ABILITY_SETTERS, CLEARS_STATS, EJECT_ITEMS, EXIT_ABILITIES, FIXED_ABILITIES, GRAVITY_BANNED, HAZARD_ATTACKS, HAZARD_MOVES, HEAL_MOVES,
@@ -135,22 +135,27 @@ class TurnRunner {
    * Fainted Pokémon are replaced before the turn starts (entry abilities trigger). The replacement is whichever
    * benched Pokémon the user gave an action to this turn; it takes the first free fainted slot and then acts normally.
    */
-  replaceFainted(actions: readonly TurnAction[]): void {
-    // Older plans spelled a replacement as a "switch" action for the fainted Pokémon.
+  replaceFainted(actions: readonly TurnAction[], tieOrder: readonly string[] = []): void {
+    // Who replaces whom. Older plans spelled a replacement as a "switch" action for the fainted Pokémon.
+    const swaps: { side: Side; out: string; name: string }[] = [];
     for (const a of actions) {
       if (a.kind !== 'switch' || !a.mon || !a.target) continue;
       const out = this.st.mons[a.side][a.mon];
       if (!out?.fainted || !this.st.active[a.side].includes(a.mon)) continue;
-      this.doSwitch(a.side, a.mon, a.target, { replace: true });
+      swaps.push({ side: a.side, out: a.mon, name: a.target });
       this.replaced.add(a);
     }
     for (const side of SIDES) {
-      const fainted = this.st.active[side].filter((n) => this.st.mons[side][n]?.fainted);
+      const fainted = this.st.active[side].filter((n) => this.st.mons[side][n]?.fainted && !swaps.some((s) => s.side === side && s.out === n));
       const comingIn = [...new Set(actions
         .filter((a) => a.side === side && a.mon && !this.replaced.has(a) && this.st.mons[side][a.mon] && !this.st.active[side].includes(a.mon))
         .map((a) => a.mon))];
-      fainted.forEach((out, i) => { const inName = comingIn[i]; if (inName) this.doSwitch(side, out, inName, { replace: true }); });
+      fainted.forEach((out, i) => { const name = comingIn[i]; if (name) swaps.push({ side, out, name }); });
     }
+    // They come in together, so their entry abilities go fastest first (a tie is picked on the turn, or assumed).
+    const { order, ties } = entryOrder(this.st, swaps, tieOrder);
+    this.ties.push(...ties);
+    for (const s of order) this.doSwitch(s.side, s.out, s.name, { replace: true });
   }
 
   /** Reasons the turn can't run yet; empty when every active Pokémon has a complete action. */
@@ -1552,18 +1557,18 @@ function volatileLabels(st: BattleState, m: MonState): string[] {
  * Simulates one turn on a *copy-safe* state (the caller passes a clone). Returns `incomplete` when the user still
  * has to fill something in, `error` for calculator problems.
  */
-export function simulateTurn(engine: CalcEngine, st: BattleState, node: FlowNode, entry: LogEntry[]): TurnResult {
+export function simulateTurn(engine: CalcEngine, st: BattleState, node: FlowNode, entry: LogEntry[], entryTies: readonly SpeedTie[] = []): TurnResult {
   const runner = new TurnRunner(engine, st);
   // Inherited from the parent turn; shown for turns that can't run yet.
   const start = structuredClone(st.field);
   try {
-    runner.replaceFainted(node.actions);
+    runner.replaceFainted(node.actions, node.tieOrder);
     const missing = runner.missingFor(node.actions);
     if (missing.length) return { status: 'incomplete', missing, field: start };
     runner.run(node.actions, node);
     const end = runner.snapshot();
     st.turn = newScratch();
-    return { status: 'ready', log: runner.log, entry, end, state: st, field: runner.during ?? start, outcome: outcomeOf(st), order: runner.actionOrder(), ties: runner.ties };
+    return { status: 'ready', log: runner.log, entry, end, state: st, field: runner.during ?? start, outcome: outcomeOf(st), order: runner.actionOrder(), ties: [...entryTies, ...runner.ties] };
   } catch (e) {
     if (e instanceof Incomplete) return { status: 'incomplete', missing: [e.message], field: start };
     return { status: 'error', message: e instanceof Error ? e.message : String(e) };

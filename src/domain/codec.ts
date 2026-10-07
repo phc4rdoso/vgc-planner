@@ -157,7 +157,14 @@ function readTab(o: Obj, path: string, keepIds: boolean, flowKey: 'children' | '
     name: asStr(o.name, `${path}.name`, LIMITS.nameLength).trim() || fallbackName,
     selection,
     children: asArr(o[flowKey], `${path}.${flowKey}`, LIMITS.nodesPerPlan).map((n, i) => readNode(n, `${path}.${flowKey}[${i}]`, keepIds, 1, budget)),
+    ...readEntryTies(o.entryTieOrder, `${path}.entryTieOrder`),
   };
+}
+
+/** A tab's picks for speed ties between the leads' entry abilities. */
+function readEntryTies(v: unknown, path: string): { entryTieOrder?: string[] } {
+  const keys = asArr(v, path, 8).map((k, i) => asStr(k, `${path}[${i}]`, LIMITS.nameLength)).filter(Boolean);
+  return keys.length ? { entryTieOrder: keys } : {};
 }
 
 /** Gameplans written before tabs existed kept `selection` and the turns on the gameplan itself: they become one tab. */
@@ -222,7 +229,7 @@ export interface ExportedNode {
   title: string; condition: string; note: string; actions: TurnAction[]; children: ExportedNode[];
   order?: string[]; tieOrder?: string[]; hpEnd?: Record<string, number>; source?: { replay: string };
 }
-export interface ExportedTab { name: string; selection: Record<Side, SideSelection>; flow: ExportedNode[] }
+export interface ExportedTab { name: string; selection: Record<Side, SideSelection>; flow: ExportedNode[]; entryTieOrder?: string[] }
 export interface ExportedPlan { name: string; opponent: { name: string; paste: string }; tabs: ExportedTab[] }
 export interface ExportedTeam {
   name: string;
@@ -255,7 +262,9 @@ function exportTeam(team: Team, onlyPlanId?: string): ExportedTeam {
       .filter((p) => !onlyPlanId || p.id === onlyPlanId)
       .map((p) => ({
         name: p.name, opponent: { ...p.opponent },
-        tabs: p.tabs.map((t) => ({ name: t.name, selection: structuredClone(t.selection), flow: t.children.map(exportNode) })),
+        tabs: p.tabs.map((t) => ({
+          name: t.name, selection: structuredClone(t.selection), flow: t.children.map(exportNode), ...(t.entryTieOrder ? { entryTieOrder: [...t.entryTieOrder] } : {}),
+        })),
       })),
   };
 }
