@@ -39,7 +39,8 @@ ul.tree-children { padding-top: var(--gap); }
 .tree-item { position: relative; padding: var(--gap) 8px 0; display: flex; flex-direction: column; align-items: center; }
 .tree-item::before, .tree-item::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: var(--gap); border-top: 2px solid var(--line); }
 .tree-item::after { right: auto; left: 50%; border-left: 2px solid var(--line); }
-.tree-item:only-child { padding-top: 0; }
+/* A lone turn has no neighbours to keep apart from: no side padding, so long lines of turns don't widen the tree. */
+.tree-item:only-child { padding: 0; }
 .tree-item:only-child::before, .tree-item:only-child::after { display: none; }
 .tree-item:first-child::before, .tree-item:last-child::after { border: 0 none; }
 .tree-item:last-child::before { border-right: 2px solid var(--line); border-radius: 0 8px 0 0; }
@@ -131,13 +132,14 @@ ul.tree.rootlist { padding-top: 0; }
 .addbox { width: 110px; height: 42px; border: 2px dashed var(--line); border-radius: 10px; background: transparent; color: var(--ink-3); display: flex; align-items: center; justify-content: center; }
 .addbox:hover { border-color: var(--me); color: var(--me); background: var(--me-soft); }
 .addbox.first { width: 160px; height: 48px; }
-/* Another branch: right beside the last sibling card (cards are 300px wide), with room kept for it. */
-.tree-item.with-add { margin-right: 92px; }
-/* A lone next turn keeps the line from its parent centred on it. */
-.tree-item.with-add:only-child { margin-left: 92px; }
-.addbox.beside { position: absolute; top: var(--gap); left: calc(50% + 150px + 20px); width: 56px; height: 42px; }
-.tree-item:only-child.with-add > .addbox.beside { top: 0; }
-.addbox.beside::before { content: ""; position: absolute; right: 100%; top: 50%; width: 20px; border-top: 2px dashed var(--line); }
+/*
+ * Another branch: the "+" right beside the last sibling card, in the same row, with an equal spacer on the left so
+ * the card stays centred over its branch. Rows don't add up with depth: a branch is as wide as its widest row.
+ */
+.card-row { display: flex; align-items: flex-start; }
+.add-spacer { flex: none; width: 76px; }
+.addbox.beside { position: relative; flex: none; margin-left: 20px; width: 56px; height: 42px; }
+.addbox.beside::before { content: ""; position: absolute; right: calc(100% + 2px); top: 50%; width: 20px; border-top: 2px dashed var(--line); }
 
 /* Volatile effects on a Pokémon in the turn result (Substitute, Taunt, Encore...). */
 .bchip.vol { background: var(--line); color: var(--ink-2); }

@@ -103,7 +103,11 @@ function listHTML(nodes: FlowNode[], parentId: string | null, depth: number, sim
     const r = sim.enabled && sim.status === 'ready' ? sim.results.get(n.id) : undefined;
     const children = listHTML(n.children, n.id, depth + 1, sim, r?.status === 'ready' ? r.state : null, picks, outcomeOf(n, sim) === null);
     const beside = canAdd && i === nodes.length - 1;
-    return `<li class="tree-item${beside ? ' with-add' : ''}">${nodeHTML(n, depth, sim, start, picks)}${beside ? addbox('beside') : ''}${children ? `<ul class="tree-children">${children}</ul>` : ''}</li>`;
+    // The card shares a row with its "+" (and a matching spacer on the left, so the card stays centred): a branch
+    // is only as wide as its widest row, so the "+" adds width only where it would otherwise stick out.
+    const card = nodeHTML(n, depth, sim, start, picks);
+    const row = beside ? `<div class="card-row"><span class="add-spacer" aria-hidden="true"></span>${card}${addbox('beside')}</div>` : card;
+    return `<li class="tree-item">${row}${children ? `<ul class="tree-children">${children}</ul>` : ''}</li>`;
   }).join('');
 }
 
