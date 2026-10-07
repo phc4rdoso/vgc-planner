@@ -13,6 +13,7 @@ import { session } from '../../state/account.ts';
 import { ICON_LINK } from '../share.ts';
 import { renderNav } from './sidebar.ts';
 import { extLinksHTML } from '../ext-links.ts';
+import { REPLAY_BUTTON } from '../replay-import.ts';
 
 const PLUS_ICON = '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 3v12M3 9h12"/></svg>';
 
@@ -142,6 +143,7 @@ export function renderPlanView(main: HTMLElement, team: Team, plan: Plan): void 
     <input class="title-input" id="plan-name" value="${esc(plan.name)}" aria-label="Gameplan name">
     <span class="spacer"></span>
     <div class="zoom-ctl"><button class="btn sm" data-act="zoom" data-d="-1" aria-label="Zoom out">−</button><span class="lvl" id="zlvl">${Math.round(store.ui.zoom * 100)}%</span><button class="btn sm" data-act="zoom" data-d="1" aria-label="Zoom in">+</button></div>
+    ${REPLAY_BUTTON}
     ${session.shared.has(plan.id)
       ? `<button class="btn shared" data-act="share-plan" data-plan="${esc(plan.id)}" title="Shared by link: copy the link or stop sharing">${ICON_LINK}Shared</button>`
       : `<button class="btn" data-act="share-plan" data-plan="${esc(plan.id)}">Share</button>`}

@@ -67,8 +67,10 @@ export interface TargetOutcome {
  * - `protectWorks`: a Protect used right after another one worked (the 1-in-3 case).
  * - `targets`: per target, keyed by its name.
  * - `self`: chance effects on the user itself (Meteor Mash's Attack raise...).
+ * - `unknown`: the move it chose isn't known (a replay doesn't show it when the Pokémon fainted or couldn't move first).
  */
 export interface ActionOutcome {
+  unknown?: true;
   cant?: 'par' | 'slp' | 'frz' | 'confusion' | 'flinch';
   wake?: true;
   hits?: number;

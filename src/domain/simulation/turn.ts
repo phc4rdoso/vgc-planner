@@ -166,7 +166,7 @@ class TurnRunner {
       // A charged two-turn move is released, or a recharge spent, whatever is picked.
       if (lockedAction(this.st.mons[a.side][a.mon]!) && this.st.active[a.side].includes(a.mon)) continue;
       if (a.kind === 'switch') { if (!a.target) missing.push(`${a.mon}: choose who to switch to`); }
-      else if (!a.move) missing.push(`${a.mon}: choose a move`);
+      else if (!a.move && !a.outcome?.unknown) missing.push(`${a.mon}: choose a move`);
     }
     for (const side of SIDES) {
       for (const name of aliveActive(this.st, side)) {
@@ -339,6 +339,7 @@ class TurnRunner {
 
     const info = e.info;
     const id = toID(a.move);
+    if (!a.move && a.outcome?.unknown) { this.log.push({ type: 'skip', side, mon: a.mon, why: "its move isn't known (not shown in the replay)" }); return; }
     if (!info.exists) { this.log.push({ type: 'other', side, mon: a.mon, move: a.move, note: 'move not found in the calculator' }); return; }
     const fail = PROTECT_FAMILY.has(id) && wasProtecting && !a.outcome?.protectWorks
       ? 'used right after another protecting move: it only works 1 time in 3'

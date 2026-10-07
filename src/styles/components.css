@@ -171,3 +171,8 @@ textarea.paste.short { min-height: 160px; }
 .field.sm { padding: 3px 6px; font-size: 12px; width: auto; }
 .oc-hp { width: 70px; }
 .oc-hits { width: 52px; }
+
+/* A toast with an action (Undo). */
+.toast.with-action { display: flex; align-items: center; gap: 14px; }
+.toast-btn { background: transparent; border: 0; color: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; padding: 0; }
+.replay-errors { white-space: pre-line; max-height: 220px; overflow: auto; }

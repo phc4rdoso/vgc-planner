@@ -50,10 +50,21 @@ export class SimService {
     return this.engine && name ? this.engine.moveInfo(name) : null;
   }
 
+  /** The calculator, loading it if needed. Rejects if it can't load. */
+  async ready(): Promise<CalcEngine> {
+    if (this.state === 'error') this.state = 'idle';
+    this.ensureEngine();
+    await this.loading;
+    if (!this.engine) throw new Error(`The damage calculator didn’t load${this.error ? `: ${this.error}` : ''}.`);
+    return this.engine;
+  }
+
+  private loading: Promise<void> | null = null;
+
   private ensureEngine(): void {
     if (this.state !== 'idle') return;
     this.state = 'loading';
-    this.loader()
+    this.loading = this.loader()
       .then((lib) => { this.engine = createEngine(lib); this.state = 'ready'; })
       .catch((e: unknown) => { this.state = 'error'; this.error = e instanceof Error ? e.message : String(e); })
       .finally(() => { this.onChange(); });
