@@ -1,5 +1,5 @@
 import { STAT_LABEL } from '../../domain/stats.ts';
-import type { EndMon, HitResult, LogEntry, StatChange, StatusTarget } from '../../domain/simulation/log.ts';
+import type { EndMon, HitResult, LogEntry, SpeedTie, StatChange, StatusTarget } from '../../domain/simulation/log.ts';
 import { fieldEffects } from '../../domain/simulation/state.ts';
 import type { StatusId } from '../../domain/simulation/tables.ts';
 import { CHANCE_LABEL, STATUS_LABEL, STATUS_SHORT } from '../../domain/simulation/tables.ts';
@@ -149,12 +149,23 @@ export function resultHTML(node: FlowNode, sim: SimView, start: BattleState | nu
         const rows = r.end.filter((x) => x.side === side).map(hpRow).join('');
         return rows ? `<div class="res-sub">${label}</div>${rows}` : '';
       };
+      const ties = r.ties.length
+        ? `<div class="tie-note">${r.ties.map((t) => `${esc(tieText(t, n))}`).join('<br>')}</div>` : '';
       inner = (r.entry.length ? `<div class="res-sub">On entry</div><ol class="res-log">${r.entry.map((e) => logRow(e, n)).join('')}</ol>` : '')
-        + `<div class="res-sub">In order</div><ol class="res-log">${r.log.map((e) => logRow(e, n)).join('')}</ol>`
+        + `<div class="res-sub">In order</div>${ties}<ol class="res-log">${r.log.map((e) => logRow(e, n)).join('')}</ol>`
         + `<div class="res-sub">End of turn</div>${group('me', 'You')}${group('opp', 'Opponent')}`;
     }
   }
   return `<div class="turn-result">${inner}</div>`;
+}
+
+/** "Garchomp (you) and Garchomp (opponent) tie at Speed 122: Garchomp (you) moves first (assumed; it's a 50/50)." */
+export function tieText(t: SpeedTie, n: Names): string {
+  const who = (key: string): string => {
+    const [side, name] = key.split(':') as [Side, string];
+    return `${n.mon(side, name)} (${side === 'me' ? 'you' : 'opponent'})`;
+  };
+  return `${who(t.keys[0])} and ${who(t.keys[1])} tie at Speed ${t.speed}: ${who(t.first)} moves first ${t.picked ? '(picked)' : '(assumed; it’s a 50/50)'}.`;
 }
 
 const ordinal = (n: number): string => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
@@ -195,7 +206,10 @@ export function summaryHTML(node: FlowNode, sim: SimView, start: BattleState | n
   const shown = (x: EndMon): boolean => r.state.active[x.side].includes(x.name) && !x.fainted
     || (x.fainted && start?.mons[x.side][x.name]?.fainted !== true);
   const side = (s: Side): string => r.end.filter((x) => x.side === s && shown(x)).map((x) => miniHp(x, r.order[`${x.side}:${x.name}`])).join('');
-  return `<div class="sum-hp"><div class="me">${side('me')}</div><div class="opp">${side('opp')}</div></div>`;
+  const n = namesFor(r.state);
+  const tie = r.ties.length
+    ? `<div class="sum-tie"><span class="tie-chip" title="${esc(`${r.ties.map((t) => tieText(t, n)).join('\n')}\nPick who moves first in the turn editor.`)}">Speed tie</span></div>` : '';
+  return `<div class="sum-hp"><div class="me">${side('me')}</div><div class="opp">${side('opp')}</div></div>${tie}`;
 }
 
 /** Whether a turn card has a full log (or list of missing things) to open. */

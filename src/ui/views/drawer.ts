@@ -162,6 +162,25 @@ function outcomeEditor(a: TurnAction, i: number, st: BattleState | null, depth: 
   </details>`;
 }
 
+/**
+ * "Speed ties": for each pair of Pokémon whose order came down to equal Speed this turn, who moves first. The game
+ * flips a coin; unless picked here, the first action listed is assumed to win.
+ */
+function tieEditor(n: FlowNode, st: BattleState | null): string {
+  const r = turnResult(n.id);
+  if (r?.status !== 'ready' || !r.ties.length) return '';
+  const label = (key: string): string => {
+    const [side, name] = key.split(':') as [Side, string];
+    return `${formOf(st, side, name)} (${side === 'me' ? 'you' : 'opp'})`;
+  };
+  const rows = r.ties.map((t) => {
+    const pair = t.keys.join('|');
+    const option = (key: string): string => `<option value="${esc(key)}" ${t.first === key ? 'selected' : ''}>${esc(label(key))} moves first${t.picked || t.first !== key ? '' : ' (assumed)'}</option>`;
+    return `<div class="oc-row"><span class="oc-name">Speed ${t.speed}</span><select class="field sm" data-tie="${esc(pair)}" aria-label="${esc(`Who wins the speed tie between ${label(t.keys[0])} and ${label(t.keys[1])}`)}">${option(t.keys[0])}${option(t.keys[1])}</select></div>`;
+  }).join('');
+  return `<div class="tie-edit"><span class="lbl">Speed ties</span><p class="hint">Equal Speed: the game decides with a 50/50. Pick who moves first to plan each case.</p>${rows}</div>`;
+}
+
 function actionEditor(a: TurnAction, i: number, st: BattleState | null, depth: number, actions: readonly TurnAction[]): string {
   const team = store.team; const plan = store.sheet;
   const set = team && plan ? monsFor(a.side, team, plan).find((m) => m.species === a.mon) : undefined;
@@ -265,6 +284,7 @@ export function renderDrawer(): void {
       <div><label class="lbl" for="d-cond">Branch condition</label><input class="field" id="d-cond" data-f="condition" placeholder="e.g. If they Protect" value="${esc(n.condition)}"></div>
     </div>
     <div id="acts">${n.actions.map((a, i) => actionEditor(a, i, st, found.depth, n.actions)).join('') || '<p class="hint">Pick the leads at the top of the plan: each Pokémon on the field gets an action here.</p>'}</div>
+    ${tieEditor(n, st)}
     <div><label class="lbl" for="d-note">Notes</label><textarea class="field" id="d-note" data-f="note" rows="4" placeholder="Reasoning, speed tiers, what to watch for…">${esc(n.note)}</textarea></div>
   </div>
   <div class="drawer-foot">${footHTML(n)}</div>`;

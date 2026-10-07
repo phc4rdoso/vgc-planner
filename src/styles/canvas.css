@@ -147,3 +147,8 @@ ul.tree.rootlist { padding-top: 0; }
 /* Chance results (a miss, a crit, a flinch...) and HP recorded by a replay. */
 .chance { font-size: 10.5px; font-weight: 700; padding: 0 5px; border-radius: 5px; background: var(--warn-soft, rgba(240, 180, 40, .18)); color: var(--warn, #b07a00); white-space: nowrap; }
 .actual { font-size: 10.5px; font-weight: 700; color: var(--me); white-space: nowrap; }
+
+/* Speed ties: a tag on the turn card and a note in its log. */
+.sum-tie { margin-top: 4px; }
+.tie-chip { font-size: 10.5px; font-weight: 700; padding: 1px 7px; border-radius: 999px; background: var(--warn-soft, rgba(240, 180, 40, .18)); color: var(--warn, #b07a00); }
+.tie-note { font-size: 11px; color: var(--warn, #b07a00); margin: 2px 0 6px; }

@@ -91,6 +91,11 @@ export interface FlowNode {
   children: FlowNode[];
   /** The order the Pokémon really acted in (`side:name`), e.g. from a replay; it wins over Speed. */
   order?: string[];
+  /**
+   * Who wins speed ties this turn: keys (`side:name`) in the order they move when their Speed is equal (picked by
+   * hand; otherwise the game's 50/50 is assumed to go to the first action listed).
+   */
+  tieOrder?: string[];
   /** Each Pokémon's HP at the end of the turn, in percent (`side:name` → %), e.g. from a replay. */
   hpEnd?: Record<string, number>;
   /** Where the turn came from, when it was imported from a replay. */

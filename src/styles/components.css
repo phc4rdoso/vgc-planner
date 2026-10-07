@@ -176,3 +176,6 @@ textarea.paste.short { min-height: 160px; }
 .toast.with-action { display: flex; align-items: center; gap: 14px; }
 .toast-btn { background: transparent; border: 0; color: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; padding: 0; }
 .replay-errors { white-space: pre-line; max-height: 220px; overflow: auto; }
+
+.tie-edit { border-top: 1px dashed var(--line); padding-top: 8px; display: grid; gap: 6px; font-size: 12px; }
+.tie-edit .hint { margin: 0; }

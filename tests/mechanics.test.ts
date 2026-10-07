@@ -757,3 +757,30 @@ test('move data from Showdown: only real chance effects are offered, and missing
   assert.deepEqual(hitOn(r1!.log, 'Garchomp', 'Chilling Water')[0]?.changes, [{ stat: 'atk', delta: -1 }]);
   assert.deepEqual(boostsOf(r1!, 'Rillaboom'), { atk: 1 });
 });
+
+test('speed ties are flagged, assumed to go to the first action listed, and can be decided on the turn', () => {
+  const mirror: Battle = { me: ME, opp: [mon('Garchomp', 'Rough Skin'), mon('Incineroar', 'Blaze')], leads: { me: ['Garchomp', 'Rillaboom'], opp: ['Garchomp', 'Incineroar'] } };
+  const actions = [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Garchomp', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance')];
+  const [r1] = play(mirror, actions);
+  assert.equal(r1!.ties.length, 1);
+  assert.deepEqual(r1!.ties[0]!.keys, ['me:Garchomp', 'opp:Garchomp']);
+  assert.equal(r1!.ties[0]!.first, 'me:Garchomp');
+  assert.equal(r1!.ties[0]!.picked, false);
+  assert.deepEqual(movers(r1!.log).slice(0, 2), ['Garchomp', 'Garchomp']);
+  assert.equal(r1!.log.filter((l) => l.type === 'boost')[0]!.side, 'me');
+
+  // The opponent's Garchomp wins the tie when picked on the turn.
+  const team = newTeam('T', mirror.me.join('\n\n'));
+  const gameplan = newPlan('p', mirror.opp.join('\n\n'));
+  const plan = sheetOf(gameplan, gameplan.tabs[0]!);
+  plan.selection.me.lead = mirror.leads.me; plan.selection.opp.lead = mirror.leads.opp;
+  const n = newNode({ actions, tieOrder: ['opp:Garchomp', 'me:Garchomp'] });
+  plan.children.push(n);
+  const r = simulatePlan(createEngine(makeStubCalc().lib), team, plan).get(n.id) as Ready;
+  assert.equal(r.log.filter((l) => l.type === 'boost')[0]!.side, 'opp');
+  assert.deepEqual({ first: r.ties[0]!.first, picked: r.ties[0]!.picked }, { first: 'opp:Garchomp', picked: true });
+
+  // Different Speeds: no tie.
+  const [plain] = play({ me: ME, opp: OPP, leads: ME_LEADS }, [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)]);
+  assert.deepEqual(plain!.ties, []);
+});

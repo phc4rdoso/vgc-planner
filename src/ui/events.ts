@@ -160,6 +160,14 @@ function onInput(e: Event): void {
         if (box && caret !== null) box.setSelectionRange(caret, caret);
       }
     } else return;
+  } else if (t.dataset.tie) {
+    // Speed tie: the chosen Pokémon moves ahead of the other one.
+    const [a, b] = t.dataset.tie.split('|');
+    const winner = t.value;
+    const loser = winner === a ? b : a;
+    if (!winner || !loser) return;
+    const node = found.node;
+    node.tieOrder = [...(node.tieOrder ?? []).filter((k) => k !== winner && k !== loser), winner, loser];
   } else if (t.dataset.o) {
     const action = found.node.actions[Number(t.dataset.i)];
     if (!action) return;

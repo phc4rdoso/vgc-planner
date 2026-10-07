@@ -84,13 +84,19 @@ export interface EndMon {
   actual?: number;
 }
 
+/**
+ * Two Pokémon whose turn order came down to a speed tie (same priority, same Speed): `first` moved first, either
+ * picked on the turn (`picked`) or assumed (the first action listed).
+ */
+export interface SpeedTie { keys: [string, string]; speed: number; first: string; picked: boolean }
+
 /** `field` is the field during the turn (before the end-of-turn countdown), so it includes what was set up this turn. */
 export type TurnResult =
   /**
    * `order`: when each position acted this turn (1 = first), keyed `side:name` by the Pokémon standing there at the end
    * of the turn (so a switch or a pivot is credited to the Pokémon that came in).
    */
-  | { status: 'ready'; log: LogEntry[]; entry: LogEntry[]; end: EndMon[]; state: BattleState; field: FieldState; outcome: Outcome | null; order: Record<string, number> }
+  | { status: 'ready'; log: LogEntry[]; entry: LogEntry[]; end: EndMon[]; state: BattleState; field: FieldState; outcome: Outcome | null; order: Record<string, number>; ties: SpeedTie[] }
   | { status: 'incomplete'; missing: string[]; field: FieldState }
   | { status: 'error'; message: string }
   /** `over`: the battle already ended earlier in this branch (as opposed to an earlier turn being unfinished). */

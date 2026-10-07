@@ -103,6 +103,8 @@ function readOutcome(raw: unknown, path: string): ActionOutcome | undefined {
 function readNodeFacts(o: Obj, node: FlowNode): void {
   const order = asArr(o.order, 'order', LIMITS.actionsPerNode).map((k, i) => asStr(k, `order[${i}]`, LIMITS.nameLength)).filter(Boolean);
   if (order.length) node.order = order;
+  const tieOrder = asArr(o.tieOrder, 'tieOrder', LIMITS.actionsPerNode).map((k, i) => asStr(k, `tieOrder[${i}]`, LIMITS.nameLength)).filter(Boolean);
+  if (tieOrder.length) node.tieOrder = tieOrder;
   if (isObj(o.hpEnd)) {
     const hpEnd: Record<string, number> = {};
     for (const [k, v] of Object.entries(o.hpEnd).slice(0, 12)) { const hp = percent(v); if (hp !== undefined && k.length <= LIMITS.nameLength) hpEnd[k] = hp; }
@@ -218,7 +220,7 @@ export const writeLibrary = (library: Library): StoredLibrary => ({ schemaVersio
 
 export interface ExportedNode {
   title: string; condition: string; note: string; actions: TurnAction[]; children: ExportedNode[];
-  order?: string[]; hpEnd?: Record<string, number>; source?: { replay: string };
+  order?: string[]; tieOrder?: string[]; hpEnd?: Record<string, number>; source?: { replay: string };
 }
 export interface ExportedTab { name: string; selection: Record<Side, SideSelection>; flow: ExportedNode[] }
 export interface ExportedPlan { name: string; opponent: { name: string; paste: string }; tabs: ExportedTab[] }
@@ -241,7 +243,7 @@ export type ExportScope = { type: 'all' } | { type: 'team'; teamId: string } | {
 
 const exportNode = (n: FlowNode): ExportedNode => ({
   title: n.title, condition: n.condition, note: n.note, actions: n.actions.map((a) => structuredClone(a)), children: n.children.map(exportNode),
-  ...(n.order ? { order: [...n.order] } : {}), ...(n.hpEnd ? { hpEnd: { ...n.hpEnd } } : {}), ...(n.source ? { source: { ...n.source } } : {}),
+  ...(n.order ? { order: [...n.order] } : {}), ...(n.tieOrder ? { tieOrder: [...n.tieOrder] } : {}), ...(n.hpEnd ? { hpEnd: { ...n.hpEnd } } : {}), ...(n.source ? { source: { ...n.source } } : {}),
 });
 
 function exportTeam(team: Team, onlyPlanId?: string): ExportedTeam {

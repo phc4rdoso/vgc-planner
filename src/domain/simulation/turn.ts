@@ -6,7 +6,7 @@ import type { FieldOptions } from './calc-types.ts';
 import type { Inflicted } from './effects.ts';
 import { Effects, share } from './effects.ts';
 import type { CalcEngine, HitCalc, MoveInfo } from './engine.ts';
-import type { DebuffTarget, EndMon, HitResult, LogEntry, StatusTarget, TurnResult } from './log.ts';
+import type { DebuffTarget, EndMon, HitResult, LogEntry, SpeedTie, StatusTarget, TurnResult } from './log.ts';
 import type { BattleState, FieldState, MonState } from './state.ts';
 import { aliveActive, bench, effSpeed, heldItem, monKey, newScratch, noHazards, otherSide, outcomeOf, refreshStats, statsOf, zeroBoosts } from './state.ts';
 import type { BoostChange, StatusId } from './tables.ts';
@@ -110,6 +110,10 @@ class TurnRunner {
   private readonly replaced = new Set<TurnAction>();
   /** The order the Pokémon really acted in (`side:name`), when the turn records it (e.g. from a replay). */
   private observedOrder: string[] = [];
+  /** Who wins speed ties this turn, when picked on the turn. */
+  private tieOrder: string[] = [];
+  /** The speed ties that decided the order this turn. */
+  readonly ties: SpeedTie[] = [];
   /** Each Pokémon's action this turn, by {@link monKey} (what Sucker Punch and Upper Hand look at). */
   private readonly planned = new Map<string, Entry>();
   /** Whether the Pokémon now acting had its previous action fail (Stomping Tantrum, Temper Flare). */
@@ -179,6 +183,7 @@ class TurnRunner {
   /** Switches first, then Mega Evolution, then moves by priority and Speed, then the end-of-turn effects. */
   run(actions: readonly TurnAction[], node?: FlowNode): void {
     this.observedOrder = node?.order ?? [];
+    this.tieOrder = node?.tieOrder ?? [];
     this.st.turn = newScratch();
     this.slots = { me: [...this.st.active.me], opp: [...this.st.active.opp] };
     const entries: Entry[] = actions.filter((planned) => !this.replaced.has(planned)).map((planned, index) => {
@@ -197,6 +202,7 @@ class TurnRunner {
     });
     for (const e of entries) this.planned.set(monKey(e.action.side, e.action.mon), e);
     const switches = entries.filter((e) => e.action.kind === 'switch').sort((x, y) => this.compare(x, y));
+    switches.forEach((e, i) => this.noteTies(e, switches.slice(i + 1)));
     for (const e of switches) { this.execute(e); this.forcedSwitches(); }
     this.megaEvolve(entries.map((e) => e.action));
     this.forcedSwitches();
@@ -207,6 +213,7 @@ class TurnRunner {
     while (queue.length) {
       queue.sort((x, y) => this.compare(x, y));
       const e = queue.shift()!;
+      this.noteTies(e, queue);
       this.priority = e.priority;
       this.execute(e);
       this.forcedSwitches();
@@ -266,7 +273,29 @@ class TurnRunner {
     if (seen(x) >= 0 && seen(y) >= 0) return seen(x) - seen(y);
     const trick = this.st.field.trick > 0 ? 1 : -1;
     const speed = effSpeed(this.st, x.action.side, x.mon) - effSpeed(this.st, y.action.side, y.mon);
-    return moved(y) - moved(x) || bracket(y) - bracket(x) || trick * speed || x.index - y.index;
+    // A speed tie is a coin flip in the game: the winner picked on the turn, or else the first action listed.
+    const picked = (e: Entry): number => this.tieOrder.indexOf(monKey(e.action.side, e.action.mon));
+    const tie = picked(x) >= 0 && picked(y) >= 0 ? picked(x) - picked(y) : 0;
+    return moved(y) - moved(x) || bracket(y) - bracket(x) || trick * speed || tie || x.index - y.index;
+  }
+
+  /**
+   * Records the speed ties behind the action about to run: entries still waiting with the same priority bracket and
+   * the same Speed, when nothing else (a replay's order, After You, Quash) decided between them.
+   */
+  private noteTies(e: Entry, waiting: readonly Entry[]): void {
+    const key = (x: Entry): string => monKey(x.action.side, x.action.mon);
+    const bracket = (x: Entry): number => (x.action.kind === 'switch' ? 1000 : x.priority);
+    const forced = (x: Entry): boolean => this.observedOrder.includes(key(x)) || !!this.st.turn.next[key(x)] || !!this.st.turn.last[key(x)];
+    if (forced(e) || e.mon.fainted) return;
+    const speed = effSpeed(this.st, e.action.side, e.mon);
+    for (const w of waiting) {
+      if (forced(w) || w.mon.fainted || bracket(w) !== bracket(e) || effSpeed(this.st, w.action.side, w.mon) !== speed) continue;
+      const keys = [key(e), key(w)].sort() as [string, string];
+      if (keys[0] === keys[1] || this.ties.some((t) => t.keys[0] === keys[0] && t.keys[1] === keys[1])) continue;
+      const picked = this.tieOrder.includes(keys[0]) && this.tieOrder.includes(keys[1]);
+      this.ties.push({ keys, speed, first: key(e), picked });
+    }
   }
 
   /**
@@ -1534,7 +1563,7 @@ export function simulateTurn(engine: CalcEngine, st: BattleState, node: FlowNode
     runner.run(node.actions, node);
     const end = runner.snapshot();
     st.turn = newScratch();
-    return { status: 'ready', log: runner.log, entry, end, state: st, field: runner.during ?? start, outcome: outcomeOf(st), order: runner.actionOrder() };
+    return { status: 'ready', log: runner.log, entry, end, state: st, field: runner.during ?? start, outcome: outcomeOf(st), order: runner.actionOrder(), ties: runner.ties };
   } catch (e) {
     if (e instanceof Incomplete) return { status: 'incomplete', missing: [e.message], field: start };
     return { status: 'error', message: e instanceof Error ? e.message : String(e) };
