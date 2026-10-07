@@ -159,3 +159,18 @@ test('reads data saved by the earlier single-file version ({ teams, ui })', () =
   const legacy = { teams: sampleLibrary().teams, ui: { teamId: 'x', zoom: 1 } };
   assert.equal(readLibrary(JSON.parse(JSON.stringify(legacy))).teams.length, 1);
 });
+
+test('chance results survive export and import, combined stat changes included; junk is dropped', () => {
+  const lib = { teams: [{ name: 'T', paste: '', plans: [{ name: 'p', opponent: { name: '', paste: '' }, tabs: [{ name: 'Plan 1', selection: {}, flow: [{
+    title: '', condition: '', note: '', children: [], order: ['me:A', 'opp:B'], hpEnd: { 'opp:B': 42.5 }, source: { replay: 'https://replay.pokemonshowdown.com/x-1' },
+    actions: [{ side: 'me', mon: 'A', kind: 'move', move: 'Ancient Power', target: 'B', outcome: {
+      cant: 'par', wake: 'yes', hits: 99, self: ['atk+1,def+1,spa+1,spd+1,spe+1', 'evil'], targets: { B: { miss: true, crit: 1, effects: ['flinch', 'spd-1', '<script>'], hp: 140 } },
+    } }],
+  }] }] }] }] };
+  const parsed = readExport({ format: 'vgc-gameplan-planner', version: 2, ...lib });
+  const node = parsed.teams[0]!.plans[0]!.tabs[0]!.children[0]!;
+  assert.deepEqual(node.actions[0]!.outcome, { cant: 'par', self: ['atk+1,def+1,spa+1,spd+1,spe+1'], targets: { B: { miss: true, effects: ['flinch', 'spd-1'], hp: 100 } } });
+  assert.deepEqual(node.order, ['me:A', 'opp:B']);
+  assert.deepEqual(node.hpEnd, { 'opp:B': 42.5 });
+  assert.equal(node.source?.replay, 'https://replay.pokemonshowdown.com/x-1');
+});

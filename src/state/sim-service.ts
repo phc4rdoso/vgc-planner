@@ -1,6 +1,6 @@
 import { turnResultsGate } from '../domain/simulation/gate.ts';
 import { createEngine } from '../domain/simulation/engine.ts';
-import type { CalcEngine } from '../domain/simulation/engine.ts';
+import type { CalcEngine, MoveInfo } from '../domain/simulation/engine.ts';
 import type { CalcLoader } from '../domain/simulation/calc-types.ts';
 import type { TurnResult } from '../domain/simulation/log.ts';
 import { simulateSheet } from '../domain/simulation/plan.ts';
@@ -45,10 +45,26 @@ export class SimService {
     return { enabled: true, status: 'ready', results: this.memo.results, start: this.memo.start, native: this.engine.native };
   }
 
+  /** A move's data from the calculator (category, target, flags), or null until the calculator has loaded. */
+  moveInfo(name: string): MoveInfo | null {
+    return this.engine && name ? this.engine.moveInfo(name) : null;
+  }
+
+  /** The calculator, loading it if needed. Rejects if it can't load. */
+  async ready(): Promise<CalcEngine> {
+    if (this.state === 'error') this.state = 'idle';
+    this.ensureEngine();
+    await this.loading;
+    if (!this.engine) throw new Error(`The damage calculator didn’t load${this.error ? `: ${this.error}` : ''}.`);
+    return this.engine;
+  }
+
+  private loading: Promise<void> | null = null;
+
   private ensureEngine(): void {
     if (this.state !== 'idle') return;
     this.state = 'loading';
-    this.loader()
+    this.loading = this.loader()
       .then((lib) => { this.engine = createEngine(lib); this.state = 'ready'; })
       .catch((e: unknown) => { this.state = 'error'; this.error = e instanceof Error ? e.message : String(e); })
       .finally(() => { this.onChange(); });

@@ -23,6 +23,11 @@ export interface HitResult {
   endured?: string;
   /** The move's power when the battle changed it (Rage Fist, Last Respects, Payback...). */
   power?: number;
+  /** Chance results: it missed, it was a critical hit, the effects it caused, and the HP the turn recorded (percent). */
+  missed?: boolean;
+  crit?: boolean;
+  effects?: string[];
+  actualPct?: number;
   /** A Substitute took the hit instead ('broken' when it broke). */
   substitute?: 'hit' | 'broken';
   /** Number of hits, for moves whose hit count depends on the battle (Beat Up). */
@@ -75,6 +80,8 @@ export interface EndMon {
   charging?: string;
   /** Other effects on it: Substitute, Taunt, Encore, a Choice lock, Perish count, Leech Seed... */
   effects?: string[];
+  /** HP at the end of the turn as recorded (e.g. by a replay), in percent, when the turn pins it. */
+  actual?: number;
 }
 
 /** `field` is the field during the turn (before the end-of-turn countdown), so it includes what was set up this turn. */

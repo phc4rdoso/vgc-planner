@@ -13,9 +13,9 @@ import type { BoostChange, StatusId } from './tables.ts';
 import {
   ABILITY_SETTERS, CLEARS_STATS, EJECT_ITEMS, EXIT_ABILITIES, FIXED_ABILITIES, GRAVITY_BANNED, HAZARD_ATTACKS, HAZARD_MOVES, HEAL_MOVES,
   MOLD_BREAKERS, NOT_REPEATABLE, ON_HIT_ABILITIES, ON_HIT_ITEMS, ON_KO_ABILITIES, ROOM_MOVES, SCREEN_BREAKERS, TEAM_HEAL_MOVES,
-  ABSORB_ABILITIES, ALWAYS_FLINCH, BREAKS_PROTECT, CHARGE_MOVES, CONTACT_ABILITIES, CONTACT_ITEMS, CONTACT_PROTECT, 
+  ABSORB_ABILITIES, alwaysConfuses, alwaysDrops, alwaysFlinches, alwaysSelf, alwaysStatus, CONFUSE_MOVES, FREEZE_MAX_TURNS, THAW_MOVES, BREAKS_PROTECT, CHARGE_MOVES, CONTACT_ABILITIES, CONTACT_ITEMS, CONTACT_PROTECT, 
   DEBUFF_MOVES, FIELD_MOVES, FIRST_TURN_ONLY, HITS_SEMI_INVULNERABLE, IGNORES_REDIRECT, ITEM_REMOVAL, ITEM_SWAP, NEEDS_TARGET_MOVE, PIVOT_MOVES,
-  POWDER_MOVES, PRIORITY_BLOCKERS, PROTECT_FAMILY, PROTECT_MOVES, RECHARGE_MOVES, REDIRECT_MOVES, SECONDARY_DROPS, SECONDARY_STATUS, SELF_DROPS, SETUP_MOVES,
+  POWDER_MOVES, PRIORITY_BLOCKERS, PROTECT_FAMILY, PROTECT_MOVES, RECHARGE_MOVES, REDIRECT_MOVES, SETUP_MOVES,
   STATUS_LABEL, STATUS_MOVES,
 } from './tables.ts';
 
@@ -108,6 +108,8 @@ class TurnRunner {
   private slots: Record<Side, string[]> = { me: [], opp: [] };
   /** Replacement switches already done by {@link replaceFainted}; they don't run again with the turn. */
   private readonly replaced = new Set<TurnAction>();
+  /** The order the Pokémon really acted in (`side:name`), when the turn records it (e.g. from a replay). */
+  private observedOrder: string[] = [];
   /** Each Pokémon's action this turn, by {@link monKey} (what Sucker Punch and Upper Hand look at). */
   private readonly planned = new Map<string, Entry>();
   /** Whether the Pokémon now acting had its previous action fail (Stomping Tantrum, Temper Flare). */
@@ -164,7 +166,7 @@ class TurnRunner {
       // A charged two-turn move is released, or a recharge spent, whatever is picked.
       if (lockedAction(this.st.mons[a.side][a.mon]!) && this.st.active[a.side].includes(a.mon)) continue;
       if (a.kind === 'switch') { if (!a.target) missing.push(`${a.mon}: choose who to switch to`); }
-      else if (!a.move) missing.push(`${a.mon}: choose a move`);
+      else if (!a.move && !a.outcome?.unknown) missing.push(`${a.mon}: choose a move`);
     }
     for (const side of SIDES) {
       for (const name of aliveActive(this.st, side)) {
@@ -175,7 +177,8 @@ class TurnRunner {
   }
 
   /** Switches first, then Mega Evolution, then moves by priority and Speed, then the end-of-turn effects. */
-  run(actions: readonly TurnAction[]): void {
+  run(actions: readonly TurnAction[], node?: FlowNode): void {
+    this.observedOrder = node?.order ?? [];
     this.st.turn = newScratch();
     this.slots = { me: [...this.st.active.me], opp: [...this.st.active.opp] };
     const entries: Entry[] = actions.filter((planned) => !this.replaced.has(planned)).map((planned, index) => {
@@ -210,6 +213,7 @@ class TurnRunner {
     }
     this.fx.residuals();
     this.forcedSwitches();
+    if (node?.hpEnd) this.pinEndHp(node.hpEnd);
     for (const side of SIDES) {
       for (const name of aliveActive(this.st, side)) {
         const m = this.st.mons[side][name]!;
@@ -257,6 +261,9 @@ class TurnRunner {
       const key = monKey(e.action.side, e.action.mon);
       return this.st.turn.next[key] ? 1 : this.st.turn.last[key] ? -1 : 0;
     };
+    // The order the turn recorded (a replay) wins over everything else for the Pokémon it lists.
+    const seen = (e: Entry): number => this.observedOrder.indexOf(monKey(e.action.side, e.action.mon));
+    if (seen(x) >= 0 && seen(y) >= 0) return seen(x) - seen(y);
     const trick = this.st.field.trick > 0 ? 1 : -1;
     const speed = effSpeed(this.st, x.action.side, x.mon) - effSpeed(this.st, y.action.side, y.mon);
     return moved(y) - moved(x) || bracket(y) - bracket(x) || trick * speed || x.index - y.index;
@@ -327,23 +334,14 @@ class TurnRunner {
       actor.recharging = null;
       return;
     }
-    if (this.st.turn.flinched[monKey(side, a.mon)]) { this.log.push({ type: 'skip', side, mon: a.mon, why: 'flinched' }); return; }
     if (a.kind === 'switch' || !e.info) { this.doSwitch(side, a.mon, a.target); return; }
-    // Sleep lasts 1-3 turns; only the first is certain, so the Pokémon is assumed to wake on its next action.
-    if (actor.status === 'slp') {
-      if (actor.slept < 1) {
-        actor.slept++;
-        this.log.push({ type: 'skip', side, mon: a.mon, why: actor.slept <= 0 ? 'is asleep (Rest: one more turn)' : 'is asleep (may sleep up to 2 more turns)' });
-        return;
-      }
-      actor.status = null; actor.slept = 0;
-      this.log.push({ type: 'cure', side, mon: a.mon, text: 'wakes up' });
-    }
+    if (!this.beforeMove(side, a, actor, e.info)) return;
 
     const info = e.info;
     const id = toID(a.move);
+    if (!a.move && a.outcome?.unknown) { this.log.push({ type: 'skip', side, mon: a.mon, why: "its move isn't known (not shown in the replay)" }); return; }
     if (!info.exists) { this.log.push({ type: 'other', side, mon: a.mon, move: a.move, note: 'move not found in the calculator' }); return; }
-    const fail = PROTECT_FAMILY.has(id) && wasProtecting
+    const fail = PROTECT_FAMILY.has(id) && wasProtecting && !a.outcome?.protectWorks
       ? 'used right after another protecting move: it only works 1 time in 3'
       : this.failReason(side, a, actor, info, id);
     if (fail) {
@@ -372,6 +370,69 @@ class TurnRunner {
     }
     if (info.category === 'Status') this.statusMove(side, a, actor, info, id);
     else this.damagingMove(side, a, actor, info, id);
+  }
+
+  /**
+   * What can stop a Pokémon before its move, in the games' order: sleep, freeze, flinch, confusion, full paralysis.
+   * Chance decides most of these; the turn's outcome says what happened, and without one the usual assumption holds
+   * (wakes on its second action, stays frozen, doesn't hit itself, isn't fully paralysed). False when it can't move.
+   */
+  private beforeMove(side: Side, a: TurnAction, actor: MonState, info: MoveInfo): boolean {
+    const o = a.outcome;
+    const skip = (why: string): false => { this.log.push({ type: 'skip', side, mon: a.mon, why }); return false; };
+    if (actor.status === 'slp') {
+      // Sleep lasts 1-3 turns; without an outcome it's assumed to wake on its second action (Rest: its third).
+      const stays = o?.cant === 'slp' || (!o?.wake && actor.slept < 1);
+      if (stays && actor.slept < 3) {
+        actor.slept++;
+        return skip(actor.slept <= 0 ? 'is asleep (Rest: one more turn)' : o?.cant === 'slp' ? 'is still asleep' : 'is asleep (may sleep up to 2 more turns)');
+      }
+      actor.status = null; actor.slept = 0;
+      this.log.push({ type: 'cure', side, mon: a.mon, text: 'wakes up' });
+    }
+    // Freeze (Champions): a 25% chance to thaw on each of its first two turns frozen, and it always thaws on the
+    // third. Without an outcome it's assumed to stay frozen (the likelier result) until then. Moves like Scald and
+    // Flare Blitz thaw their user first.
+    if (actor.status === 'frz') {
+      actor.frozen++;
+      const thawMove = THAW_MOVES.has(toID(info.name));
+      if (o?.wake || thawMove || actor.frozen >= FREEZE_MAX_TURNS) {
+        actor.status = null;
+        actor.frozen = 0;
+        const why = o?.wake ? '' : thawMove ? ` (${info.name} thaws it)` : ' (third turn frozen: it always thaws)';
+        this.log.push({ type: 'cure', side, mon: a.mon, text: `thaws out${why}` });
+      } else {
+        const left = FREEZE_MAX_TURNS - actor.frozen;
+        return skip(`is frozen solid (25% chance to thaw each turn; thaws for sure ${left === 1 ? 'next turn' : `in ${left} turns`})`);
+      }
+    }
+    if (this.st.turn.flinched[monKey(side, a.mon)] || o?.cant === 'flinch') return skip('flinched');
+    if (actor.confused > 0) {
+      actor.confused--;
+      if (o?.wake || actor.confused === 0) {
+        actor.confused = 0;
+        this.log.push({ type: 'cure', side, mon: a.mon, text: 'snaps out of its confusion' });
+      } else if (o?.cant === 'confusion') {
+        this.log.push({ type: 'skip', side, mon: a.mon, why: 'hurt itself in its confusion' });
+        this.fx.confusionHit(side, a.mon, o.targets?.[a.mon]?.hp);
+        return false;
+      }
+    }
+    if (actor.status === 'par' && o?.cant === 'par') return skip('is fully paralysed');
+    return true;
+  }
+
+  /** End-of-turn HP the turn recorded (a replay's percentages): the battle goes on from there. */
+  private pinEndHp(hpEnd: Record<string, number>): void {
+    for (const [key, pct] of Object.entries(hpEnd)) {
+      const [side, name] = key.split(':') as [Side, string];
+      const mon = this.st.mons[side]?.[name];
+      if (!mon?.stats) continue;
+      const hp = pct > 0 ? Math.max(1, Math.round((pct * mon.stats.hp) / 100)) : 0;
+      mon.hp = mon.hpLo = mon.hpHi = hp;
+      mon.fainted = hp <= 0;
+      mon.actual = pct;
+    }
   }
 
   /**
@@ -491,7 +552,7 @@ class TurnRunner {
     outgoing.protectStreak = false;
     Object.assign(outgoing, {
       choiceLock: null, encore: null, disable: null, taunt: 0, imprison: false, sub: 0, yawn: 0, perish: null, seeded: null, saltCure: false,
-      destinyBond: false, boosted: null, charge: false, flashFire: false,
+      destinyBond: false, boosted: null, charge: false, flashFire: false, confused: 0,
     });
     if (outgoing.transformedFrom) {
       const back = outgoing.transformedFrom;
@@ -585,6 +646,7 @@ class TurnRunner {
         targets.push(t);
         const priorityBlock = this.priorityBlock(side, { side: foe, name: n });
         if (this.st.turn.protect[monKey(foe, n)] || (spread && this.st.turn.wide[foe])) t.protected = true;
+        else if (a.outcome?.targets?.[n]?.miss) t.blocked = 'missed';
         else if (priorityBlock) t.blocked = priorityBlock;
         else t.changes = this.fx.changes(foe, n, DEBUFF_MOVES[id], { foe: true });
       }
@@ -641,6 +703,7 @@ class TurnRunner {
     if (!t || !target || target.fainted) return fail('no target');
     if (t.side !== side) {
       if (this.st.turn.protect[monKey(t.side, t.name)]) return fail(`${t.name} protected itself`);
+      if (a.outcome?.targets?.[t.name]?.miss) return fail('missed');
       const block = this.priorityBlock(side, t);
       if (block) return fail(`blocked by ${block}`);
       if (['goodasgold', 'magicbounce'].includes(toID(target.ability))) return fail(target.ability);
@@ -785,6 +848,20 @@ class TurnRunner {
       return note('swaps places with its partner');
     }
 
+    if (id in CONFUSE_MOVES) {
+      const boost = CONFUSE_MOVES[id];
+      const names = id === 'teeterdance'
+        ? SIDES.flatMap((s2) => aliveActive(this.st, s2).filter((n) => !(s2 === side && n === a.mon)).map((n) => ({ t: { side: s2, name: n }, target: this.st.mons[s2][n]! })))
+        : [this.statusTarget(side, a, actor, info)].filter((x): x is { t: Target; target: MonState } => x !== null);
+      for (const { t } of names) {
+        if (a.outcome?.targets?.[t.name]?.miss) { note(`misses ${t.name}`, true); continue; }
+        if (boost) this.boostLog(t.side, t.name, info.name, boost, { own: true });
+        const why = this.fx.confuse(t.side, t.name, t.side !== side || t.name !== a.mon);
+        note(why ? `${t.name} isn't confused (${why})` : `${t.name} becomes confused`, !!why);
+      }
+      return true;
+    }
+
     const targeted = ['taunt', 'encore', 'disable', 'yawn', 'leechseed', 'skillswap', 'entrainment', 'transform', 'afteryou', 'quash', 'instruct', ...Object.keys(ABILITY_SETTERS)];
     if (!targeted.includes(id)) return false;
     const got = this.statusTarget(side, a, actor, info);
@@ -895,6 +972,7 @@ class TurnRunner {
       const foe = t.side !== side;
       const priorityBlock = this.priorityBlock(side, t);
       if (foe && (this.st.turn.protect[monKey(t.side, t.name)] || (spread && this.st.turn.wide[t.side]))) out.protected = true;
+      else if (a.outcome?.targets?.[t.name]?.miss) out.blocked = 'missed';
       else if (priorityBlock) out.blocked = priorityBlock;
       else if (foe && (ability === 'goodasgold' || ability === 'magicbounce')) out.blocked = target.ability;
       else if (foe && attackerAbility === 'prankster' && types.includes('Dark')) out.blocked = 'Dark types ignore Prankster';
@@ -1146,12 +1224,16 @@ class TurnRunner {
           continue;
         }
       }
+      const told = a.outcome?.targets?.[t.name];
+      if (told?.miss) { result.missed = true; continue; }
       const power = this.powerFor(side, a.mon, actor, info, id, t, target);
       if (power && power.shown !== info.bp) result.power = power.shown;
       const alliesFainted = this.faintedAllies(side, a.mon);
       const { hit, hits } = this.attack(side, actor, target, info, id, this.fieldOptions(side, a.mon, t.side, t.name, gameType, helped), {
         ...(power ? { basePower: power.send } : {}), ...(alliesFainted ? { alliesFainted } : {}), ...(this.abilityOn(side, a.mon, actor, t) ? { attackerOn: true } : {}),
+        ...(told?.crit ? { crit: true } : {}), ...(a.outcome?.hits && info.multihit ? { hits: a.outcome.hits } : {}),
       });
+      if (told?.crit) result.crit = true;
       if (id === 'beatup') result.hits = hits;
       const rolls = hit.rolls;
       const min = Math.min(...rolls);
@@ -1184,6 +1266,13 @@ class TurnRunner {
       target.hpLo = Math.max(0, target.hpLo - cap(max));
       target.hpHi = Math.max(0, target.hpHi - cap(min));
       if (target.hp <= 0) target.fainted = true;
+      // HP the turn recorded (a replay) replaces the average roll.
+      if (told?.hp !== undefined) {
+        const pinned = told.hp > 0 ? Math.max(1, Math.round((told.hp * maxHP) / 100)) : 0;
+        target.hp = target.hpLo = target.hpHi = pinned;
+        target.fainted = pinned <= 0;
+        result.actualPct = told.hp;
+      }
       const dealt = before - target.hp;
       anyHit = true;
       if (!isSelf) {
@@ -1211,28 +1300,46 @@ class TurnRunner {
       this.fx.berries(t.side, t.name);
       if (info.contact && !isSelf) this.contactDamage(side, a.mon, actor, target);
       if (!isSelf) this.reactToHit(side, a.mon, actor, t, target, info, before);
+      if (told?.crit && !target.fainted && toID(target.ability) === 'angerpoint') this.boostLog(t.side, t.name, target.ability, { atk: 12 }, { own: true });
       if (target.fainted) this.knockedOut(side, a.mon, actor, t, target);
       if (HAZARD_ATTACKS[id] && t.side !== side && !hazardsLaid) { hazardsLaid = true; this.layHazard(t.side, HAZARD_ATTACKS[id], info.name, side, a.mon); }
       if (id === 'saltcure' && !target.fainted && !target.saltCure) { target.saltCure = true; this.log.push({ type: 'effect', side: t.side, mon: t.name, source: info.name, text: 'is being salt cured' }); }
 
       const targetAbility = toID(target.ability);
       if (!sheerForce) {
-        if (ALWAYS_FLINCH.has(id) && !target.fainted && !['innerfocus', 'shielddust'].includes(targetAbility) && toID(target.item) !== 'covertcloak') {
+        if (alwaysFlinches(id) && !target.fainted && !['innerfocus', 'shielddust'].includes(targetAbility) && toID(target.item) !== 'covertcloak') {
           this.st.turn.flinched[monKey(t.side, t.name)] = true;
         }
-        if (SECONDARY_DROPS[id] && !target.fainted) result.changes = this.fx.changes(t.side, t.name, SECONDARY_DROPS[id], { foe: t.side !== side, secondary: true });
-        const secondary = SECONDARY_STATUS[id];
+        const drops = alwaysDrops(id);
+        if (drops && !target.fainted) result.changes = this.fx.changes(t.side, t.name, drops, { foe: t.side !== side, secondary: true });
+        if (alwaysConfuses(id) && !target.fainted && !this.fx.confuse(t.side, t.name, t.side !== side)) (result.effects ??= []).push('confused');
+        const secondary = alwaysStatus(id);
         if (secondary && !target.fainted && targetAbility !== 'shielddust' && toID(target.item) !== 'covertcloak') {
           const got = this.inflict(t.side, t.name, actor, target, secondary);
           if (got.status) { result.status = got.status; if (got.cured) result.cured = got.cured; }
         }
       }
       if (CLEARS_STATS.has(id) && !target.fainted) this.fx.clearBoosts(t.side, t.name);
+      // A frozen target thaws when a Fire move (or Scald and the like) hits it.
+      if (target.status === 'frz' && !target.fainted && (info.type === 'Fire' || THAW_MOVES.has(id))) {
+        target.status = null;
+        this.log.push({ type: 'cure', side: t.side, mon: t.name, text: 'thaws out' });
+      }
+      // Chance effects the turn says happened (a flinch, a burn, a stat drop...).
+      if (!sheerForce) {
+        const landed = (told?.effects ?? []).map((fx) => this.fx.chanceEffect(t.side, t.name, fx, actor, t.side !== side)).filter((x): x is string => !!x);
+        if (landed.length) result.effects = landed;
+      }
       this.takeTargetItem(a.mon, actor, t, target, id);
     }
 
     if (actor.charge && info.type === 'Electric') actor.charge = false;
+    if (!anyHit && entry.results.some((r) => r.missed) && toID(heldItem(this.st, actor)) === 'blunderpolicy') {
+      const policy = this.fx.takeItem(side, a.mon);
+      this.boostLog(side, a.mon, policy, { spe: 2 }, { own: true });
+    }
     if (!anyHit) { actor.lastFailed = true; return; }
+    for (const fx of a.outcome?.self ?? []) this.fx.chanceEffect(side, a.mon, fx, actor, false);
     // Rapid Spin and Mortal Spin clear hazards from the user's side (Rapid Spin also raises Speed).
     if ((id === 'rapidspin' || id === 'mortalspin') && !actor.fainted) {
       this.st.field.hazards[side] = noHazards();
@@ -1243,7 +1350,8 @@ class TurnRunner {
       this.boostLog(side, a.mon, spray, { spa: 1 }, { own: true });
     }
     if (RECHARGE_MOVES.has(id) && !actor.fainted) actor.recharging = info.name;
-    if (SELF_DROPS[id] && !actor.fainted) entry.self = this.fx.changes(side, a.mon, SELF_DROPS[id], { own: true });
+    const selfChange = alwaysSelf(id);
+    if (selfChange && !actor.fainted) entry.self = this.fx.changes(side, a.mon, selfChange, { own: true });
     if (!this.fx.indirectImmune(actor)) {
       if (recoil > 0) this.fx.hurt(side, a.mon, recoil, 'recoil');
       if (lifeOrb && !sheerForce) this.fx.hurt(side, a.mon, share(statsOf(actor).hp, 1 / 10).amount, 'Life Orb', 1 / 10);
@@ -1379,7 +1487,9 @@ class TurnRunner {
           ...(m.set.item && !m.item ? { lostItem: m.set.item } : {}),
           ...(m.charging && !m.fainted ? { charging: m.charging.move } : {}),
           ...(m.fainted ? {} : { effects: volatileLabels(this.st, m) }),
+          ...(m.actual !== undefined ? { actual: m.actual } : {}),
         });
+        delete m.actual;
       }
     }
     return end;
@@ -1402,6 +1512,7 @@ function volatileLabels(st: BattleState, m: MonState): string[] {
   if (m.destinyBond) out.push('Destiny Bond');
   if (m.imprison) out.push('Imprison');
   if (m.charge) out.push('Charged');
+  if (m.confused) out.push('confused');
   if (m.flashFire) out.push('Flash Fire');
   if (m.boosted) out.push(`${m.ability}: ${m.boosted.toUpperCase()}`);
   if (m.transformedFrom) out.push(`Transformed`);
@@ -1420,7 +1531,7 @@ export function simulateTurn(engine: CalcEngine, st: BattleState, node: FlowNode
     runner.replaceFainted(node.actions);
     const missing = runner.missingFor(node.actions);
     if (missing.length) return { status: 'incomplete', missing, field: start };
-    runner.run(node.actions);
+    runner.run(node.actions, node);
     const end = runner.snapshot();
     st.turn = newScratch();
     return { status: 'ready', log: runner.log, entry, end, state: st, field: runner.during ?? start, outcome: outcomeOf(st), order: runner.actionOrder() };

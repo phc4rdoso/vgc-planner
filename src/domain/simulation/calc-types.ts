@@ -75,7 +75,7 @@ export interface CalcLib {
   Generations?: { get(num: number): CalcGeneration };
   Pokemon: new (gen: CalcGeneration, name: string, options?: Record<string, unknown>) => CalcPokemon;
   /** `overrides.basePower` sets the power for moves whose power the calculator can't know (Rage Fist, Last Respects). */
-  Move: new (gen: CalcGeneration, name: string, options?: { overrides?: { basePower?: number } }) => CalcMove;
+  Move: new (gen: CalcGeneration, name: string, options?: { overrides?: { basePower?: number }; isCrit?: boolean; hits?: number }) => CalcMove;
   Field: new (options?: FieldOptions) => object;
   calculate(gen: CalcGeneration, attacker: CalcPokemon, defender: CalcPokemon, move: CalcMove, field: object): CalcResult;
 }

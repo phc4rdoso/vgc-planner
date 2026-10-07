@@ -40,6 +40,9 @@ export interface HitOptions {
   alliesFainted?: number;
   /** Abilities the calculator only applies when told they're on (Plus / Minus, Flash Fire, Stakeout, Electromorphosis). */
   attackerOn?: boolean;
+  /** A critical hit, and how many times a multi-hit move hit (chance results set on the turn). */
+  crit?: boolean;
+  hits?: number;
 }
 
 export interface HitCalc { rolls: number[]; attackerItem: string; defenderItem: string; recoil: number; drain: number }
@@ -175,7 +178,11 @@ export function createEngine(lib: CalcLib): CalcEngine {
       catch { return / Berry$/.test(item); }
     },
     damage(attacker, defender, moveName, field, opts = {}) {
-      const move = new lib.Move(generation, moveName, opts.basePower !== undefined ? { overrides: { basePower: opts.basePower } } : undefined);
+      const moveOptions = {
+        ...(opts.basePower !== undefined ? { overrides: { basePower: opts.basePower } } : {}),
+        ...(opts.crit ? { isCrit: true } : {}), ...(opts.hits ? { hits: opts.hits } : {}),
+      };
+      const move = new lib.Move(generation, moveName, Object.keys(moveOptions).length ? moveOptions : undefined);
       const result = lib.calculate(generation, buildPoke(attacker, opts.alliesFainted, opts.attackerOn), buildPoke(defender), move, new lib.Field(field));
       const rolls = rollsOf(result.damage);
       const average = (xs: readonly number[]): number => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);

@@ -108,6 +108,7 @@ ul.tree.rootlist { padding-top: 0; }
 .schip { font-size: 9.5px; font-weight: 800; letter-spacing: .03em; padding: 0 4px; border-radius: 4px; color: var(--panel); white-space: nowrap; }
 .schip.brn { background: var(--st-brn); } .schip.par { background: var(--st-par); } .schip.slp { background: var(--st-slp); }
 .schip.psn, .schip.tox { background: var(--st-psn); }
+.schip.frz { background: var(--st-frz, #6cb6d9); }
 .fx-strip { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 6px; font-size: 10.5px; color: var(--ink-2); }
 .fx { display: inline-flex; align-items: baseline; gap: 4px; padding: 1px 7px; border-radius: 999px; background: var(--line-soft); white-space: nowrap; }
 .fx em { font-style: normal; font-weight: 700; }
@@ -133,3 +134,7 @@ ul.tree.rootlist { padding-top: 0; }
 
 /* Volatile effects on a Pokémon in the turn result (Substitute, Taunt, Encore...). */
 .bchip.vol { background: var(--line); color: var(--ink-2); }
+
+/* Chance results (a miss, a crit, a flinch...) and HP recorded by a replay. */
+.chance { font-size: 10.5px; font-weight: 700; padding: 0 5px; border-radius: 5px; background: var(--warn-soft, rgba(240, 180, 40, .18)); color: var(--warn, #b07a00); white-space: nowrap; }
+.actual { font-size: 10.5px; font-weight: 700; color: var(--me); white-space: nowrap; }

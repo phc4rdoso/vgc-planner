@@ -38,6 +38,8 @@ export interface MonState {
   toxic: number;
   /** Turns spent asleep so far. */
   slept: number;
+  /** Actions spent frozen so far (Champions: it always thaws on its third). */
+  frozen: number;
   /**
    * The item it holds now ('' once eaten, used up, knocked off or stolen). It stays that way after switching out:
    * items don't come back during a battle. `set.item` keeps what the paste says.
@@ -91,6 +93,10 @@ export interface MonState {
   charge: boolean;
   /** Disguise / Ice Face has been used up. */
   disguiseBroken: boolean;
+  /** HP percentage a turn pinned at its end (shown once on that turn's result). */
+  actual?: number;
+  /** Confusion: actions left before it snaps out (0 = not confused). */
+  confused: number;
   /** Transform / Imposter: the form to go back to when it switches out. */
   transformedFrom: { species: string; ability: string; stats: StatTable | null } | null;
 }
@@ -380,10 +386,10 @@ export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection'>, 
         ability: baseAbility,
         mega: false, megaForm, megaAbility,
         sp: (statPoints(set) ?? { sp: emptyStatTable() }).sp, stats: null, boosts: zeroBoosts(), hp: 0, hpLo: 0, hpHi: 0, fainted: false,
-        status: null, toxic: 0, slept: 0, item: set.item, unburden: false, entryBoosted: false,
+        status: null, toxic: 0, slept: 0, frozen: 0, item: set.item, unburden: false, entryBoosted: false,
         charging: null, recharging: null, activeTurns: 0, timesHit: 0, lastFailed: false, protectStreak: false,
         lastMove: '', lastTarget: '', choiceLock: null, encore: null, disable: null, taunt: 0, imprison: false, sub: 0, yawn: 0, perish: null,
-        seeded: null, saltCure: false, destinyBond: false, boosted: null, flashFire: false, charge: false, disguiseBroken: false, transformedFrom: null,
+        seeded: null, saltCure: false, destinyBond: false, boosted: null, flashFire: false, charge: false, disguiseBroken: false, transformedFrom: null, confused: 0,
       };
       refreshStats(engine, mon);
       st.mons[side][set.species] = mon;

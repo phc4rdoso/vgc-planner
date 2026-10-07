@@ -21,6 +21,7 @@
     "check": "npm run typecheck && npm run lint && npm test",
     "dev:api": "wrangler dev --port 8787",
     "db:migrate:local": "wrangler d1 migrations apply vgc-gameplans --local",
+    "move-effects": "node scripts/fetch-move-effects.mjs",
     "avatars": "node scripts/fetch-portraits.mjs",
     "deploy": "node scripts/check-sprites.mjs && npm run build && wrangler deploy"
   },

@@ -7,7 +7,7 @@ import type { BattleState, FieldState, MonState } from './state.ts';
 import { aliveActive, applyBoost, bestStat, boostMult, effSpeed, heldItem, monKey, otherSide, statsOf, zeroBoosts } from './state.ts';
 import type { BoostChange, StatusId } from './tables.ts';
 import {
-  ALL_STATUS_IMMUNE, CURE_BERRIES, ENTRY_BOOSTS, ENTRY_TERRAIN, ENTRY_WEATHER, EXIT_ABILITIES, FIXED_ABILITIES, HP_BERRIES, INTIMIDATE_IMMUNE,
+  ALL_STATUS_IMMUNE, CURE_BERRIES, statEffect, ENTRY_BOOSTS, ENTRY_TERRAIN, ENTRY_WEATHER, EXIT_ABILITIES, FIXED_ABILITIES, HP_BERRIES, INTIMIDATE_IMMUNE,
   SAND_IMMUNE, SAND_IMMUNE_TYPES, STAT_DROP_BLOCKERS, STAT_DROP_ITEMS, STATUS_ABILITY_IMMUNE, STATUS_LABEL, STATUS_TYPE_IMMUNE, STICKY_ABILITIES,
   TERRAIN_EXTENDER, TERRAIN_SEEDS, UNNERVE, WEATHER_ROCKS,
 } from './tables.ts';
@@ -136,6 +136,63 @@ export class Effects {
     this.st.turn.forced.push({ side, name, reason });
   }
 
+  /**
+   * Confuses a Pokémon for up to 4 of its actions (the length is chance: a turn's outcome says when it snaps out).
+   * Own Tempo, Misty Terrain and a Substitute (against others) stop it. Returns why it failed, or null.
+   */
+  confuse(side: Side, name: string, byOther: boolean): string | null {
+    const mon = this.mon(side, name);
+    if (!mon || mon.fainted) return 'fainted';
+    if (mon.confused) return 'already confused';
+    if (toID(mon.ability) === 'owntempo') return mon.ability;
+    if (this.grounded(mon) && this.st.field.terrain === 'Misty') return 'Misty Terrain';
+    if (byOther && mon.sub) return 'Substitute';
+    mon.confused = 4;
+    if (toID(this.item(mon)) === 'persimberry') { this.loseItem(side, name, 'cures the confusion'); mon.confused = 0; }
+    return null;
+  }
+
+  /**
+   * A confused Pokémon hits itself: a typeless 40-power physical hit with its own Attack against its own Defense (the
+   * average roll), unless the turn pins its HP (`pinned`, percent).
+   */
+  confusionHit(side: Side, name: string, pinned?: number): void {
+    const mon = this.mon(side, name);
+    if (!mon) return;
+    const stats = statsOf(mon);
+    if (pinned !== undefined) {
+      const after = pinned > 0 ? Math.max(1, Math.round((pinned * stats.hp) / 100)) : 0;
+      this.hurt(side, name, Math.max(0, mon.hp - after), 'hurt itself in confusion');
+      return;
+    }
+    const atk = Math.floor(stats.atk * boostMult(mon.boosts.atk)) * (mon.status === 'brn' ? 0.5 : 1);
+    const def = Math.floor(stats.def * boostMult(mon.boosts.def));
+    const base = Math.floor(Math.floor((Math.floor((2 * 50) / 5 + 2) * 40 * atk) / Math.max(1, def)) / 50) + 2;
+    this.hurt(side, name, Math.max(1, Math.floor(base * 0.925)), 'hurt itself in confusion');
+  }
+
+  /**
+   * A chance effect landing on a Pokémon (from a turn's outcome): a condition, flinch (only before it has moved),
+   * confusion, or a stat change. Returns a short label of what happened, or null if nothing did.
+   */
+  chanceEffect(side: Side, name: string, effect: string, actor: MonState | null, byFoe: boolean): string | null {
+    const mon = this.mon(side, name);
+    if (!mon || mon.fainted) return null;
+    if (effect === 'flinch') {
+      if (this.st.turn.acted[monKey(side, name)] || toID(mon.ability) === 'innerfocus') return null;
+      this.st.turn.flinched[monKey(side, name)] = true;
+      return 'flinch';
+    }
+    if (effect === 'confusion') return this.confuse(side, name, byFoe) ? null : 'confused';
+    const stats = statEffect(effect);
+    if (stats) {
+      const changes = this.changes(side, name, stats, byFoe ? { foe: true, secondary: true } : { own: true });
+      return changes.some((c) => c.delta !== 0) ? effect : null;
+    }
+    const got = this.inflict(side, name, actor, effect as StatusId);
+    return got.status ? (got.cured ? `${effect} (cured by ${got.cured})` : effect) : null;
+  }
+
   /** Something fainted: Soul-Heart raises its holder's Sp. Atk. */
   fainted(side: Side, name: string): void {
     void side; void name;
@@ -160,6 +217,7 @@ export class Effects {
     if (ALL_STATUS_IMMUNE.includes(ability) || STATUS_ABILITY_IMMUNE[status].includes(ability) || (ability === 'leafguard' && this.st.field.weather === 'Sun')) {
       return { blocked: target.ability };
     }
+    if (status === 'frz' && this.st.field.weather === 'Sun') return { blocked: 'harsh sunlight' };
     const grounded = this.grounded(target);
     if (grounded && this.st.field.terrain === 'Misty') return { blocked: 'Misty Terrain' };
     if (grounded && this.st.field.terrain === 'Electric' && status === 'slp') return { blocked: 'Electric Terrain' };
@@ -167,6 +225,7 @@ export class Effects {
     target.status = status;
     target.toxic = status === 'tox' ? 1 : 0;
     target.slept = 0;
+    target.frozen = 0;
     const berry = this.item(target);
     if (CURE_BERRIES[toID(berry)]?.includes(status)) {
       target.status = null;

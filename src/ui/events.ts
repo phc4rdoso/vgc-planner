@@ -9,6 +9,8 @@ import { requestRender } from './bus.ts';
 import { copyShareLink, openShareDialog, redrawSharedLinks, stopSharingPlan } from './share.ts';
 import { session } from '../state/account.ts';
 import { qs } from './dom.ts';
+import { setOutcome } from './outcome-edit.ts';
+import { openReplayImport } from './replay-import.ts';
 import { openMenu, toast } from './overlays.ts';
 import { isPivotMove, renderDrawer } from './views/drawer.ts';
 import { rerenderCanvas, setZoom } from './views/plan-view.ts';
@@ -86,6 +88,7 @@ async function handleClick(el: HTMLElement, e: MouseEvent): Promise<void> {
       return;
     case 'new-plan': e.stopPropagation(); return createPlan(team);
     case 'share-plan': return openShareDialog(plan);
+    case 'replay-import': return openReplayImport();
     case 'copy-share': copyShareLink(plan); return;
     case 'stop-share': if (await stopSharingPlan(plan)) redrawSharedLinks(); return;
     case 'export-team': return showExport({ type: 'team', teamId: team });
@@ -157,6 +160,10 @@ function onInput(e: Event): void {
         if (box && caret !== null) box.setSelectionRange(caret, caret);
       }
     } else return;
+  } else if (t.dataset.o) {
+    const action = found.node.actions[Number(t.dataset.i)];
+    if (!action) return;
+    setOutcome(action, t.dataset.o, t.dataset.t ?? '', t);
   } else return;
   store.persist();
   rerenderCanvas();

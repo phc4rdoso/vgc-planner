@@ -9,13 +9,32 @@ export function toast(message: string, isError = false): void {
   setTimeout(() => el.remove(), isError ? 4500 : 2200);
 }
 
+/** A toast with one action button (e.g. Undo), shown a little longer. */
+export function toastAction(message: string, label: string, run: () => void, ms = 7000): void {
+  const el = document.createElement('div');
+  el.className = 'toast with-action';
+  el.setAttribute('role', 'status');
+  const text = document.createElement('span');
+  text.textContent = message;
+  const button = document.createElement('button');
+  button.className = 'toast-btn';
+  button.textContent = label;
+  button.addEventListener('click', () => { el.remove(); run(); });
+  el.append(text, button);
+  document.body.appendChild(el);
+  setTimeout(() => el.remove(), ms);
+}
+
 export interface ModalAction<R> {
   label: string;
   cls?: string;
   /** Resolved when clicked (if there is no `run`). */
   value?: R | null;
-  /** Runs on click. Return `false` to keep the dialog open, or the value to close with. */
-  run?: (overlay: HTMLElement) => R | null | false;
+  /**
+   * Runs on click. Return `false` to keep the dialog open, or the value to close with. It may be async: the buttons
+   * are disabled until it settles.
+   */
+  run?: (overlay: HTMLElement) => R | null | false | Promise<R | null | false>;
 }
 
 export interface ModalOptions<R> {
@@ -56,7 +75,11 @@ export function modal<R>(options: ModalOptions<R>): Promise<R | null> {
       button.addEventListener('click', () => {
         if (!action.run) { close(action.value ?? null); return; }
         const result = action.run(overlay);
-        if (result !== false) close(result);
+        if (!(result instanceof Promise)) { if (result !== false) close(result); return; }
+        const buttons = [...foot.querySelectorAll('button')];
+        buttons.forEach((b) => { b.disabled = true; });
+        void result.then((value) => { if (value !== false) close(value); }, () => undefined)
+          .finally(() => buttons.forEach((b) => { b.disabled = false; }));
       });
       foot.appendChild(button);
     }

@@ -1,11 +1,11 @@
 import { monsFor } from '../../domain/model.ts';
 import type { BattleState } from '../../domain/simulation/state.ts';
 import { bench, canMegaEvolve, fieldAfterReplacements, syncTurnActions } from '../../domain/simulation/state.ts';
-import { PIVOT_MOVES } from '../../domain/simulation/tables.ts';
+import { CHANCE_EFFECTS, chanceEffects, hasMoveData, PIVOT_MOVES, PROTECT_FAMILY } from '../../domain/simulation/tables.ts';
 import { toID } from '../../domain/strings.ts';
 import type { FlowNode, Side, TurnAction } from '../../domain/types.ts';
 import { TARGET_KEYWORDS } from '../../domain/types.ts';
-import { store } from '../../state/instance.ts';
+import { simService, store } from '../../state/instance.ts';
 import { esc, must } from '../dom.ts';
 import { monIcon } from '../icons.ts';
 import { formOf } from '../names.ts';
@@ -93,6 +93,75 @@ function monField(a: TurnAction, i: number, st: BattleState | null, actions: rea
   return `<div><label class="lbl" for="a-mon-${i}">${label}</label><select class="field" id="a-mon-${i}" data-a="mon" data-i="${i}">${options(choices, a.mon, 'Choose…', (v) => formOf(st, a.side, v))}</select></div>`;
 }
 
+const CANT_OPTIONS: readonly [string, string][] = [
+  ['', 'Moves as expected'], ['par', 'Fully paralysed'], ['slp', 'Still asleep'], ['frz', 'Frozen solid'],
+  ['confusion', 'Hit itself in confusion'], ['flinch', 'Flinched'], ['wake', 'Woke up / thawed / snapped out of confusion'],
+];
+const EFFECT_NAME: Readonly<Record<string, string>> = {
+  flinch: 'Flinch', brn: 'Burn', par: 'Paralysis', psn: 'Poison', tox: 'Bad poison', slp: 'Sleep', frz: 'Freeze', confusion: 'Confusion',
+};
+const STAT_SHORT: Readonly<Record<string, string>> = { atk: 'Atk', def: 'Def', spa: 'SpA', spd: 'SpD', spe: 'Spe' };
+/** "spd-1" → "−1 SpD", "atk+1,def+1" → "+1 Atk, +1 Def", "brn" → "Burn". */
+const effectLabel = (fx: string): string => EFFECT_NAME[fx]
+  ?? fx.split(',').map((p) => { const m = /^(\w+)([+-])(\d)$/.exec(p); return m ? `${m[2] === '+' ? '+' : '−'}${m[3]} ${STAT_SHORT[m[1]!] ?? m[1]}` : p; }).join(', ');
+const effectSelect = (kind: 'effect' | 'self', i: number, name: string, options: readonly string[], value: string, label: string): string =>
+  `<select class="field sm" data-o="${kind}" data-t="${esc(name)}" data-i="${i}" aria-label="${esc(label)}"><option value="">No added effect</option>${
+    options.map((fx) => `<option value="${esc(fx)}" ${fx === value ? 'selected' : ''}>${esc(effectLabel(fx))}</option>`).join('')}</select>`;
+
+/** Who a move's chance results can be about: its target(s), as far as the editor can tell. */
+function outcomeTargets(a: TurnAction, st: BattleState | null, depth: number, actions: readonly TurnAction[], target: string): string[] {
+  const foe: Side = a.side === 'me' ? 'opp' : 'me';
+  const onField = (side: Side): string[] => {
+    if (st) return fieldAfterReplacements(st, actions)[side];
+    if (depth === 1) return (store.tab?.selection[side].lead ?? []).filter((n): n is string => !!n);
+    return [];
+  };
+  if (target === 'allAdjacentFoes' || a.target === 'Both foes') return onField(foe);
+  if (target === 'allAdjacent' || a.target === 'All') return [...onField(foe), ...onField(a.side).filter((n) => n !== a.mon)];
+  if (target === 'self' || a.target === 'Self' || !a.target) return [];
+  if (a.target === 'Ally') return onField(a.side).filter((n) => n !== a.mon);
+  return [a.target];
+}
+
+/**
+ * "Chance results" for a move action: what kept it from moving (or it woke up), and per target a miss, a critical
+ * hit, the chance effect it caused, and the HP left afterwards. Filled in by hand or by a replay import.
+ */
+function outcomeEditor(a: TurnAction, i: number, st: BattleState | null, depth: number, actions: readonly TurnAction[]): string {
+  if (a.kind === 'switch' || !a.mon) return '';
+  const info = simService.moveInfo(a.move);
+  const o = a.outcome ?? {};
+  const cant = o.wake ? 'wake' : o.cant ?? '';
+  const damaging = !!info && info.category !== 'Status';
+  // The move's own possible chance effects (from the generated move data); any condition or drop if it isn't known.
+  const known = chanceEffects(toID(a.move));
+  const targetOptions = known.target.length ? known.target : info?.secondaries && !hasMoveData(toID(a.move)) ? CHANCE_EFFECTS : [];
+  const sideOf = (name: string): Side => (st?.mons.opp[name] && !st.mons.me[name] ? 'opp' : st?.mons.me[name] && !st.mons.opp[name] ? 'me' : a.side === 'me' ? 'opp' : 'me');
+  const rows = a.move ? outcomeTargets(a, st, depth, actions, info?.target ?? '').map((name) => {
+    const t = o.targets?.[name] ?? {};
+    const effect = t.effects?.[0] ?? '';
+    const effects = damaging && targetOptions.length ? effectSelect('effect', i, name, targetOptions, effect, `Added effect on ${name}`) : '';
+    const crit = damaging ? `<label class="oc-check"><input type="checkbox" data-o="crit" data-t="${esc(name)}" data-i="${i}" ${t.crit ? 'checked' : ''}>Crit</label>` : '';
+    const hp = damaging
+      ? `<label class="oc-check" title="HP left after this hit, in percent. Leave empty to use the calculator's average roll.">HP left
+          <input class="field sm oc-hp" type="number" min="0" max="100" step="0.1" data-o="hp" data-t="${esc(name)}" data-i="${i}" value="${t.hp ?? ''}" placeholder="avg" aria-label="${esc(`HP of ${name} left after this hit, in percent`)}">%</label>`
+      : '';
+    return `<div class="oc-row"><span class="oc-name">${esc(formOf(st, sideOf(name), name))}</span>
+      <label class="oc-check"><input type="checkbox" data-o="miss" data-t="${esc(name)}" data-i="${i}" ${t.miss ? 'checked' : ''}>Miss</label>${crit}${effects}${hp}</div>`;
+  }).join('') : '';
+  const hits = info?.multihit ? `<label class="oc-check">Hits <input class="field sm oc-hits" type="number" min="1" max="10" data-o="hits" data-i="${i}" value="${o.hits ?? ''}"></label>` : '';
+  const protect = PROTECT_FAMILY.has(toID(a.move))
+    ? `<label class="oc-check"><input type="checkbox" data-o="protectWorks" data-i="${i}" ${o.protectWorks ? 'checked' : ''}>Works even right after another Protect</label>` : '';
+  const self = damaging && known.self.length
+    ? `<label class="oc-check">Self ${effectSelect('self', i, a.mon, known.self, o.self?.[0] ?? '', `Added effect on ${a.mon} itself`)}</label>` : '';
+  const set = Object.keys(o).length > 0;
+  const cantSelect = `<select class="field sm" data-o="cant" data-i="${i}" aria-label="Before moving">${CANT_OPTIONS.map(([v, l]) => `<option value="${v}" ${v === cant ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
+  return `<details class="outcome"${set ? ' open' : ''}><summary>Chance results${set ? ' <span class="oc-dot" aria-label="set"></span>' : ''}</summary>
+    ${cantSelect}${hits}${protect}${self}${rows}
+    ${!info && a.move ? '<p class="hint">Move details appear once the calculator has loaded.</p>' : ''}
+  </details>`;
+}
+
 function actionEditor(a: TurnAction, i: number, st: BattleState | null, depth: number, actions: readonly TurnAction[]): string {
   const team = store.team; const plan = store.sheet;
   const set = team && plan ? monsFor(a.side, team, plan).find((m) => m.species === a.mon) : undefined;
@@ -141,7 +210,7 @@ function actionEditor(a: TurnAction, i: number, st: BattleState | null, depth: n
       : `<div class="row2">
       <div><label class="lbl" for="a-move-${i}">Move</label>${moveField}</div>
       <div><label class="lbl" for="a-target-${i}">Target</label><select class="field" id="a-target-${i}" data-a="target" data-i="${i}">${options(targets, a.target, '—', anyone)}</select></div>
-    </div>${lockNote}${pivot}`}
+    </div>${lockNote}${pivot}${outcomeEditor(a, i, st, depth, actions)}`}
   </div>`;
 }
 
