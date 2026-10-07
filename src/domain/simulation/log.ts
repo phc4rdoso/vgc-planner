@@ -75,7 +75,11 @@ export interface EndMon {
 
 /** `field` is the field during the turn (before the end-of-turn countdown), so it includes what was set up this turn. */
 export type TurnResult =
-  | { status: 'ready'; log: LogEntry[]; entry: LogEntry[]; end: EndMon[]; state: BattleState; field: FieldState; outcome: Outcome | null }
+  /**
+   * `order`: when each position acted this turn (1 = first), keyed `side:name` by the Pokémon standing there at the end
+   * of the turn (so a switch or a pivot is credited to the Pokémon that came in).
+   */
+  | { status: 'ready'; log: LogEntry[]; entry: LogEntry[]; end: EndMon[]; state: BattleState; field: FieldState; outcome: Outcome | null; order: Record<string, number> }
   | { status: 'incomplete'; missing: string[]; field: FieldState }
   | { status: 'error'; message: string }
   /** `over`: the battle already ended earlier in this branch (as opposed to an earlier turn being unfinished). */

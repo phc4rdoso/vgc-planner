@@ -63,6 +63,8 @@ ul.tree.rootlist { padding-top: 0; }
 .sum-hp { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 4px; margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--line-soft); }
 .sum-hp > div { display: flex; flex-wrap: wrap; gap: 3px 8px; align-items: center; }
 .mini-hp { display: inline-flex; align-items: center; gap: 3px; }
+/* When the Pokémon acted this turn: small and quiet, next to its sprite. */
+.mini-hp .act-order { flex: none; min-width: 13px; height: 13px; padding: 0 3px; border-radius: 7px; background: var(--line); color: var(--ink-2); font-size: 9px; font-weight: 700; line-height: 13px; text-align: center; font-variant-numeric: tabular-nums; }
 .mini-hp .hp-bar { flex: none; width: 34px; min-width: 0; height: 5px; }
 .mini-hp.ko .mon-icon, .mini-hp.ko .mon-fallback { filter: grayscale(1); opacity: .4; }
 .sum-msg { margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--line-soft); color: var(--ink-2); font-size: 11.5px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }

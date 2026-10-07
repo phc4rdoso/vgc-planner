@@ -81,6 +81,18 @@ class TurnRunner {
   private readonly planned = new Map<string, Entry>();
   /** Whether the Pokémon now acting had its previous action fail (Stomping Tantrum, Temper Flare). */
   private failedBefore = false;
+  /** The field positions in the order they acted this turn. */
+  private readonly acted: { side: Side; slot: number }[] = [];
+
+  /** When each position acted, credited to whoever stands there at the end of the turn (see TurnResult). */
+  actionOrder(): Record<string, number> {
+    const order: Record<string, number> = {};
+    this.acted.forEach(({ side, slot }, i) => {
+      const name = this.st.active[side][slot];
+      if (name) order[monKey(side, name)] = i + 1;
+    });
+    return order;
+  }
 
   /**
    * Fainted Pokémon are replaced before the turn starts (entry abilities trigger). The replacement is whichever
@@ -250,6 +262,7 @@ class TurnRunner {
     }
     // e.g. it was pivoted out earlier this turn, or the action was planned for a Pokémon on the bench.
     if (!this.st.active[side].includes(a.mon)) { this.log.push({ type: 'skip', side, mon: a.mon, why: "isn't on the field" }); return; }
+    this.acted.push({ side, slot: this.st.active[side].indexOf(a.mon) });
     if (actor.recharging) {
       this.log.push({ type: 'skip', side, mon: a.mon, why: `must recharge after ${actor.recharging}` });
       actor.recharging = null;
@@ -914,7 +927,7 @@ export function simulateTurn(engine: CalcEngine, st: BattleState, node: FlowNode
     runner.run(node.actions);
     const end = runner.snapshot();
     st.turn = newScratch();
-    return { status: 'ready', log: runner.log, entry, end, state: st, field: runner.during ?? start, outcome: outcomeOf(st) };
+    return { status: 'ready', log: runner.log, entry, end, state: st, field: runner.during ?? start, outcome: outcomeOf(st), order: runner.actionOrder() };
   } catch (e) {
     if (e instanceof Incomplete) return { status: 'incomplete', missing: [e.message], field: start };
     return { status: 'error', message: e instanceof Error ? e.message : String(e) };

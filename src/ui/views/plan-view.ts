@@ -8,7 +8,7 @@ import { itemIcon, monIcon } from '../icons.ts';
 import type { BattleState, Outcome } from '../../domain/simulation/state.ts';
 import { formOf } from '../names.ts';
 import { isPivotMove, refreshDrawerFoot, renderDrawer } from './drawer.ts';
-import { fieldStripHTML, hasDetails, ICON_CHEVRON, ICON_RERUN, noticeHTML, resultHTML, summaryHTML } from './result-card.ts';
+import { fieldStripHTML, hasDetails, ICON_CHEVRON, noticeHTML, resultHTML, summaryHTML } from './result-card.ts';
 import { session } from '../../state/account.ts';
 import { ICON_LINK } from '../share.ts';
 import { renderNav } from './sidebar.ts';
@@ -79,7 +79,7 @@ function nodeHTML(n: FlowNode, depth: number, sim: SimView, start: BattleState |
     <div class="turn-head">
       ${n.condition ? `<span class="cond" title="${esc(n.condition)}">${esc(n.condition)}</span>` : ''}
       <span class="ttl">${esc(title)}${tag}</span><span class="spacer"></span>
-      ${sim.enabled ? `<button class="card-btn" data-act="rerun" aria-label="Rerun turn result" title="Rerun turn result">${ICON_RERUN}</button>` : ''}${toggle}
+      ${toggle}
     </div>
     ${n.actions.length ? `<div class="acts"><div class="col">${column('me')}</div><div class="col">${column('opp')}</div></div>` : '<div class="none">No actions yet</div>'}
     ${n.note ? `<div class="note" title="${esc(n.note)}">${esc(n.note)}</div>` : ''}

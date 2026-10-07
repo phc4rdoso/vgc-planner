@@ -92,7 +92,6 @@ async function handleClick(el: HTMLElement, e: MouseEvent): Promise<void> {
     case 'edit-paste': return editPaste(asSide(d.kind));
     case 'zoom': setZoom(store.ui.zoom + Number(d.d ?? 0) * config.zoom.step); return;
     case 'pick-slot': pickSlot(el, asSide(d.side), asSlot(d.kind), Number(d.i ?? 0)); return;
-    case 'rerun': e.stopPropagation(); rerenderCanvas(true); return;
     case 'toggle-result': {
       e.stopPropagation();
       const id = d.node ?? '';

@@ -472,3 +472,12 @@ test('after Hyper Beam hits, the user spends its next action recharging, whateve
   assert.ok(r2!.log.some((l) => l.type === 'skip' && l.mon === 'Garchomp' && l.why === 'must recharge after Hyper Beam'));
   assert.ok(hits(r3!.log, 'Garchomp', 'Hyper Beam'), 'free again the turn after');
 });
+
+test('the turn result numbers the positions in the order they acted, a switch credited to who came in', () => {
+  const [r1] = play(
+    { me: [mon('Garchomp', 'Rough Skin'), mon('Rillaboom', 'Overgrow'), mon('Pelipper', 'Drizzle')], opp: OPP,
+      leads: { me: ['Garchomp', 'Rillaboom'], opp: OPP_LEADS }, backs: { me: ['Pelipper'] } },
+    [sw('me', 'Rillaboom', 'Pelipper'), act('me', 'Garchomp', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+  );
+  assert.deepEqual(r1!.order, { 'me:Pelipper': 1, 'me:Garchomp': 2, 'opp:Incineroar': 3, 'opp:Kingambit': 4 });
+});

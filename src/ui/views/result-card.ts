@@ -10,7 +10,6 @@ import { esc } from '../dom.ts';
 import { monIcon } from '../icons.ts';
 import { formOf, renamedForms, showNames } from '../names.ts';
 
-export const ICON_RERUN = `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.8-4.07"/><path d="M13.5 2.5v3h-3"/></svg>`;
 export const ICON_CHEVRON = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>`;
 
 /** Up to two decimals, so fixed fractions read exactly (6.25%, 12.5%). */
@@ -117,7 +116,7 @@ export function resultHTML(node: FlowNode, sim: SimView, start: BattleState | nu
   let inner = '';
   if (!sim.enabled) return '';
   if (sim.status === 'loading') inner = '<div class="res-msg">Loading the calculator…</div>';
-  else if (sim.status === 'error') inner = '<div class="res-msg">Calculator unavailable. Press ↻ to retry.</div>';
+  else if (sim.status === 'error') inner = '<div class="res-msg">Calculator unavailable. Reload the page to retry.</div>';
   else {
     const r = sim.results.get(node.id);
     if (!r) inner = '';
@@ -141,13 +140,19 @@ export function resultHTML(node: FlowNode, sim: SimView, start: BattleState | nu
   return `<div class="turn-result">${inner}</div>`;
 }
 
+const ordinal = (n: number): string => `${n}${n % 10 === 1 && n !== 11 ? 'st' : n % 10 === 2 && n !== 12 ? 'nd' : n % 10 === 3 && n !== 13 ? 'rd' : 'th'}`;
+
 const hpTone = (pct: number): string => (pct > 50 ? 'ok' : pct > 20 ? 'mid' : 'low');
 
-/** One Pokémon in the card summary: sprite plus a small HP bar, or a KO tag. Details are in the tooltip. */
-function miniHp(x: EndMon): string {
-  const tip = x.fainted ? `${x.species}: KO`
-    : `${x.species}: ${x.pct}% (${x.lo}–${x.hi}% depending on rolls)${x.charging ? `, charging ${x.charging}` : ''}`;
-  return `<span class="mini-hp ${x.fainted ? 'ko' : ''}" title="${esc(tip)}">${monIcon(x.species, 'xs')}${x.fainted
+/**
+ * One Pokémon in the card summary: when it acted this turn (a small number), sprite plus a small HP bar, or a KO tag.
+ * Details are in the tooltip.
+ */
+function miniHp(x: EndMon, order: number | undefined): string {
+  const tip = (order ? `Acted ${ordinal(order)}. ` : '') + (x.fainted ? `${x.species}: KO`
+    : `${x.species}: ${x.pct}% (${x.lo}–${x.hi}% depending on rolls)${x.charging ? `, charging ${x.charging}` : ''}`);
+  const badge = order ? `<span class="act-order" aria-label="${esc(`acted ${ordinal(order)}`)}">${order}</span>` : '';
+  return `<span class="mini-hp ${x.fainted ? 'ko' : ''}" title="${esc(tip)}">${badge}${monIcon(x.species, 'xs')}${x.fainted
     ? '<span class="ko-tag">KO</span>'
     : `<span class="hp-bar"><i class="${hpTone(x.pct)}" data-w="${x.pct}"></i></span>`}${statusChip(x.condition)}</span>`;
 }
@@ -159,7 +164,7 @@ function miniHp(x: EndMon): string {
 export function summaryHTML(node: FlowNode, sim: SimView, start: BattleState | null, picks: Partial<Record<Side, readonly string[]>> = {}): string {
   if (!sim.enabled) return '';
   if (sim.status === 'loading') return '<div class="sum-msg">Loading the calculator…</div>';
-  if (sim.status === 'error') return '<div class="sum-msg bad">Calculator unavailable. Press ↻ to retry.</div>';
+  if (sim.status === 'error') return '<div class="sum-msg bad">Calculator unavailable. Reload the page to retry.</div>';
   const r = sim.results.get(node.id);
   if (!r) return '';
   if (r.status === 'blocked') return `<div class="sum-msg">${r.over ? 'The battle already ended in this branch.' : 'Finish the previous turn first.'}</div>`;
@@ -172,7 +177,7 @@ export function summaryHTML(node: FlowNode, sim: SimView, start: BattleState | n
   // Who is on the field after the turn, plus anyone who fainted during it (not Pokémon that fell in earlier turns).
   const shown = (x: EndMon): boolean => r.state.active[x.side].includes(x.name) && !x.fainted
     || (x.fainted && start?.mons[x.side][x.name]?.fainted !== true);
-  const side = (s: Side): string => r.end.filter((x) => x.side === s && shown(x)).map(miniHp).join('');
+  const side = (s: Side): string => r.end.filter((x) => x.side === s && shown(x)).map((x) => miniHp(x, r.order[`${x.side}:${x.name}`])).join('');
   return `<div class="sum-hp"><div class="me">${side('me')}</div><div class="opp">${side('opp')}</div></div>`;
 }
 
@@ -207,7 +212,7 @@ export function fieldStripHTML(node: FlowNode, sim: SimView): string {
 export function noticeHTML(sim: SimView): string {
   if (!sim.enabled) return sim.reasons.length ? `<div class="notice info">Turn results are off. To enable them: ${sim.reasons.map(esc).join('; ')}.</div>` : '';
   if (sim.status === 'loading') return '<div class="notice info">Loading the damage calculator…</div>';
-  if (sim.status === 'error') return `<div class="notice">Turn results aren't available: ${esc(sim.message)}. Press ↻ on a turn to retry.</div>`;
+  if (sim.status === 'error') return `<div class="notice">Turn results aren't available: ${esc(sim.message)}. Reload the page to retry.</div>`;
   if (!sim.native) return '<div class="notice">This calculator build has no Champions mode, so damage uses Gen 9 rules with Champions stats. Results may differ slightly.</div>';
   return '';
 }
