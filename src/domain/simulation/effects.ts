@@ -1,5 +1,5 @@
 import { BOOST_KEYS } from '../stats.ts';
-import { round1, toID } from '../strings.ts';
+import { toID } from '../strings.ts';
 import type { BoostKey, Side } from '../types.ts';
 import type { CalcEngine } from './engine.ts';
 import type { LogEntry, StatChange } from './log.ts';
@@ -22,6 +22,11 @@ type Terrain = NonNullable<FieldState['terrain']>;
 export interface ChangeOptions { own?: boolean; foe?: boolean; secondary?: boolean }
 
 interface Active { side: Side; name: string; mon: MonState }
+
+/** Percent with up to two decimals, so fixed fractions read exactly (1/16 = 6.25%). */
+const pct = (x: number): number => Math.round(x * 100) / 100;
+/** An effect that removes or restores a fixed fraction of max HP (at least 1 HP), and that fraction for the log. */
+export const share = (max: number, fraction: number): { amount: number; fraction: number } => ({ amount: Math.max(1, Math.floor(max * fraction)), fraction });
 
 /** Adds stat changes together by stat, keeping the order they first happened in. */
 function merge(into: StatChange[], more: readonly StatChange[]): StatChange[] {
@@ -81,9 +86,10 @@ export class Effects {
 
   /**
    * HP lost outside an attack's damage roll (recoil, Life Orb, Rough Skin, weather, poison...): the same amount in
-   * every roll branch. Logged unless `text` is null; berries and fainting follow.
+   * every roll branch. Logged unless `text` is null; berries and fainting follow. Effects worth a fixed fraction of
+   * max HP pass it as `fraction`, so every Pokémon reads the same percentage (1/16 is 6.25%, whatever the HP total).
    */
-  hurt(side: Side, name: string, amount: number, text: string | null): void {
+  hurt(side: Side, name: string, amount: number, text: string | null, fraction?: number): void {
     const mon = this.mon(side, name);
     if (!mon || mon.fainted || amount <= 0) return;
     const max = statsOf(mon).hp;
@@ -91,12 +97,15 @@ export class Effects {
     mon.hpLo = Math.max(0, mon.hpLo - amount);
     mon.hpHi = Math.max(0, mon.hpHi - amount);
     if (mon.hp <= 0) mon.fainted = true;
-    if (text !== null) this.log.push({ type: 'residual', side, mon: name, text, pct: -round1((amount / max) * 100), fainted: mon.fainted });
+    if (text !== null) this.log.push({ type: 'residual', side, mon: name, text, pct: -pct((fraction ?? amount / max) * 100), fainted: mon.fainted });
     this.berries(side, name);
   }
 
-  /** Restores HP (never above the maximum, never to a fainted Pokémon). Returns the HP actually restored. */
-  heal(side: Side, name: string, amount: number, text: string): number {
+  /**
+   * Restores HP (never above the maximum, never to a fainted Pokémon). Returns the HP actually restored. With
+   * `fraction`, the log shows that fraction unless missing HP capped the healing.
+   */
+  heal(side: Side, name: string, amount: number, text: string, fraction?: number): number {
     const mon = this.mon(side, name);
     if (!mon || mon.fainted || amount <= 0) return 0;
     const max = statsOf(mon).hp;
@@ -106,7 +115,7 @@ export class Effects {
     // A branch where it already fainted stays fainted.
     mon.hpLo = mon.hpLo > 0 ? Math.min(max, mon.hpLo + amount) : 0;
     mon.hpHi = Math.min(max, mon.hpHi + amount);
-    this.log.push({ type: 'residual', side, mon: name, text, pct: round1((gain / max) * 100), fainted: false });
+    this.log.push({ type: 'residual', side, mon: name, text, pct: pct((gain === amount && fraction !== undefined ? fraction : gain / max) * 100), fainted: false });
     return gain;
   }
 
@@ -203,8 +212,9 @@ export class Effects {
     const item = this.takeItem(side, name);
     if (berry.boost) this.boostEntry(side, name, item, { [berry.boost]: ripen });
     else {
-      const amount = berry.flat !== undefined ? berry.flat * ripen : Math.floor(max * (berry.heal ?? 0) * ripen);
-      if (!this.heal(side, name, amount, item)) this.log.push({ type: 'effect', side, mon: name, source: item, text: 'is eaten' });
+      const healed = berry.flat !== undefined ? this.heal(side, name, berry.flat * ripen, item)
+        : this.heal(side, name, share(max, (berry.heal ?? 0) * ripen).amount, item, (berry.heal ?? 0) * ripen);
+      if (!healed) this.log.push({ type: 'effect', side, mon: name, source: item, text: 'is eaten' });
     }
   }
 
@@ -266,7 +276,7 @@ export class Effects {
     const allyName = aliveActive(this.st, side).find((n) => n !== name);
     const ally = allyName ? this.st.mons[side][allyName]! : null;
     if (ability === 'hospitality' && ally && allyName) {
-      if (!this.heal(side, allyName, Math.floor(statsOf(ally).hp / 4), `${mon.name}'s Hospitality`)) {
+      if (!this.heal(side, allyName, share(statsOf(ally).hp, 1 / 4).amount, `${mon.name}'s Hospitality`, 1 / 4)) {
         this.log.push({ type: 'effect', side, mon: name, source: mon.ability, text: `${allyName} is already at full HP` });
       }
     }
@@ -315,47 +325,50 @@ export class Effects {
     const step = (fn: (a: Active, max: number) => void): void => {
       for (const a of this.speedOrder()) if (!a.mon.fainted) fn(a, statsOf(a.mon).hp);
     };
-    const sixteenth = (max: number): number => Math.max(1, Math.floor(max / 16));
-    const eighth = (max: number): number => Math.max(1, Math.floor(max / 8));
+    const hurt = (a: Active, max: number, fraction: number, text: string): void => this.hurt(a.side, a.name, share(max, fraction).amount, text, fraction);
+    const heal = (a: Active, max: number, fraction: number, text: string): void => { this.heal(a.side, a.name, share(max, fraction).amount, text, fraction); };
 
-    step(({ side, name, mon }, max) => {
+    step((a, max) => {
+      const { mon } = a;
       const ability = toID(mon.ability);
       const guard = this.indirectImmune(mon);
       if (f.weather === 'Sand') {
         const types = this.engine.typesOf(mon.species);
         if (!guard && !SAND_IMMUNE_TYPES.some((t) => types.includes(t)) && !SAND_IMMUNE.includes(ability) && !SAND_IMMUNE.includes(toID(mon.item))) {
-          this.hurt(side, name, sixteenth(max), 'Sandstorm');
+          hurt(a, max, 1 / 16, 'Sandstorm');
         }
       }
-      if (f.weather === 'Rain' && ability === 'raindish') this.heal(side, name, sixteenth(max), mon.ability);
-      if (f.weather === 'Rain' && ability === 'dryskin') this.heal(side, name, eighth(max), mon.ability);
-      if (f.weather === 'Snow' && ability === 'icebody') this.heal(side, name, sixteenth(max), mon.ability);
-      if (f.weather === 'Sun' && (ability === 'dryskin' || ability === 'solarpower') && !guard) this.hurt(side, name, eighth(max), mon.ability);
+      if (f.weather === 'Rain' && ability === 'raindish') heal(a, max, 1 / 16, mon.ability);
+      if (f.weather === 'Rain' && ability === 'dryskin') heal(a, max, 1 / 8, mon.ability);
+      if (f.weather === 'Snow' && ability === 'icebody') heal(a, max, 1 / 16, mon.ability);
+      if (f.weather === 'Sun' && (ability === 'dryskin' || ability === 'solarpower') && !guard) hurt(a, max, 1 / 8, mon.ability);
     });
 
-    step(({ side, name, mon }, max) => {
-      if (f.terrain === 'Grassy' && this.grounded(mon)) this.heal(side, name, sixteenth(max), 'Grassy Terrain');
+    step((a, max) => {
+      const { mon } = a;
+      if (f.terrain === 'Grassy' && this.grounded(mon)) heal(a, max, 1 / 16, 'Grassy Terrain');
       const item = toID(mon.item);
-      if (item === 'leftovers') this.heal(side, name, sixteenth(max), mon.item);
+      if (item === 'leftovers') heal(a, max, 1 / 16, mon.item);
       if (item === 'blacksludge') {
-        if (this.engine.typesOf(mon.species).includes('Poison')) this.heal(side, name, sixteenth(max), mon.item);
-        else if (!this.indirectImmune(mon)) this.hurt(side, name, eighth(max), mon.item);
+        if (this.engine.typesOf(mon.species).includes('Poison')) heal(a, max, 1 / 16, mon.item);
+        else if (!this.indirectImmune(mon)) hurt(a, max, 1 / 8, mon.item);
       }
     });
 
-    step(({ side, name, mon }, max) => {
+    step((a, max) => {
+      const { mon } = a;
       if (mon.status !== 'psn' && mon.status !== 'tox') return;
-      const ability = toID(mon.ability);
-      if (ability === 'poisonheal') { this.heal(side, name, eighth(max), 'Poison Heal'); return; }
+      if (toID(mon.ability) === 'poisonheal') { heal(a, max, 1 / 8, 'Poison Heal'); return; }
       if (this.indirectImmune(mon)) return;
-      const dmg = mon.status === 'psn' ? eighth(max) : Math.max(1, Math.floor((max * Math.min(15, mon.toxic)) / 16));
+      // Bad poison grows by 1/16 each turn (1/16, 2/16, 3/16...).
+      const fraction = mon.status === 'psn' ? 1 / 8 : Math.min(15, mon.toxic) / 16;
       if (mon.status === 'tox') mon.toxic++;
-      this.hurt(side, name, dmg, 'poison');
+      hurt(a, max, fraction, 'poison');
     });
 
-    step(({ side, name, mon }, max) => {
-      if (mon.status !== 'brn' || this.indirectImmune(mon)) return;
-      this.hurt(side, name, Math.max(1, Math.floor(max / (toID(mon.ability) === 'heatproof' ? 32 : 16))), 'burn');
+    step((a, max) => {
+      if (a.mon.status !== 'brn' || this.indirectImmune(a.mon)) return;
+      hurt(a, max, toID(a.mon.ability) === 'heatproof' ? 1 / 32 : 1 / 16, 'burn');
     });
 
     step(({ side, name, mon }) => {

@@ -11,6 +11,7 @@ import { monIcon } from '../icons.ts';
 import { formOf } from '../names.ts';
 import { startStateOf, turnResult } from '../turn-results.ts';
 import { rerenderCanvas } from './plan-view.ts';
+import { lockedAction } from '../../domain/simulation/turn.ts';
 
 /** `label` turns a stored value (a paste name) into what is shown (its current form). */
 const options = (list: readonly string[], current: string, blank?: string, label: (v: string) => string = (v) => v): string =>
@@ -106,11 +107,24 @@ function actionEditor(a: TurnAction, i: number, st: BattleState | null, depth: n
   const pivot = a.kind !== 'switch' && isPivotMove(a.move)
     ? `<div><label class="lbl" for="a-pivot-${i}">Then switch to</label><select class="field" id="a-pivot-${i}" data-a="pivot" data-i="${i}">${options(incoming, a.pivot ?? '', 'Choose…', own)}</select></div>`
     : '';
-  const charging = st?.mons[a.side][a.mon]?.charging;
-  const locked = charging && st?.active[a.side].includes(a.mon)
-    ? `<div class="hint">Charged ${esc(charging.move)} last turn: it attacks with it now, whatever is picked here.</div>` : '';
+  const head = `<div class="act-top"><span class="side-tag ${a.side}">${a.side === 'me' ? 'You' : 'Opponent'}</span></div>`;
+  // Charging a two-turn move or recharging after Hyper Beam: no move or switch to pick this turn.
+  const current = st?.mons[a.side][a.mon];
+  const locked = current && st?.active[a.side].includes(a.mon) ? lockedAction(current) : null;
+  if (locked) {
+    return `<div class="act-edit ${a.side}" data-i="${i}">${head}
+    <div class="row2">${monField(a, i, st, actions)}<div><span class="lbl">Action</span><div class="act-locked">${esc(locked)}</div></div></div>
+    <div class="hint">It can't choose a move or switch out this turn.</div>
+  </div>`;
+  }
+  // Only the moves in the paste (plus a move already saved that isn't there, so nothing is lost silently).
+  const known = set?.moves ?? [];
+  const moveList = a.move && !known.some((m) => m.toLowerCase() === a.move.toLowerCase()) ? [...known, a.move] : known;
+  const moveField = known.length
+    ? `<select class="field" id="a-move-${i}" data-a="move" data-i="${i}">${options(moveList, a.move, 'Choose…', (v) => (known.includes(v) ? v : `${v} (not in the paste)`))}</select>`
+    : `<input class="field" id="a-move-${i}" data-a="move" data-i="${i}" value="${esc(a.move)}" placeholder="Move name">`;
   return `<div class="act-edit ${a.side}" data-i="${i}">
-    <div class="act-top"><span class="side-tag ${a.side}">${a.side === 'me' ? 'You' : 'Opponent'}</span></div>${locked}
+    ${head}
     <div class="row2">
       ${monField(a, i, st, actions)}
       <div><label class="lbl" for="a-kind-${i}">Action</label><select class="field" id="a-kind-${i}" data-a="kind" data-i="${i}">${kindOption('move', 'Move')}${mega}${kindOption('switch', 'Switch')}</select></div>
@@ -118,7 +132,7 @@ function actionEditor(a: TurnAction, i: number, st: BattleState | null, depth: n
     ${a.kind === 'switch'
       ? `<div><label class="lbl" for="a-target-${i}">Switch to</label><select class="field" id="a-target-${i}" data-a="target" data-i="${i}">${options(incoming, a.target, 'Choose…', own)}</select></div>`
       : `<div class="row2">
-      <div><label class="lbl" for="a-move-${i}">Move</label><input class="field" id="a-move-${i}" data-a="move" data-i="${i}" list="mv-${i}" value="${esc(a.move)}" placeholder="Move name"><datalist id="mv-${i}">${(set?.moves ?? []).map((m) => `<option value="${esc(m)}">`).join('')}</datalist></div>
+      <div><label class="lbl" for="a-move-${i}">Move</label>${moveField}</div>
       <div><label class="lbl" for="a-target-${i}">Target</label><select class="field" id="a-target-${i}" data-a="target" data-i="${i}">${options(targets, a.target, '—', anyone)}</select></div>
     </div>${pivot}`}
   </div>`;

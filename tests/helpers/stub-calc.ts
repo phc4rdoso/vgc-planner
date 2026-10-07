@@ -90,6 +90,8 @@ export const MOVES: Record<string, MoveData> = {
   sunnyday: mv('Sunny Day', 0, 'Status', 'all', 0, 'Fire'),
   raindance: mv('Rain Dance', 0, 'Status', 'all', 0, 'Water'),
   auroraveil: mv('Aurora Veil', 0, 'Status', 'allySide', 0, 'Ice'),
+  beatup: mv('Beat Up', 0, 'Physical', 'normal', 0, 'Dark'),
+  hyperbeam: mv('Hyper Beam', 150, 'Special', 'normal'),
 };
 
 export interface CalcCall { attacker: string; defender: string; move: string; field: FieldOptions; attackerBoostAtk: number; defenderHP: number; attackerStatus: string; attackerAbility: string; bp: number }

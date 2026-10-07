@@ -414,3 +414,61 @@ test('Payback doubles when the target really moved first (correcting the calcula
   // Kingambit is slower than Incineroar, so the real calculator doubles Payback by itself: it gets the base power.
   assert.equal(lastCalls.find((c) => c.move === 'Payback')?.bp, 50);
 });
+
+/* ---------- turn order read again before every action ---------- */
+
+const movers = (log: readonly LogEntry[]): string[] => log.filter((l) => l.type === 'boost' || l.type === 'hit' || l.type === 'status' || l.type === 'field').map((l) => l.mon);
+
+test('paralysis halves Speed straight away: a Pokémon paralysed earlier in the turn moves later', () => {
+  const [r1] = play(
+    { me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Thunder Wave', 'Ally'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+  );
+  const order = movers(r1!.log);
+  assert.equal(r1!.end.find((e) => e.name === 'Rillaboom')?.condition, 'par');
+  assert.ok(order.indexOf('Incineroar') < order.indexOf('Rillaboom'), order.join(' > '));
+});
+
+test('a Tailwind set this turn speeds up its side for the actions still to come', () => {
+  const [r1] = play(
+    { me: [mon('Garchomp', 'Rough Skin'), mon('Kingambit', 'Defiant')], opp: [mon('Rillaboom', 'Overgrow'), mon('Incineroar', 'Blaze')], leads: { me: ['Garchomp', 'Kingambit'], opp: ['Rillaboom', 'Incineroar'] } },
+    [act('me', 'Garchomp', 'move', 'Tailwind'), act('me', 'Kingambit', 'move', 'Swords Dance'), act('opp', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance')],
+  );
+  assert.deepEqual(movers(r1!.log), ['Garchomp', 'Kingambit', 'Rillaboom', 'Incineroar']);
+});
+
+/* ---------- fixed fractions read exactly ---------- */
+
+test('fixed-fraction effects show the same percentage for everyone: Grassy Terrain 6.25%, bad poison 6.25% then 12.5%', () => {
+  const t = [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Flare Blitz', 'Rillaboom'), act('opp', 'Kingambit', 'move', 'Close Combat', 'Garchomp')];
+  const [r1] = play({ me: [mon('Garchomp', 'Rough Skin'), mon('Rillaboom', 'Grassy Surge')], opp: OPP, leads: ME_LEADS }, t);
+  for (const who of ['Garchomp', 'Rillaboom']) assert.deepEqual(residuals(r1!.log, who).filter((x) => x.text === 'Grassy Terrain').map((x) => x.pct), [6.25], who);
+
+  const toxic = [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Toxic', 'Garchomp'), act('opp', 'Kingambit', 'move', 'Swords Dance')];
+  const calm = [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)];
+  const [p1, p2] = play({ me: ME, opp: OPP, leads: ME_LEADS }, toxic, calm);
+  assert.deepEqual([...residuals(p1!.log, 'Garchomp'), ...residuals(p2!.log, 'Garchomp')].map((x) => x.pct), [-6.25, -12.5]);
+});
+
+/* ---------- Beat Up, recharge ---------- */
+
+test('Beat Up hits once per able party member, and each hit stacks Rage Fist', () => {
+  const [r1, r2] = play(
+    { me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Beat Up', 'Ally'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Rage Fist', 'Incineroar'), ...idle('opp', ...OPP_LEADS)],
+  );
+  const beat = hitOn(r1!.log, 'Garchomp', 'Beat Up')[0]!;
+  assert.equal(beat.mon, 'Rillaboom');
+  assert.equal(beat.hits, 2);
+  assert.ok((beat.maxPct ?? 0) > 0, 'Beat Up does damage');
+  assert.equal(powerOf(r2!.log, 'Rillaboom', 'Rage Fist'), 150);
+});
+
+test('after Hyper Beam hits, the user spends its next action recharging, whatever was picked', () => {
+  const beam = [act('me', 'Garchomp', 'move', 'Hyper Beam', 'Incineroar'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)];
+  const [, r2, r3] = play({ me: ME, opp: OPP, leads: ME_LEADS }, beam,
+    [act('me', 'Garchomp', 'move', ''), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)], beam);
+  assert.ok(r2!.log.some((l) => l.type === 'skip' && l.mon === 'Garchomp' && l.why === 'must recharge after Hyper Beam'));
+  assert.ok(hits(r3!.log, 'Garchomp', 'Hyper Beam'), 'free again the turn after');
+});

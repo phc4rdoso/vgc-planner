@@ -13,7 +13,8 @@ import { formOf, renamedForms, showNames } from '../names.ts';
 export const ICON_RERUN = `<svg width="15" height="15" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M13.5 8a5.5 5.5 0 1 1-1.8-4.07"/><path d="M13.5 2.5v3h-3"/></svg>`;
 export const ICON_CHEVRON = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>`;
 
-const fmtPct = (n: number): string => (Math.round(n * 10) / 10).toFixed(1).replace(/\.0$/, '');
+/** Up to two decimals, so fixed fractions read exactly (6.25%, 12.5%). */
+const fmtPct = (n: number): string => String(Math.round(n * 100) / 100);
 /** How names are shown in a result: Pokémon by their current form, and messages with those names rewritten. */
 interface Names { mon(side: Side, key: string): string; text(message: string): string }
 
@@ -46,7 +47,8 @@ function hitText(r: HitResult, n: Names): string {
   const status = r.status ? ` ${inflictedText(r.status, r.cured)}` : '';
   const endured = r.endured ? ` <span class="muted">holds on with ${esc(r.endured)}</span>` : '';
   const power = r.power ? ` <span class="bchip up" title="Power this turn, from the battle so far">${r.power} BP</span>` : '';
-  return `<span class="dmg">${range}</span>${power}${ko}${endured}${changes}${status}`;
+  const hits = r.hits ? ` <span class="muted">${r.hits} hit${r.hits === 1 ? '' : 's'}</span>` : '';
+  return `<span class="dmg">${range}</span>${power}${hits}${ko}${endured}${changes}${status}`;
 }
 
 function statusTargetText(t: StatusTarget, n: Names): string {
@@ -101,10 +103,10 @@ function hpRow(x: EndMon): string {
     : `${x.lo}–${x.hi}% depending on rolls`;
   const charging = x.charging ? `<span class="bchip up" title="${esc(`Charging ${x.charging}: it attacks on its next action`)}">charging ${esc(x.charging)}</span>` : '';
   const lost = x.lostItem ? `<s class="muted lost-item" title="${esc(`${x.lostItem}: used up or removed`)}">${esc(x.lostItem)}</s>` : '';
-  return `<div class="hp-row ${x.fainted ? 'ko' : ''}" title="${esc(tip)}">${monIcon(x.species, 'xs')}<span class="hp-name">${esc(x.species)}</span>${statusChip(x.condition)}${lost}${charging}
+  return `<div class="hp-row ${x.fainted ? 'ko' : ''}" title="${esc(tip)}">${monIcon(x.species, 'xs')}<span class="hp-name">${esc(x.species)}</span>${statusChip(x.condition)}${lost}
     <span class="hp-bar"><i class="${tone}" data-w="${x.pct}"></i></span>
     <span class="hp-pct">${x.fainted ? 'KO' : `${x.pct}%`}</span>${range}${x.mayFaint ? '<span class="ko-tag">may KO</span>' : ''}
-    ${statChips(x.boosts)}</div>`;
+    ${charging}${statChips(x.boosts)}</div>`;
 }
 
 /**

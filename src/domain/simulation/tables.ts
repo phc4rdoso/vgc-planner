@@ -209,3 +209,8 @@ export const FIRST_TURN_ONLY: ReadonlySet<string> = new Set(['fakeout', 'firstim
 export const NEEDS_TARGET_MOVE: Readonly<Record<string, 'attack' | 'priority'>> = { suckerpunch: 'attack', thunderclap: 'attack', upperhand: 'priority' };
 /** Attacks that make the target flinch every time (only on the target's first turn for Fake Out, see FIRST_TURN_ONLY). */
 export const ALWAYS_FLINCH: ReadonlySet<string> = new Set(['fakeout', 'upperhand']);
+
+/** Attacks after which the user must spend its next action recharging (if the attack hit). */
+export const RECHARGE_MOVES: ReadonlySet<string> = new Set([
+  'hyperbeam', 'gigaimpact', 'blastburn', 'hydrocannon', 'frenzyplant', 'rockwrecker', 'roaroftime', 'prismaticlaser', 'eternabeam', 'meteorassault',
+]);

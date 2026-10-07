@@ -51,6 +51,8 @@ export interface MonState {
    * on its next action whatever was picked. `semi` describes a semi-invulnerable state (Fly: up high).
    */
   charging: { move: string; target: string; semi: string | null } | null;
+  /** It used a recharge move (Hyper Beam...) that hit last turn: its next action is spent recharging. */
+  recharging: string | null;
   /** Full turns spent on the field since it last came in (Fake Out only works when 0). */
   activeTurns: number;
   /** Times it has been hit by an attack this battle (Rage Fist), kept through switching. */
@@ -284,7 +286,7 @@ export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection'>, 
         mega: false, megaForm, megaAbility,
         sp: (statPoints(set) ?? { sp: emptyStatTable() }).sp, stats: null, boosts: zeroBoosts(), hp: 0, hpLo: 0, hpHi: 0, fainted: false,
         status: null, toxic: 0, slept: 0, item: set.item, unburden: false, entryBoosted: false,
-        charging: null, activeTurns: 0, timesHit: 0, lastFailed: false, protectStreak: false,
+        charging: null, recharging: null, activeTurns: 0, timesHit: 0, lastFailed: false, protectStreak: false,
       };
       refreshStats(engine, mon);
       st.mons[side][set.species] = mon;

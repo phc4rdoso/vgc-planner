@@ -20,6 +20,8 @@ export interface MoveInfo {
   contact: boolean;
   /** Hits more than once (Focus Sash and Sturdy don't hold against it). */
   multihit: boolean;
+  /** How many hits the calculator counts (multi-hit moves; Rage Fist counts each). */
+  hits: number;
   /** Has secondary effects (Sheer Force removes them, and with them Life Orb's recoil). */
   secondaries: boolean;
 }
@@ -134,11 +136,11 @@ export function createEngine(lib: CalcLib): CalcEngine {
         const m = new lib.Move(generation, name);
         return {
           exists: known, name: m.name || name, priority: m.priority ?? 0, category: m.category ?? 'Status', type: m.type ?? '', target: m.target ?? 'normal', bp: m.bp ?? 0,
-          contact: !!m.flags?.contact, multihit: (m.hits ?? 1) > 1 || data?.multihit !== undefined,
+          contact: !!m.flags?.contact, multihit: (m.hits ?? 1) > 1 || data?.multihit !== undefined, hits: Math.max(1, m.hits ?? 1),
           secondaries: Array.isArray(m.secondaries) ? m.secondaries.length > 0 : !!m.secondaries,
         };
       } catch {
-        return { exists: false, name, priority: 0, category: 'Status', type: '', target: 'normal', bp: 0, contact: false, multihit: false, secondaries: false };
+        return { exists: false, name, priority: 0, category: 'Status', type: '', target: 'normal', bp: 0, contact: false, multihit: false, hits: 1, secondaries: false };
       }
     },
     megaOf(species, item) {

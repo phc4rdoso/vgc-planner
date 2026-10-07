@@ -23,6 +23,8 @@ export interface HitResult {
   endured?: string;
   /** The move's power when the battle changed it (Rage Fist, Last Respects, Payback...). */
   power?: number;
+  /** Number of hits, for moves whose hit count depends on the battle (Beat Up). */
+  hits?: number;
 }
 
 export interface DebuffTarget { side: Side; mon: string; protected?: boolean; blocked?: string; changes?: StatChange[] }

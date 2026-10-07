@@ -139,3 +139,6 @@ textarea.paste.short { min-height: 160px; }
 .avatar-tile.on { border-color: var(--me); background: var(--me-soft); color: var(--me); font-weight: 600; }
 .avatar-tile img { width: 48px; height: 48px; border-radius: 50%; image-rendering: pixelated; }
 .avatar-tile span { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* An action the Pokémon can't choose this turn (charging a two-turn move, recharging). */
+.act-locked { padding: 7px 10px; border: 1px dashed var(--line); border-radius: 8px; font-size: 13px; color: var(--ink-2); background: var(--panel); }
