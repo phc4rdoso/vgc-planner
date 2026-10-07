@@ -3,13 +3,22 @@
 .sidebar { background: var(--panel); border-right: 1px solid var(--line-soft); display: flex; flex-direction: column; min-height: 0; }
 .brand { padding: 18px 18px 10px; display: flex; align-items: center; gap: 10px; }
 .brand h1 { font-size: 16px; margin: 0; font-weight: 700; letter-spacing: -.01em; }
+/* The mark: a ball whose gameplan branches into your move and the opponent's, in the palette's own colours. */
+.logo { flex: none; }
+.logo .lg-branch { fill: none; stroke: var(--ink-3); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.logo .lg-ball { fill: var(--ink); }
+.logo .lg-ball-low { fill: var(--ink); }
+.logo .lg-band { stroke: var(--panel); stroke-width: 1.8; }
+.logo .lg-button { fill: var(--panel); stroke: var(--ink); stroke-width: 1.5; }
+.logo .lg-me { fill: var(--me); }
+.logo .lg-opp { fill: var(--opp); }
 .chip { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: var(--me-soft); color: var(--me); white-space: nowrap; }
 .side-actions { padding: 6px 14px 10px; }
 .nav-toggle { margin-left: auto; flex: none; width: 30px; height: 30px; border-radius: 8px; border: 0; background: transparent; color: var(--ink-2); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
 .nav-toggle:hover { background: var(--line-soft); color: var(--ink); }
 /* Collapsed: a thin rail with just the expand button, so the canvas gets the width. */
 .app.nav-collapsed { grid-template-columns: 52px 1fr; }
-.app.nav-collapsed .sidebar > :not(.brand), .app.nav-collapsed .brand h1, .app.nav-collapsed .brand .chip { display: none; }
+.app.nav-collapsed .sidebar > :not(.brand), .app.nav-collapsed .brand h1, .app.nav-collapsed .brand .chip, .app.nav-collapsed .brand .logo { display: none; }
 .app.nav-collapsed .brand { padding: 12px 0; justify-content: center; }
 .app.nav-collapsed .nav-toggle { margin: 0; }
 .app.nav-collapsed .nav-toggle svg { transform: scaleX(-1); }
