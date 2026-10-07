@@ -169,7 +169,7 @@ textarea.paste.short { min-height: 160px; }
 .oc-name { min-width: 84px; font-weight: 600; }
 .oc-check { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-2); }
 .field.sm { padding: 3px 6px; font-size: 12px; width: auto; }
-.oc-hp { width: 70px; }
+.oc-hp { width: 62px; }
 .oc-hits { width: 52px; }
 
 /* A toast with an action (Undo). */

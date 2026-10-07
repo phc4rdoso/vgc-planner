@@ -136,7 +136,8 @@ function outcomeEditor(a: TurnAction, i: number, st: BattleState | null, depth: 
       : '';
     const crit = damaging ? `<label class="oc-check"><input type="checkbox" data-o="crit" data-t="${esc(name)}" data-i="${i}" ${t.crit ? 'checked' : ''}>Crit</label>` : '';
     const hp = damaging
-      ? `<input class="field sm oc-hp" type="number" min="0" max="100" step="0.1" data-o="hp" data-t="${esc(name)}" data-i="${i}" value="${t.hp ?? ''}" placeholder="HP %" aria-label="${esc(`HP of ${name} afterwards, in percent`)}">`
+      ? `<label class="oc-check" title="HP left after this hit, in percent. Leave empty to use the calculator's average roll.">HP left
+          <input class="field sm oc-hp" type="number" min="0" max="100" step="0.1" data-o="hp" data-t="${esc(name)}" data-i="${i}" value="${t.hp ?? ''}" placeholder="avg" aria-label="${esc(`HP of ${name} left after this hit, in percent`)}">%</label>`
       : '';
     return `<div class="oc-row"><span class="oc-name">${esc(formOf(st, sideOf(name), name))}</span>
       <label class="oc-check"><input type="checkbox" data-o="miss" data-t="${esc(name)}" data-i="${i}" ${t.miss ? 'checked' : ''}>Miss</label>${crit}${effects}${hp}</div>`;
