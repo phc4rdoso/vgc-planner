@@ -3,6 +3,7 @@
  * (no accuracy rolls, crits, or chance-based secondaries).
  */
 import type { BoostKey } from '../types.ts';
+import { MOVE_EFFECTS } from '../move-effects.ts';
 
 export type BoostChange = Partial<Record<BoostKey, number>>;
 
@@ -309,3 +310,37 @@ export const CHANCE_EFFECTS: readonly string[] = [
 export const CHANCE_LABEL: Readonly<Record<string, string>> = {
   flinch: 'flinch', brn: 'burn', par: 'paralysis', psn: 'poison', tox: 'bad poison', slp: 'sleep', frz: 'freeze', confusion: 'confusion',
 };
+
+/** "def-1,spd-1" → { def: -1, spd: -1 }; null when the effect isn't a stat change. */
+export function statEffect(effect: string): BoostChange | null {
+  const parts = effect.split(',');
+  const out: BoostChange = {};
+  for (const p of parts) {
+    const m = /^(atk|def|spa|spd|spe)([+-]\d)$/.exec(p.trim());
+    if (!m) return null;
+    out[m[1] as BoostKey] = Number(m[2]);
+  }
+  return out;
+}
+
+const statsIn = (effects: readonly string[] | undefined): BoostChange | undefined => {
+  const out: BoostChange = {};
+  for (const fx of effects ?? []) Object.assign(out, statEffect(fx) ?? {});
+  return Object.keys(out).length ? out : undefined;
+};
+
+/**
+ * What an attack always does, from the hand-written tables first (they hold the Champions changes, like Make It
+ * Rain's −2 Sp. Atk) and otherwise from the move data generated from Pokémon Showdown.
+ */
+export const alwaysDrops = (id: string): BoostChange | undefined => SECONDARY_DROPS[id] ?? statsIn(MOVE_EFFECTS[id]?.always);
+export const alwaysStatus = (id: string): StatusId | undefined =>
+  SECONDARY_STATUS[id] ?? (MOVE_EFFECTS[id]?.always ?? []).find((fx): fx is StatusId => ['brn', 'par', 'psn', 'tox', 'slp', 'frz'].includes(fx));
+export const alwaysSelf = (id: string): BoostChange | undefined => SELF_DROPS[id] ?? statsIn(MOVE_EFFECTS[id]?.selfAlways);
+export const alwaysFlinches = (id: string): boolean => ALWAYS_FLINCH.has(id) || (MOVE_EFFECTS[id]?.always ?? []).includes('flinch');
+export const alwaysConfuses = (id: string): boolean => (MOVE_EFFECTS[id]?.always ?? []).includes('confusion');
+/** Whether the generated move data knows this attack's added effects (if not, any chance effect can be picked). */
+export const hasMoveData = (id: string): boolean => id in MOVE_EFFECTS;
+/** The chance results a move can have, on the target and on the user (empty when it has none, or isn't known). */
+export const chanceEffects = (id: string): { target: string[]; self: string[] } =>
+  ({ target: [...(MOVE_EFFECTS[id]?.chance ?? [])], self: [...(MOVE_EFFECTS[id]?.selfChance ?? [])] });

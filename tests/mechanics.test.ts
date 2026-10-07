@@ -12,6 +12,7 @@ import { simulatePlan } from '../src/domain/simulation/plan.ts';
 import type { ActionKind, ActionOutcome, FlowNode, Side, TurnAction } from '../src/domain/types.ts';
 import type { CalcCall } from './helpers/stub-calc.ts';
 import { makeStubCalc } from './helpers/stub-calc.ts';
+import { alwaysSelf, chanceEffects } from '../src/domain/simulation/tables.ts';
 
 type Ready = Extract<TurnResult, { status: 'ready' }>;
 
@@ -744,4 +745,15 @@ test('Champions freeze: frozen on its first two turns unless it thaws by chance,
   assert.ok(f3!.log.some((l) => l.type === 'cure' && l.mon === 'Kingambit' && l.text === 'thaws out (third turn frozen: it always thaws)'));
   assert.ok(boostsFrom(f3!.log, 'Kingambit', 'Swords Dance'), 'it moves on the turn it thaws');
   assert.equal(f3!.end.find((x) => x.name === 'Kingambit')?.condition, null);
+});
+
+test('move data from Showdown: only real chance effects are offered, and missing guaranteed effects are applied', () => {
+  assert.deepEqual(chanceEffects('rockslide'), { target: ['flinch'], self: [] });
+  assert.deepEqual(chanceEffects('meteormash'), { target: [], self: ['atk+1'] });
+  assert.deepEqual(chanceEffects('triattack').target, ['brn', 'par', 'frz']);
+  assert.deepEqual(alwaysSelf('makeitrain'), { spa: -2 }, 'the hand-written Champions value wins');
+  const [r1] = play({ me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Chilling Water', 'Incineroar'), told(act('me', 'Rillaboom', 'move', 'Meteor Mash', 'Kingambit'), { self: ['atk+1'] }), ...idle('opp', ...OPP_LEADS)]);
+  assert.deepEqual(hitOn(r1!.log, 'Garchomp', 'Chilling Water')[0]?.changes, [{ stat: 'atk', delta: -1 }]);
+  assert.deepEqual(boostsOf(r1!, 'Rillaboom'), { atk: 1 });
 });

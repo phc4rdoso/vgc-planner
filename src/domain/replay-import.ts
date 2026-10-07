@@ -9,7 +9,7 @@ import type { ParsedReplay, Player, ReplayAction, ReplayTurn } from './replay.ts
 import { PLAYERS, ReplayError } from './replay.ts';
 import { baseSpecies } from './showdown.ts';
 import type { MoveInfo } from './simulation/engine.ts';
-import { CHARGE_MOVES, SECONDARY_DROPS, SECONDARY_STATUS, SELF_DROPS } from './simulation/tables.ts';
+import { alwaysConfuses, alwaysDrops, alwaysFlinches, alwaysSelf, alwaysStatus, CHARGE_MOVES, statEffect } from './simulation/tables.ts';
 import { toID } from './strings.ts';
 import type { ActionOutcome, FlowNode, Plan, PlanTab, PokemonSet, Side, SideSelection, TargetOutcome, TurnAction } from './types.ts';
 import { SIDES } from './types.ts';
@@ -44,12 +44,11 @@ export function alwaysEffect(moveInfo: ImportContext['moveInfo']) {
   return (move: string, effect: string): boolean => {
     const id = toID(move);
     if (moveInfo(move)?.category === 'Status') return true;
-    if (SECONDARY_STATUS[id] === effect) return true;
-    const stat = /^(atk|def|spa|spd|spe)([+-]\d)$/.exec(effect);
-    if (!stat) return false;
-    const [, k, d] = stat as unknown as [string, 'atk' | 'def' | 'spa' | 'spd' | 'spe', string];
-    const delta = Number(d);
-    return [SECONDARY_DROPS[id], SELF_DROPS[id], CHARGE_MOVES[id]?.boost].some((t) => t?.[k] === delta) || (id === 'rapidspin' && effect === 'spe+1');
+    if (alwaysStatus(id) === effect || (effect === 'flinch' && alwaysFlinches(id)) || (effect === 'confusion' && alwaysConfuses(id))) return true;
+    const change = statEffect(effect);
+    if (!change) return false;
+    const tables = [alwaysDrops(id), alwaysSelf(id), CHARGE_MOVES[id]?.boost, id === 'rapidspin' ? { spe: 1 } : undefined];
+    return Object.entries(change).every(([k, d]) => tables.some((t) => t?.[k as keyof typeof t] === d));
   };
 }
 

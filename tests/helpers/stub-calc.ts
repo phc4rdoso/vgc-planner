@@ -129,6 +129,8 @@ export const MOVES: Record<string, MoveData> = {
   rapidspin: mv('Rapid Spin', 50, 'Physical', 'normal', 0, 'Normal', contact),
   hypervoice: mv('Hyper Voice', 90, 'Special', 'allAdjacentFoes', 0, 'Normal', { sound: true }),
   swagger: mv('Swagger', 0, 'Status', 'normal'),
+  chillingwater: mv('Chilling Water', 50, 'Special', 'normal', 0, 'Water'),
+  meteormash: mv('Meteor Mash', 90, 'Physical', 'normal', 0, 'Steel', contact),
   icebeam: mv('Ice Beam', 90, 'Special', 'normal', 0, 'Ice'),
   bulletseed: mv('Bullet Seed', 25, 'Physical', 'normal', 0, 'Grass', { multihit: true }),
 };

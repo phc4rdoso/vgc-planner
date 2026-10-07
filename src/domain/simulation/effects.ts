@@ -7,7 +7,7 @@ import type { BattleState, FieldState, MonState } from './state.ts';
 import { aliveActive, applyBoost, bestStat, boostMult, effSpeed, heldItem, monKey, otherSide, statsOf, zeroBoosts } from './state.ts';
 import type { BoostChange, StatusId } from './tables.ts';
 import {
-  ALL_STATUS_IMMUNE, CURE_BERRIES, ENTRY_BOOSTS, ENTRY_TERRAIN, ENTRY_WEATHER, EXIT_ABILITIES, FIXED_ABILITIES, HP_BERRIES, INTIMIDATE_IMMUNE,
+  ALL_STATUS_IMMUNE, CURE_BERRIES, statEffect, ENTRY_BOOSTS, ENTRY_TERRAIN, ENTRY_WEATHER, EXIT_ABILITIES, FIXED_ABILITIES, HP_BERRIES, INTIMIDATE_IMMUNE,
   SAND_IMMUNE, SAND_IMMUNE_TYPES, STAT_DROP_BLOCKERS, STAT_DROP_ITEMS, STATUS_ABILITY_IMMUNE, STATUS_LABEL, STATUS_TYPE_IMMUNE, STICKY_ABILITIES,
   TERRAIN_EXTENDER, TERRAIN_SEEDS, UNNERVE, WEATHER_ROCKS,
 } from './tables.ts';
@@ -184,9 +184,9 @@ export class Effects {
       return 'flinch';
     }
     if (effect === 'confusion') return this.confuse(side, name, byFoe) ? null : 'confused';
-    const stat = /^(atk|def|spa|spd|spe)([+-]\d)$/.exec(effect);
-    if (stat) {
-      const changes = this.changes(side, name, { [stat[1]!]: Number(stat[2]) }, byFoe ? { foe: true, secondary: true } : { own: true });
+    const stats = statEffect(effect);
+    if (stats) {
+      const changes = this.changes(side, name, stats, byFoe ? { foe: true, secondary: true } : { own: true });
       return changes.some((c) => c.delta !== 0) ? effect : null;
     }
     const got = this.inflict(side, name, actor, effect as StatusId);

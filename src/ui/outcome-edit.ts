@@ -36,6 +36,7 @@ export function setOutcome(action: TurnAction, kind: string, target: string, fie
     case 'miss': if (checked) one().miss = true; else delete one().miss; break;
     case 'crit': if (checked) one().crit = true; else delete one().crit; break;
     case 'effect': if (field.value) one().effects = [field.value]; else delete one().effects; break;
+    case 'self': if (field.value) o.self = [field.value]; else delete o.self; break;
     case 'hp': {
       const raw = field.value.trim();
       const n = Number(raw);

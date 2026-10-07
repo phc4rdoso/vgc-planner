@@ -59,8 +59,9 @@ function hitText(r: HitResult, n: Names): string {
 
 /** "spd-1" → "−1 Sp. Def"; conditions and flinch by name. */
 function chanceLabel(fx: string): string {
-  const stat = /^(atk|def|spa|spd|spe)([+-])(\d)$/.exec(fx);
-  if (stat) return `${stat[2] === '+' ? '+' : '−'}${stat[3]} ${STAT_LABEL[stat[1] as keyof typeof STAT_LABEL]}`;
+  if (/^(atk|def|spa|spd|spe)[+-]\d(,(atk|def|spa|spd|spe)[+-]\d)*$/.test(fx)) {
+    return fx.split(',').map((p) => `${p[3] === '+' ? '+' : '−'}${p.slice(4)} ${STAT_LABEL[p.slice(0, 3) as keyof typeof STAT_LABEL]}`).join(', ');
+  }
   const [base, rest] = fx.split(' (');
   return (CHANCE_LABEL[base ?? ''] ?? fx) + (rest ? ` (${rest}` : '');
 }

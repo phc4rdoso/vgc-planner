@@ -63,10 +63,10 @@ function readAction(raw: unknown, path: string): TurnAction {
 }
 
 const CANT: readonly NonNullable<ActionOutcome['cant']>[] = ['par', 'slp', 'frz', 'confusion', 'flinch'];
-/** A chance effect: a condition, flinch, confusion, or a stat change like "spd-1" / "atk+1". */
-const EFFECT = /^(brn|par|psn|tox|slp|frz|flinch|confusion|(atk|def|spa|spd|spe)[+-][1-6])$/;
+/** A chance effect: a condition, flinch, confusion, or stat changes like "spd-1" / "atk+1" / "atk+1,def+1". */
+const EFFECT = /^(brn|par|psn|tox|slp|frz|flinch|confusion|(atk|def|spa|spd|spe)[+-][1-6](,(atk|def|spa|spd|spe)[+-][1-6]){0,4})$/;
 const readEffects = (v: unknown, path: string): ChanceEffect[] =>
-  asArr(v, path, 8).map((e, i) => asStr(e, `${path}[${i}]`, 20)).filter((e) => EFFECT.test(e));
+  asArr(v, path, 8).map((e, i) => asStr(e, `${path}[${i}]`, 40)).filter((e) => EFFECT.test(e));
 const percent = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : undefined);
 
 /** Chance results on an action; anything unknown is dropped, and an empty outcome is no outcome. */

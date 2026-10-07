@@ -1,7 +1,7 @@
 import { monsFor } from '../../domain/model.ts';
 import type { BattleState } from '../../domain/simulation/state.ts';
 import { bench, canMegaEvolve, fieldAfterReplacements, syncTurnActions } from '../../domain/simulation/state.ts';
-import { CHANCE_EFFECTS, PIVOT_MOVES, PROTECT_FAMILY } from '../../domain/simulation/tables.ts';
+import { CHANCE_EFFECTS, chanceEffects, hasMoveData, PIVOT_MOVES, PROTECT_FAMILY } from '../../domain/simulation/tables.ts';
 import { toID } from '../../domain/strings.ts';
 import type { FlowNode, Side, TurnAction } from '../../domain/types.ts';
 import { TARGET_KEYWORDS } from '../../domain/types.ts';
@@ -97,10 +97,16 @@ const CANT_OPTIONS: readonly [string, string][] = [
   ['', 'Moves as expected'], ['par', 'Fully paralysed'], ['slp', 'Still asleep'], ['frz', 'Frozen solid'],
   ['confusion', 'Hit itself in confusion'], ['flinch', 'Flinched'], ['wake', 'Woke up / thawed / snapped out of confusion'],
 ];
-const EFFECT_LABEL: Readonly<Record<string, string>> = {
+const EFFECT_NAME: Readonly<Record<string, string>> = {
   flinch: 'Flinch', brn: 'Burn', par: 'Paralysis', psn: 'Poison', tox: 'Bad poison', slp: 'Sleep', frz: 'Freeze', confusion: 'Confusion',
-  'atk-1': '−1 Atk', 'def-1': '−1 Def', 'spa-1': '−1 SpA', 'spd-1': '−1 SpD', 'spe-1': '−1 Spe', 'def-2': '−2 Def', 'spd-2': '−2 SpD',
 };
+const STAT_SHORT: Readonly<Record<string, string>> = { atk: 'Atk', def: 'Def', spa: 'SpA', spd: 'SpD', spe: 'Spe' };
+/** "spd-1" → "−1 SpD", "atk+1,def+1" → "+1 Atk, +1 Def", "brn" → "Burn". */
+const effectLabel = (fx: string): string => EFFECT_NAME[fx]
+  ?? fx.split(',').map((p) => { const m = /^(\w+)([+-])(\d)$/.exec(p); return m ? `${m[2] === '+' ? '+' : '−'}${m[3]} ${STAT_SHORT[m[1]!] ?? m[1]}` : p; }).join(', ');
+const effectSelect = (kind: 'effect' | 'self', i: number, name: string, options: readonly string[], value: string, label: string): string =>
+  `<select class="field sm" data-o="${kind}" data-t="${esc(name)}" data-i="${i}" aria-label="${esc(label)}"><option value="">No added effect</option>${
+    options.map((fx) => `<option value="${esc(fx)}" ${fx === value ? 'selected' : ''}>${esc(effectLabel(fx))}</option>`).join('')}</select>`;
 
 /** Who a move's chance results can be about: its target(s), as far as the editor can tell. */
 function outcomeTargets(a: TurnAction, st: BattleState | null, depth: number, actions: readonly TurnAction[], target: string): string[] {
@@ -127,13 +133,14 @@ function outcomeEditor(a: TurnAction, i: number, st: BattleState | null, depth: 
   const o = a.outcome ?? {};
   const cant = o.wake ? 'wake' : o.cant ?? '';
   const damaging = !!info && info.category !== 'Status';
+  // The move's own possible chance effects (from the generated move data); any condition or drop if it isn't known.
+  const known = chanceEffects(toID(a.move));
+  const targetOptions = known.target.length ? known.target : info?.secondaries && !hasMoveData(toID(a.move)) ? CHANCE_EFFECTS : [];
   const sideOf = (name: string): Side => (st?.mons.opp[name] && !st.mons.me[name] ? 'opp' : st?.mons.me[name] && !st.mons.opp[name] ? 'me' : a.side === 'me' ? 'opp' : 'me');
   const rows = a.move ? outcomeTargets(a, st, depth, actions, info?.target ?? '').map((name) => {
     const t = o.targets?.[name] ?? {};
     const effect = t.effects?.[0] ?? '';
-    const effects = damaging && info?.secondaries
-      ? `<select class="field sm" data-o="effect" data-t="${esc(name)}" data-i="${i}" aria-label="${esc(`Effect on ${name}`)}"><option value="">No effect</option>${CHANCE_EFFECTS.map((fx) => `<option value="${fx}" ${fx === effect ? 'selected' : ''}>${EFFECT_LABEL[fx] ?? fx}</option>`).join('')}</select>`
-      : '';
+    const effects = damaging && targetOptions.length ? effectSelect('effect', i, name, targetOptions, effect, `Added effect on ${name}`) : '';
     const crit = damaging ? `<label class="oc-check"><input type="checkbox" data-o="crit" data-t="${esc(name)}" data-i="${i}" ${t.crit ? 'checked' : ''}>Crit</label>` : '';
     const hp = damaging
       ? `<label class="oc-check" title="HP left after this hit, in percent. Leave empty to use the calculator's average roll.">HP left
@@ -145,10 +152,12 @@ function outcomeEditor(a: TurnAction, i: number, st: BattleState | null, depth: 
   const hits = info?.multihit ? `<label class="oc-check">Hits <input class="field sm oc-hits" type="number" min="1" max="10" data-o="hits" data-i="${i}" value="${o.hits ?? ''}"></label>` : '';
   const protect = PROTECT_FAMILY.has(toID(a.move))
     ? `<label class="oc-check"><input type="checkbox" data-o="protectWorks" data-i="${i}" ${o.protectWorks ? 'checked' : ''}>Works even right after another Protect</label>` : '';
+  const self = damaging && known.self.length
+    ? `<label class="oc-check">Self ${effectSelect('self', i, a.mon, known.self, o.self?.[0] ?? '', `Added effect on ${a.mon} itself`)}</label>` : '';
   const set = Object.keys(o).length > 0;
   const cantSelect = `<select class="field sm" data-o="cant" data-i="${i}" aria-label="Before moving">${CANT_OPTIONS.map(([v, l]) => `<option value="${v}" ${v === cant ? 'selected' : ''}>${l}</option>`).join('')}</select>`;
   return `<details class="outcome"${set ? ' open' : ''}><summary>Chance results${set ? ' <span class="oc-dot" aria-label="set"></span>' : ''}</summary>
-    ${cantSelect}${hits}${protect}${rows}
+    ${cantSelect}${hits}${protect}${self}${rows}
     ${!info && a.move ? '<p class="hint">Move details appear once the calculator has loaded.</p>' : ''}
   </details>`;
 }

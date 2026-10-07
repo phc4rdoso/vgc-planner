@@ -13,9 +13,9 @@ import type { BoostChange, StatusId } from './tables.ts';
 import {
   ABILITY_SETTERS, CLEARS_STATS, EJECT_ITEMS, EXIT_ABILITIES, FIXED_ABILITIES, GRAVITY_BANNED, HAZARD_ATTACKS, HAZARD_MOVES, HEAL_MOVES,
   MOLD_BREAKERS, NOT_REPEATABLE, ON_HIT_ABILITIES, ON_HIT_ITEMS, ON_KO_ABILITIES, ROOM_MOVES, SCREEN_BREAKERS, TEAM_HEAL_MOVES,
-  ABSORB_ABILITIES, ALWAYS_FLINCH, CONFUSE_MOVES, FREEZE_MAX_TURNS, THAW_MOVES, BREAKS_PROTECT, CHARGE_MOVES, CONTACT_ABILITIES, CONTACT_ITEMS, CONTACT_PROTECT, 
+  ABSORB_ABILITIES, alwaysConfuses, alwaysDrops, alwaysFlinches, alwaysSelf, alwaysStatus, CONFUSE_MOVES, FREEZE_MAX_TURNS, THAW_MOVES, BREAKS_PROTECT, CHARGE_MOVES, CONTACT_ABILITIES, CONTACT_ITEMS, CONTACT_PROTECT, 
   DEBUFF_MOVES, FIELD_MOVES, FIRST_TURN_ONLY, HITS_SEMI_INVULNERABLE, IGNORES_REDIRECT, ITEM_REMOVAL, ITEM_SWAP, NEEDS_TARGET_MOVE, PIVOT_MOVES,
-  POWDER_MOVES, PRIORITY_BLOCKERS, PROTECT_FAMILY, PROTECT_MOVES, RECHARGE_MOVES, REDIRECT_MOVES, SECONDARY_DROPS, SECONDARY_STATUS, SELF_DROPS, SETUP_MOVES,
+  POWDER_MOVES, PRIORITY_BLOCKERS, PROTECT_FAMILY, PROTECT_MOVES, RECHARGE_MOVES, REDIRECT_MOVES, SETUP_MOVES,
   STATUS_LABEL, STATUS_MOVES,
 } from './tables.ts';
 
@@ -1307,11 +1307,13 @@ class TurnRunner {
 
       const targetAbility = toID(target.ability);
       if (!sheerForce) {
-        if (ALWAYS_FLINCH.has(id) && !target.fainted && !['innerfocus', 'shielddust'].includes(targetAbility) && toID(target.item) !== 'covertcloak') {
+        if (alwaysFlinches(id) && !target.fainted && !['innerfocus', 'shielddust'].includes(targetAbility) && toID(target.item) !== 'covertcloak') {
           this.st.turn.flinched[monKey(t.side, t.name)] = true;
         }
-        if (SECONDARY_DROPS[id] && !target.fainted) result.changes = this.fx.changes(t.side, t.name, SECONDARY_DROPS[id], { foe: t.side !== side, secondary: true });
-        const secondary = SECONDARY_STATUS[id];
+        const drops = alwaysDrops(id);
+        if (drops && !target.fainted) result.changes = this.fx.changes(t.side, t.name, drops, { foe: t.side !== side, secondary: true });
+        if (alwaysConfuses(id) && !target.fainted && !this.fx.confuse(t.side, t.name, t.side !== side)) (result.effects ??= []).push('confused');
+        const secondary = alwaysStatus(id);
         if (secondary && !target.fainted && targetAbility !== 'shielddust' && toID(target.item) !== 'covertcloak') {
           const got = this.inflict(t.side, t.name, actor, target, secondary);
           if (got.status) { result.status = got.status; if (got.cured) result.cured = got.cured; }
@@ -1348,7 +1350,8 @@ class TurnRunner {
       this.boostLog(side, a.mon, spray, { spa: 1 }, { own: true });
     }
     if (RECHARGE_MOVES.has(id) && !actor.fainted) actor.recharging = info.name;
-    if (SELF_DROPS[id] && !actor.fainted) entry.self = this.fx.changes(side, a.mon, SELF_DROPS[id], { own: true });
+    const selfChange = alwaysSelf(id);
+    if (selfChange && !actor.fainted) entry.self = this.fx.changes(side, a.mon, selfChange, { own: true });
     if (!this.fx.indirectImmune(actor)) {
       if (recoil > 0) this.fx.hurt(side, a.mon, recoil, 'recoil');
       if (lifeOrb && !sheerForce) this.fx.hurt(side, a.mon, share(statsOf(actor).hp, 1 / 10).amount, 'Life Orb', 1 / 10);
