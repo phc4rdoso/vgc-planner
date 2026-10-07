@@ -4,6 +4,7 @@ import type { ActionKind, Side, SlotKind } from '../domain/types.ts';
 import { simService, store } from '../state/instance.ts';
 import { addNode, addTab, selectTab, startRenameTab, tabMenu, createPlan, createTeam, deleteNode, deletePlan, deleteTeam, duplicatePlan, editPaste, loadImportFile, pickSlot, renameTeam, showExport, showImport } from './actions.ts';
 import { accountMenu, openSignIn, signInWith } from './account.ts';
+import { openPalettePicker } from './theme.ts';
 import { requestRender } from './bus.ts';
 import { copyShareLink, openShareDialog, redrawSharedLinks, stopSharingPlan } from './share.ts';
 import { session } from '../state/account.ts';
@@ -43,6 +44,7 @@ async function handleClick(el: HTMLElement, e: MouseEvent): Promise<void> {
     case 'sign-in': return openSignIn();
     case 'sign-in-with': signInWith(d.provider ?? ''); return;
     case 'account-menu': e.stopPropagation(); accountMenu(el); return;
+    case 'theme': return openPalettePicker();
     case 'toggle-nav':
       store.ui.navCollapsed = !store.ui.navCollapsed;
       store.persist();

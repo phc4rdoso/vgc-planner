@@ -1,0 +1,95 @@
+/*
+ * Colour palettes the user can pick (account menu → Theme). Each overrides the surface and me/opponent tokens from
+ * tokens.css, for light and dark. Meaning colours (ok, danger, warn, status) only change where a palette would
+ * clash with them. `.pal-swatch` carries the same data-palette attribute so the picker previews every palette.
+ */
+
+/* The default palette, restated for the picker's swatch (the page itself uses tokens.css). */
+.pal-swatch[data-palette="default"] { --bg: #f6f7fb; --panel: #ffffff; --line: #d9dce8; --me: #3d5afe; --opp: #e0457b; }
+
+/* ---------- Scarlet / Violet ---------- */
+:root[data-palette="scarlet-violet"], .pal-swatch[data-palette="scarlet-violet"] {
+  --bg: #faf6f3; --panel: #ffffff; --ink: #22182b; --ink-2: #5e5468; --ink-3: #887d92; --line: #e4dbe0; --line-soft: #f0e9ec;
+  --me: #6b35b8; --me-soft: #f1eafb; --opp: #b5401a; --opp-soft: #fdeee6;
+}
+
+/* ---------- Sword / Shield ---------- */
+:root[data-palette="sword-shield"], .pal-swatch[data-palette="sword-shield"] {
+  --bg: #f4f8fb; --panel: #ffffff; --ink: #142030; --ink-2: #4f5f72; --ink-3: #7b8b9e; --line: #d5dee8; --line-soft: #e7edf3;
+  --me: #0071ad; --me-soft: #e3f3fb; --opp: #b8125f; --opp-soft: #fce8f1;
+}
+
+/* ---------- Gold / Silver (gold sits where warn's amber was, so warn moves to orange) ---------- */
+:root[data-palette="gold-silver"], .pal-swatch[data-palette="gold-silver"] {
+  --bg: #f8f5ec; --panel: #fffdf7; --ink: #26221a; --ink-2: #5f594b; --ink-3: #8a8270; --line: #e2dccb; --line-soft: #eee9dc;
+  --me: #4a5878; --me-soft: #e9edf5; --opp: #8a5f0e; --opp-soft: #f8efd9; --warn: #c0521a; --warn-soft: #fdebdc;
+}
+
+/* ---------- Ruby / Sapphire ---------- */
+:root[data-palette="ruby-sapphire"], .pal-swatch[data-palette="ruby-sapphire"] {
+  --bg: #f5f6fa; --panel: #ffffff; --ink: #161a2e; --ink-2: #50566f; --ink-3: #7d839c; --line: #d6d9e6; --line-soft: #e8eaf2;
+  --me: #1d55b8; --me-soft: #e6eefb; --opp: #a8114a; --opp-soft: #fbe7ee;
+}
+
+/* ---------- Pocket (the original Game Boy screen) ---------- */
+:root[data-palette="pocket"], .pal-swatch[data-palette="pocket"] {
+  --bg: #e3ebcf; --panel: #eef3de; --ink: #0f380f; --ink-2: #306230; --ink-3: #4f6e3a; --line: #b9c99a; --line-soft: #d2ddb8;
+  --me: #2a6435; --me-soft: #d3e4c0; --opp: #8a4a1c; --opp-soft: #efdcc6;
+  --shadow: 0 1px 2px rgba(15,56,15,.08), 0 4px 14px rgba(15,56,15,.06);
+}
+
+/* ---------- Colour-blind safe (Okabe–Ito: blue against orange; danger moves off red so it never reads as "opponent") ---------- */
+:root[data-palette="colorblind"], .pal-swatch[data-palette="colorblind"] {
+  --me: #0067a3; --me-soft: #e3f0f8; --opp: #b04c00; --opp-soft: #fcebdf;
+  --danger: #a8326e; --bad-soft: #f8e6ef; --ok: #00805f; --ok-soft: #dff3ec; --warn: #7d6800; --warn-soft: #faf5d6;
+}
+
+/* ---------- High contrast (Black / White) ---------- */
+:root[data-palette="contrast"], .pal-swatch[data-palette="contrast"] {
+  --bg: #ffffff; --panel: #ffffff; --ink: #000000; --ink-2: #1a1a1a; --ink-3: #4a4a4a; --line: #5c5c5c; --line-soft: #9a9a9a;
+  --me: #0040b0; --me-soft: #e3ebff; --opp: #a8001c; --opp-soft: #ffe3e8; --shadow: none;
+}
+
+/* ---------- Night: true black for OLED screens. Dark in both system modes. ---------- */
+:root[data-palette="night"], .pal-swatch[data-palette="night"] {
+  color-scheme: dark;
+  --bg: #000000; --panel: #0b0b0f; --ink: #eceef8; --ink-2: #a9aec6; --ink-3: #7b8099; --line: #262a3d; --line-soft: #15171f;
+  --me: #7c92ff; --me-soft: #161c3e; --opp: #ff7aa5; --opp-soft: #2e1220; --on-me: #0b0b0f;
+  --warn: #f0b952; --warn-soft: #2e2615; --danger: #ff6b80; --ok: #3ec58d; --ok-soft: #10261d; --bad-soft: #2e1419;
+  --st-brn: #ff9566; --st-par: #f0cf55; --st-psn: #cf98f2; --st-slp: #b4b9d2;
+  --shadow: 0 1px 2px rgba(0,0,0,.6), 0 4px 14px rgba(0,0,0,.5);
+}
+
+@media (prefers-color-scheme: dark) {
+  .pal-swatch[data-palette="default"] { --bg: #12141d; --panel: #1a1d2a; --line: #343954; --me: #7c92ff; --opp: #ff7aa5; }
+
+  :root:not([data-theme="light"])[data-palette="scarlet-violet"], :root:not([data-theme="light"]) .pal-swatch[data-palette="scarlet-violet"] {
+    --bg: #16111c; --panel: #1f1827; --ink: #f1ebf6; --ink-2: #b5a9c0; --ink-3: #8a7f95; --line: #3d3249; --line-soft: #2b2235;
+    --me: #b28cff; --me-soft: #2f2347; --opp: #ff8a5c; --opp-soft: #3d2419; --on-me: #1b1026;
+  }
+  :root:not([data-theme="light"])[data-palette="sword-shield"], :root:not([data-theme="light"]) .pal-swatch[data-palette="sword-shield"] {
+    --bg: #0e151d; --panel: #16202b; --ink: #e8f0f7; --ink-2: #a3b3c4; --ink-3: #7a8ba0; --line: #2d3d4f; --line-soft: #1f2b38;
+    --me: #4cc3f5; --me-soft: #12304a; --opp: #ff6fae; --opp-soft: #3d1a2c; --on-me: #062030;
+  }
+  :root:not([data-theme="light"])[data-palette="gold-silver"], :root:not([data-theme="light"]) .pal-swatch[data-palette="gold-silver"] {
+    --bg: #15140f; --panel: #1e1c16; --ink: #f2eee2; --ink-2: #b8b09c; --ink-3: #8a8372; --line: #3b372b; --line-soft: #2a271f;
+    --me: #a9b8d6; --me-soft: #262d3d; --opp: #e8b44c; --opp-soft: #3a2e15; --warn: #ff9f5a; --warn-soft: #3d2717; --on-me: #151a26;
+  }
+  :root:not([data-theme="light"])[data-palette="ruby-sapphire"], :root:not([data-theme="light"]) .pal-swatch[data-palette="ruby-sapphire"] {
+    --bg: #0b0f1f; --panel: #121830; --ink: #e9ecfa; --ink-2: #a2a9c8; --ink-3: #7880a2; --line: #28305a; --line-soft: #1b2242;
+    --me: #6d9fff; --me-soft: #172a5a; --opp: #ff6b9a; --opp-soft: #3e1430; --on-me: #08122e;
+  }
+  :root:not([data-theme="light"])[data-palette="pocket"], :root:not([data-theme="light"]) .pal-swatch[data-palette="pocket"] {
+    --bg: #0f2a0f; --panel: #163816; --ink: #d4e8a4; --ink-2: #a9c76a; --ink-3: #87a650; --line: #2f5a2f; --line-soft: #224622;
+    --me: #9bd35a; --me-soft: #24502a; --opp: #e8ab68; --opp-soft: #4a3418; --on-me: #0f2a0f;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+  }
+  :root:not([data-theme="light"])[data-palette="colorblind"], :root:not([data-theme="light"]) .pal-swatch[data-palette="colorblind"] {
+    --me: #56b4e9; --me-soft: #16324a; --opp: #e69f00; --opp-soft: #3b2a0a; --on-me: #071a28;
+    --danger: #e08bbd; --bad-soft: #3a1c2d; --ok: #3ec5a0; --ok-soft: #13352c; --warn: #f0e442; --warn-soft: #34321a;
+  }
+  :root:not([data-theme="light"])[data-palette="contrast"], :root:not([data-theme="light"]) .pal-swatch[data-palette="contrast"] {
+    --bg: #000000; --panel: #000000; --ink: #ffffff; --ink-2: #f0f0f0; --ink-3: #c8c8c8; --line: #b0b0b0; --line-soft: #6e6e6e;
+    --me: #8fb4ff; --me-soft: #0b1a3d; --opp: #ff8fa3; --opp-soft: #3d0a14; --on-me: #000000;
+  }
+}

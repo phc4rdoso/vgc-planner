@@ -142,3 +142,17 @@ textarea.paste.short { min-height: 160px; }
 
 /* An action the Pokémon can't choose this turn (charging a two-turn move, recharging). */
 .act-locked { padding: 7px 10px; border: 1px dashed var(--line); border-radius: 8px; font-size: 13px; color: var(--ink-2); background: var(--panel); }
+
+/* ---------- theme picker ---------- */
+.palette-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 8px; }
+.palette-tile { display: grid; gap: 8px; padding: 8px; border: 1.5px solid var(--line-soft); border-radius: 10px; background: var(--panel); text-align: left; }
+.palette-tile:hover { border-color: var(--line); }
+.palette-tile.on { border-color: var(--me); box-shadow: 0 0 0 1px var(--me); }
+.pal-swatch { display: flex; gap: 6px; align-items: center; height: 44px; padding: 8px; border-radius: 7px; background: var(--bg); border: 1px solid var(--line); }
+.pal-swatch span { flex: 1; height: 100%; border-radius: 5px; }
+.pal-swatch .me { background: var(--me); }
+.pal-swatch .opp { background: var(--opp); }
+.pal-text { display: grid; gap: 1px; min-width: 0; }
+.pal-name { font-weight: 600; font-size: 13px; }
+.pal-hint { font-size: 11px; color: var(--ink-3); }
+#foot-theme[hidden] { display: none; }

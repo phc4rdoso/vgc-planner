@@ -10,6 +10,7 @@ import { esc, must, qs } from './dom.ts';
 import { modal, openMenu, toast } from './overlays.ts';
 import { avatarUrl, openAvatarPicker } from './avatar-picker.ts';
 import { openSharedLink, openSharedLinks, refreshShares } from './share.ts';
+import { openPalettePicker } from './theme.ts';
 import { showWelcome } from './welcome.ts';
 
 const PROVIDER_LABEL: Readonly<Record<ProviderId, string>> = { discord: 'Discord', google: 'Google' };
@@ -28,9 +29,12 @@ const initials = (name: string): string =>
 
 /** The account row at the bottom of the sidebar. Hidden when the app runs without the API. */
 export function renderAccount(): void {
+  const state = session.state;
+  // Signed in, Theme lives in the account menu; otherwise the sidebar footer offers it.
+  const footTheme = qs('#foot-theme');
+  if (footTheme) footTheme.hidden = state?.status === 'signed-in';
   const host = qs('#account');
   if (!host) return;
-  const state = session.state;
   if (!state || state.status === 'unavailable') { host.innerHTML = ''; host.hidden = true; return; }
   host.hidden = false;
   host.innerHTML = state.status === 'signed-in'
@@ -153,6 +157,7 @@ export function accountMenu(anchor: HTMLElement): void {
   const count = session.shared.size;
   openMenu(anchor, [
     { label: 'Change profile picture', run: () => void openAvatarPicker(renderAccount) },
+    { label: 'Theme', run: () => void openPalettePicker() },
     { label: count ? `Shared links (${count})` : 'Shared links', run: () => void openSharedLinks() },
     '-',
     { label: 'Sign out', run: () => void leaveAccount() },

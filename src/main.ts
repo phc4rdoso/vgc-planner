@@ -7,8 +7,10 @@ import { installEvents, reportError } from './ui/events.ts';
 import { installIconFallbacks } from './ui/icons.ts';
 import { toast } from './ui/overlays.ts';
 import { installPasteLinks } from './ui/paste-links.ts';
+import { applyPalette, currentPalette } from './ui/theme.ts';
 
 async function main(): Promise<void> {
+  applyPalette(currentPalette());
   installIconFallbacks();
   installEvents();
   installPasteLinks();
