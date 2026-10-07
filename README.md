@@ -146,3 +146,7 @@ Checked in the environment where this was written: strict type-check of the app,
 - Some builds of the calculator applied a slightly different stat-stage table in Champions (rounding-level differences). Prefer a recent version.
 - Item sprite file names (`items/`) are lowercase and hyphenated (`choice-scarf.webp`); Pokémon files keep Showdown spelling, including spaces (`Mr. Mime.webp`). Missing icons simply don't show.
 - Run `npm run format` once, then `npm run check`; the code was written to Prettier's conventions but not run through it.
+
+## License
+
+The code is under the [MIT License](LICENSE). Third-party material keeps its own terms: the profile portraits in `public/avatars` are CC BY-NC 4.0 (non-commercial, credited in [`public/avatars/CREDITS.md`](public/avatars/CREDITS.md)), and Pokémon names and artwork belong to Nintendo / The Pokémon Company. This is an unofficial fan project, not affiliated with or endorsed by them.
