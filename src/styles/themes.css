@@ -31,11 +31,12 @@
   --me: #1d55b8; --me-soft: #e6eefb; --opp: #a8114a; --opp-soft: #fbe7ee;
 }
 
-/* ---------- Pocket (the original Game Boy screen) ---------- */
-:root[data-palette="pocket"], .pal-swatch[data-palette="pocket"] {
-  --bg: #e3ebcf; --panel: #eef3de; --ink: #0f380f; --ink-2: #306230; --ink-3: #4f6e3a; --line: #b9c99a; --line-soft: #d2ddb8;
-  --me: #2a6435; --me-soft: #d3e4c0; --opp: #8a4a1c; --opp-soft: #efdcc6;
-  --shadow: 0 1px 2px rgba(15,56,15,.08), 0 4px 14px rgba(15,56,15,.06);
+/* ---------- Champions (the in-game menus: violet panels, lavender cards, lime for what's selected) ---------- */
+:root[data-palette="champions"], .pal-swatch[data-palette="champions"] {
+  --bg: #ece8fb; --panel: #fbfaff; --ink: #2a2266; --ink-2: #4b4390; --ink-3: #6a62a8; --line: #ddd6f8; --line-soft: #ebe6fc;
+  --me: #4f43c4; --me-soft: #e7e3fd; --opp: #b5179b; --opp-soft: #fbe3f5;
+  --primary: #d4f22e; --on-primary: #2a2266;
+  --shadow: 0 1px 2px rgba(42,34,102,.08), 0 4px 14px rgba(42,34,102,.06);
 }
 
 /* ---------- Colour-blind safe (Okabe–Ito: blue against orange; danger moves off red so it never reads as "opponent") ---------- */
@@ -79,10 +80,11 @@
     --bg: #0b0f1f; --panel: #121830; --ink: #e9ecfa; --ink-2: #a2a9c8; --ink-3: #7880a2; --line: #28305a; --line-soft: #1b2242;
     --me: #6d9fff; --me-soft: #172a5a; --opp: #ff6b9a; --opp-soft: #3e1430; --on-me: #08122e;
   }
-  :root:not([data-theme="light"])[data-palette="pocket"], :root:not([data-theme="light"]) .pal-swatch[data-palette="pocket"] {
-    --bg: #0f2a0f; --panel: #163816; --ink: #d4e8a4; --ink-2: #a9c76a; --ink-3: #87a650; --line: #2f5a2f; --line-soft: #224622;
-    --me: #9bd35a; --me-soft: #24502a; --opp: #e8ab68; --opp-soft: #4a3418; --on-me: #0f2a0f;
-    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.3);
+  :root:not([data-theme="light"])[data-palette="champions"], :root:not([data-theme="light"]) .pal-swatch[data-palette="champions"] {
+    --bg: #221a5e; --panel: #3a2f94; --ink: #ffffff; --ink-2: #ddd8ff; --ink-3: #c4bdf5; --line: #5a4fc4; --line-soft: #4a3fae;
+    --me: #d4f22e; --me-soft: #2c2477; --opp: #ff8ae0; --opp-soft: #2c2477; --on-me: #2a2266; --primary: #d4f22e; --on-primary: #2a2266;
+    --ok: #5ee0c8; --ok-soft: #1f4a63; --bad-soft: #4a2366; --warn-soft: #4a3b5e;
+    --shadow: 0 1px 2px rgba(0,0,0,.3), 0 4px 14px rgba(20,12,70,.4);
   }
   :root:not([data-theme="light"])[data-palette="colorblind"], :root:not([data-theme="light"]) .pal-swatch[data-palette="colorblind"] {
     --me: #56b4e9; --me-soft: #16324a; --opp: #e69f00; --opp-soft: #3b2a0a; --on-me: #071a28;

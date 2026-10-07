@@ -8,8 +8,11 @@
   --line-soft: #e9ebf3;
   --me: #3d5afe;
   --me-soft: #eaeeff;
-  /* Text on a solid --me fill (primary buttons). */
+  /* Text on a solid --me fill. */
   --on-me: #ffffff;
+  /* Primary buttons: your colour, unless a palette gives them their own (Champions' lime). */
+  --primary: var(--me);
+  --on-primary: var(--on-me);
   --opp: #e0457b;
   --opp-soft: #fdecf2;
   --warn: #b7791f;

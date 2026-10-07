@@ -8,7 +8,7 @@ export const PALETTES = [
   { id: 'sword-shield', name: 'Sword / Shield', hint: 'Cyan against magenta' },
   { id: 'gold-silver', name: 'Gold / Silver', hint: 'Silver against gold, on parchment' },
   { id: 'ruby-sapphire', name: 'Ruby / Sapphire', hint: 'Jewel tones' },
-  { id: 'pocket', name: 'Pocket', hint: 'The original Game Boy screen' },
+  { id: 'champions', name: 'Champions', hint: 'Violet menus and lime, like the game' },
   { id: 'colorblind', name: 'Colour-blind safe', hint: 'Blue against orange' },
   { id: 'contrast', name: 'High contrast', hint: 'Black and white, strong borders' },
   { id: 'night', name: 'Night', hint: 'True black, always dark' },
