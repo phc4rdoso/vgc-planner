@@ -30,6 +30,12 @@ export const TYPES: Record<string, string[]> = {
   Tyranitar: ['Rock', 'Dark'], 'Tyranitar-Mega': ['Rock', 'Dark'],
 };
 
+/** A slice of the type chart (attacking type id -> defending type -> multiplier); anything else is neutral. */
+const CHART: Record<string, Record<string, number>> = {
+  fighting: { Normal: 2, Dark: 2, Steel: 2, Rock: 2, Ice: 2, Ghost: 0, Fairy: 0.5, Flying: 0.5, Psychic: 0.5, Bug: 0.5, Poison: 0.5 },
+  rock: { Fire: 2, Flying: 2, Bug: 2, Ice: 2, Fighting: 0.5, Ground: 0.5, Steel: 0.5 },
+};
+
 /** Mega Stones the stand-in knows, by item id. */
 const STONES: Record<string, Record<string, string>> = {
   aerodactylite: { Aerodactyl: 'Aerodactyl-Mega' }, garchompite: { Garchomp: 'Garchomp-Mega' },
@@ -41,7 +47,7 @@ export const DEFAULT_ABILITY: Record<string, string> = {
   Charizard: 'Blaze', 'Charizard-Mega-Y': 'Drought', Tyranitar: 'Sand Stream', 'Tyranitar-Mega': 'Sand Stream',
 };
 
-interface MoveData { name: string; bp: number; category: string; target: string; priority: number; type: string; contact?: boolean; recoil?: [number, number]; drain?: [number, number] }
+interface MoveData { name: string; bp: number; category: string; target: string; priority: number; type: string; contact?: boolean; sound?: boolean; recoil?: [number, number]; drain?: [number, number] }
 const mv = (name: string, bp: number, category: string, target: string, priority = 0, type = 'Normal', extra: Partial<MoveData> = {}): MoveData =>
   ({ name, bp, category, target, priority, type, ...extra });
 const contact = { contact: true };
@@ -92,6 +98,36 @@ export const MOVES: Record<string, MoveData> = {
   auroraveil: mv('Aurora Veil', 0, 'Status', 'allySide', 0, 'Ice'),
   beatup: mv('Beat Up', 0, 'Physical', 'normal', 0, 'Dark'),
   hyperbeam: mv('Hyper Beam', 150, 'Special', 'normal'),
+  recover: mv('Recover', 0, 'Status', 'self', 0, 'Normal'),
+  synthesis: mv('Synthesis', 0, 'Status', 'self', 0, 'Grass'),
+  lifedew: mv('Life Dew', 0, 'Status', 'allies', 0, 'Water'),
+  wish: mv('Wish', 0, 'Status', 'self', 0, 'Normal'),
+  painsplit: mv('Pain Split', 0, 'Status', 'normal', 0, 'Normal'),
+  rest: mv('Rest', 0, 'Status', 'self', 0, 'Psychic'),
+  substitute: mv('Substitute', 0, 'Status', 'self', 0, 'Normal'),
+  haze: mv('Haze', 0, 'Status', 'all', 0, 'Ice'),
+  stealthrock: mv('Stealth Rock', 0, 'Status', 'foeSide', 0, 'Rock'),
+  spikes: mv('Spikes', 0, 'Status', 'foeSide', 0, 'Ground'),
+  defog: mv('Defog', 0, 'Status', 'normal', 0, 'Flying'),
+  gravity: mv('Gravity', 0, 'Status', 'all', 0, 'Psychic'),
+  taunt: mv('Taunt', 0, 'Status', 'normal', 0, 'Dark'),
+  encore: mv('Encore', 0, 'Status', 'normal', 0, 'Normal'),
+  disable: mv('Disable', 0, 'Status', 'normal', 0, 'Normal'),
+  yawn: mv('Yawn', 0, 'Status', 'normal', 0, 'Normal'),
+  perishsong: mv('Perish Song', 0, 'Status', 'all', 0, 'Normal'),
+  leechseed: mv('Leech Seed', 0, 'Status', 'normal', 0, 'Grass'),
+  destinybond: mv('Destiny Bond', 0, 'Status', 'self', 0, 'Ghost'),
+  allyswitch: mv('Ally Switch', 0, 'Status', 'self', 2, 'Psychic'),
+  afteryou: mv('After You', 0, 'Status', 'normal', 0, 'Normal'),
+  quash: mv('Quash', 0, 'Status', 'normal', 0, 'Dark'),
+  instruct: mv('Instruct', 0, 'Status', 'normal', 0, 'Psychic'),
+  skillswap: mv('Skill Swap', 0, 'Status', 'normal', 0, 'Psychic'),
+  counter: mv('Counter', 0, 'Physical', 'scripted', -5, 'Fighting', contact),
+  pollenpuff: mv('Pollen Puff', 90, 'Special', 'normal', 0, 'Bug'),
+  brickbreak: mv('Brick Break', 75, 'Physical', 'normal', 0, 'Fighting', contact),
+  clearsmog: mv('Clear Smog', 50, 'Special', 'normal', 0, 'Poison'),
+  rapidspin: mv('Rapid Spin', 50, 'Physical', 'normal', 0, 'Normal', contact),
+  hypervoice: mv('Hyper Voice', 90, 'Special', 'allAdjacentFoes', 0, 'Normal', { sound: true }),
 };
 
 export interface CalcCall { attacker: string; defender: string; move: string; field: FieldOptions; attackerBoostAtk: number; defenderHP: number; attackerStatus: string; attackerAbility: string; bp: number }
@@ -108,6 +144,7 @@ export function makeStubCalc(options: { champions?: boolean } = {}): { lib: Calc
     num: 9,
     moves: { get: (id) => MOVES[id] },
     items: { get: (id) => (STONES[id] ? { megaStone: STONES[id] } : id.endsWith('berry') ? { isBerry: true } : undefined) },
+    types: { get: (id) => (CHART[id] ? { effectiveness: CHART[id] } : undefined) },
   };
   const gen0: CalcGeneration = { ...gen9, num: 0 };
 
@@ -128,12 +165,12 @@ export function makeStubCalc(options: { champions?: boolean } = {}): { lib: Calc
     }
   }
   class Move implements CalcMove {
-    name: string; priority: number; category: string; target: string; bp: number; type: string; flags: { contact?: number }; recoil?: [number, number]; drain?: [number, number];
+    name: string; priority: number; category: string; target: string; bp: number; type: string; flags: { contact?: number; sound?: number }; recoil?: [number, number]; drain?: [number, number];
     constructor(_gen: CalcGeneration, name: string, options: { overrides?: { basePower?: number } } = {}) {
       const d = MOVES[idOf(name)] ?? mv(name, 0, 'Status', 'normal');
       this.name = d.name; this.priority = d.priority; this.category = d.category; this.target = d.target; this.type = d.type;
       this.bp = options.overrides?.basePower ?? d.bp;
-      this.flags = d.contact ? { contact: 1 } : {};
+      this.flags = { ...(d.contact ? { contact: 1 } : {}), ...(d.sound ? { sound: 1 } : {}) };
       if (d.recoil) this.recoil = d.recoil;
       if (d.drain) this.drain = d.drain;
     }

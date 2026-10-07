@@ -37,6 +37,8 @@ export interface Store extends LibraryStore, ShareStore {
   /** `avatar` is used only when the account is created. */
   upsertUser(provider: User['provider'], providerId: string, name: string, now: number, avatar: string): Promise<{ user: User; created: boolean }>;
   setAvatar(userId: string, avatar: string): Promise<void>;
+  /** Sets the display name the user chose; sign-ins keep it from then on. */
+  setName(userId: string, name: string): Promise<void>;
   createSession(tokenHash: string, userId: string, expiresAt: number, now: number): Promise<void>;
   /** The session's user, or null when the session is unknown or expired. */
   sessionUser(tokenHash: string, now: number): Promise<User | null>;
@@ -282,6 +284,20 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
     if (!ALLOWED_AVATARS.has(avatar)) return json({ error: 'Pick one of the available profile pictures.' }, 400);
     await deps.store.setAvatar(user.id, avatar);
     return json({ user: publicUser({ ...user, avatar }) });
+  }
+
+  if (req.method === 'POST' && path === '/api/me/name') {
+    const user = await currentUser();
+    if (!user) return json({ error: 'signed out' }, 401);
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    const raw = str(body.name);
+    const name = cleanName(raw);
+    // Refused rather than silently fixed: empty, too long, or with control characters.
+    if (!raw.trim() || Array.from(raw.trim()).length > NAME_MAX || name !== raw.trim()) {
+      return json({ error: `Use 1 to ${NAME_MAX} characters, letters, numbers, spaces and punctuation.` }, 400);
+    }
+    await deps.store.setName(user.id, name);
+    return json({ user: publicUser({ ...user, name }) });
   }
 
   if (req.method === 'POST' && path === '/api/me/onboarded') {

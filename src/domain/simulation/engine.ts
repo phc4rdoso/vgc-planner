@@ -18,6 +18,9 @@ export interface MoveInfo {
   bp: number;
   /** Makes contact (Rough Skin, Rocky Helmet, Spiky Shield). */
   contact: boolean;
+  /** Sound move (goes through Substitute; Throat Spray, Soundproof). Wind move (Wind Power). */
+  sound: boolean;
+  wind: boolean;
   /** Hits more than once (Focus Sash and Sturdy don't hold against it). */
   multihit: boolean;
   /** How many hits the calculator counts (multi-hit moves; Rage Fist counts each). */
@@ -32,7 +35,12 @@ export interface MoveInfo {
  * `recoil` and `drain` are the user's HP lost / regained on the average roll, before anything caps the damage.
  */
 /** Battle facts the calculator can't see on the two Pokémon: a move's power from the battle so far, fainted allies (Supreme Overlord). */
-export interface HitOptions { basePower?: number; alliesFainted?: number }
+export interface HitOptions {
+  basePower?: number;
+  alliesFainted?: number;
+  /** Abilities the calculator only applies when told they're on (Plus / Minus, Flash Fire, Stakeout, Electromorphosis). */
+  attackerOn?: boolean;
+}
 
 export interface HitCalc { rolls: number[]; attackerItem: string; defenderItem: string; recoil: number; drain: number }
 
@@ -48,6 +56,8 @@ export interface CalcEngine {
   moveInfo(name: string): MoveInfo;
   megaOf(species: string, item: string): string | null;
   isBerry(item: string): boolean;
+  /** Type effectiveness of a move type against a species (1 when unknown). */
+  effectiveness(moveType: string, species: string): number;
   /** The 16 damage rolls (summed across hits for multi-hit moves), plus the side effects the calculator knows. */
   damage(attacker: MonState, defender: MonState, moveName: string, field: FieldOptions, opts?: HitOptions): HitCalc;
 }
@@ -91,9 +101,13 @@ export function createEngine(lib: CalcLib): CalcEngine {
 
   const baseCache = new Map<string, StatTable | null>();
   const typeCache = new Map<string, string[]>();
-  const buildPoke = (mon: MonState, alliesFainted = 0): InstanceType<CalcLib['Pokemon']> => {
+  const buildPoke = (mon: MonState, alliesFainted = 0, abilityOn = false): InstanceType<CalcLib['Pokemon']> => {
     const options: Record<string, unknown> = { level: 50, nature: mon.set.nature || 'Serious', evs: { ...mon.sp }, boosts: { ...mon.boosts } };
     if (alliesFainted) options.alliesFainted = alliesFainted;
+    if (abilityOn) options.abilityOn = true;
+    // Protosynthesis / Quark Drive: Booster Energy keeps it on (with the stat it chose); otherwise the field decides.
+    const paradox = ['protosynthesis', 'quarkdrive'].includes(toID(mon.ability));
+    if (paradox) options.boostedStat = mon.boosted && mon.boosted !== 'hp' ? mon.boosted : 'auto';
     // The item it holds now: consumed or removed items no longer count.
     if (mon.item) options.item = mon.item;
     // The calculator applies burn's Attack cut (and Guts / Facade) from the status.
@@ -136,11 +150,11 @@ export function createEngine(lib: CalcLib): CalcEngine {
         const m = new lib.Move(generation, name);
         return {
           exists: known, name: m.name || name, priority: m.priority ?? 0, category: m.category ?? 'Status', type: m.type ?? '', target: m.target ?? 'normal', bp: m.bp ?? 0,
-          contact: !!m.flags?.contact, multihit: (m.hits ?? 1) > 1 || data?.multihit !== undefined, hits: Math.max(1, m.hits ?? 1),
+          contact: !!m.flags?.contact, sound: !!m.flags?.sound, wind: !!m.flags?.wind, multihit: (m.hits ?? 1) > 1 || data?.multihit !== undefined, hits: Math.max(1, m.hits ?? 1),
           secondaries: Array.isArray(m.secondaries) ? m.secondaries.length > 0 : !!m.secondaries,
         };
       } catch {
-        return { exists: false, name, priority: 0, category: 'Status', type: '', target: 'normal', bp: 0, contact: false, multihit: false, hits: 1, secondaries: false };
+        return { exists: false, name, priority: 0, category: 'Status', type: '', target: 'normal', bp: 0, contact: false, sound: false, wind: false, multihit: false, hits: 1, secondaries: false };
       }
     },
     megaOf(species, item) {
@@ -150,6 +164,11 @@ export function createEngine(lib: CalcLib): CalcEngine {
         return typeof stone === 'string' ? stone : (stone[species] ?? null);
       } catch { return null; }
     },
+    effectiveness(moveType, species) {
+      const chart = generation.types?.get(toID(moveType))?.effectiveness;
+      if (!chart) return 1;
+      return this.typesOf(species).reduce((m, t) => m * (chart[t] ?? 1), 1);
+    },
     isBerry(item) {
       if (!item) return false;
       try { return generation.items?.get(toID(item))?.isBerry ?? / Berry$/.test(item); }
@@ -157,7 +176,7 @@ export function createEngine(lib: CalcLib): CalcEngine {
     },
     damage(attacker, defender, moveName, field, opts = {}) {
       const move = new lib.Move(generation, moveName, opts.basePower !== undefined ? { overrides: { basePower: opts.basePower } } : undefined);
-      const result = lib.calculate(generation, buildPoke(attacker, opts.alliesFainted), buildPoke(defender), move, new lib.Field(field));
+      const result = lib.calculate(generation, buildPoke(attacker, opts.alliesFainted, opts.attackerOn), buildPoke(defender), move, new lib.Field(field));
       const rolls = rollsOf(result.damage);
       const average = (xs: readonly number[]): number => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
       const attackerMax = statsOf(attacker).hp;

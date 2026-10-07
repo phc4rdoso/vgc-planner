@@ -133,3 +133,18 @@ test('the development sign-in works only when enabled, and API responses are nev
   assert.doesNotMatch(setCookies(res).join(), /Secure/, 'plain http on localhost');
   assert.equal(s.store.users[0]?.name, 'Misty');
 });
+
+test('a user can pick their own display name; signing in again keeps it, and bad names are refused', async () => {
+  const s = setup();
+  const { sid } = await signIn(s);
+  const rename = (name: unknown, origin = APP) => s.call('/api/me/name', { method: 'POST', cookie: `sid=${sid}`, headers: { Origin: origin }, body: JSON.stringify({ name }) });
+  assert.equal((await rename('')).status, 400);
+  assert.equal((await rename('x'.repeat(65))).status, 400);
+  assert.equal((await rename('Ash\u0007')).status, 400, 'control characters are refused');
+  assert.equal((await rename('Rain Master', 'https://evil.example')).status, 403, 'only from the app itself');
+  const ok = await rename('  Rain Master  ');
+  assert.equal(ok.status, 200);
+  assert.equal(((await ok.json()) as { user: { name: string } }).user.name, 'Rain Master');
+  await signIn(s);
+  assert.equal(s.store.users[0]!.name, 'Rain Master', 'the provider name no longer overwrites it');
+});

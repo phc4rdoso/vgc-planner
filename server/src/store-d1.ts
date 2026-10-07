@@ -20,8 +20,8 @@ export class D1Store implements Store {
       .bind(crypto.randomUUID(), provider, providerId, name, now, avatar)
       .run();
     const created = (inserted.meta.changes ?? 0) > 0;
-    // Returning users keep their account; their display name follows the provider.
-    if (!created) await this.db.prepare('UPDATE users SET name = ? WHERE provider = ? AND provider_id = ?').bind(name, provider, providerId).run();
+    // Returning users keep their account; their display name follows the provider unless they picked their own.
+    if (!created) await this.db.prepare('UPDATE users SET name = ? WHERE provider = ? AND provider_id = ? AND name_custom = 0').bind(name, provider, providerId).run();
     const row = await this.db.prepare('SELECT * FROM users WHERE provider = ? AND provider_id = ?').bind(provider, providerId).first<UserRow>();
     if (!row) throw new Error('user upsert failed');
     return { user: toUser(row), created };
@@ -44,6 +44,10 @@ export class D1Store implements Store {
 
   async deleteSession(tokenHash: string): Promise<void> {
     await this.db.prepare('DELETE FROM sessions WHERE token_hash = ?').bind(tokenHash).run();
+  }
+
+  async setName(userId: string, name: string): Promise<void> {
+    await this.db.prepare('UPDATE users SET name = ?, name_custom = 1 WHERE id = ?').bind(name, userId).run();
   }
 
   async setAvatar(userId: string, avatar: string): Promise<void> {

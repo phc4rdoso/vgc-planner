@@ -23,6 +23,8 @@ export interface HitResult {
   endured?: string;
   /** The move's power when the battle changed it (Rage Fist, Last Respects, Payback...). */
   power?: number;
+  /** A Substitute took the hit instead ('broken' when it broke). */
+  substitute?: 'hit' | 'broken';
   /** Number of hits, for moves whose hit count depends on the battle (Beat Up). */
   hits?: number;
 }
@@ -71,6 +73,8 @@ export interface EndMon {
   lostItem?: string;
   /** The two-turn move it is charging (released on its next action). */
   charging?: string;
+  /** Other effects on it: Substitute, Taunt, Encore, a Choice lock, Perish count, Leech Seed... */
+  effects?: string[];
 }
 
 /** `field` is the field during the turn (before the end-of-turn countdown), so it includes what was set up this turn. */

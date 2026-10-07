@@ -60,7 +60,7 @@ export const PROTECT_MOVES: ReadonlySet<string> = new Set(['protect', 'detect', 
 /** Moves that go through Protect and lift it (and Wide Guard / Quick Guard on that side) for the rest of the turn. */
 export const BREAKS_PROTECT: ReadonlySet<string> = new Set(['feint', 'phantomforce', 'shadowforce', 'hyperspacefury', 'hyperspacehole']);
 /** Moves that fail when the user used one of them successfully on its previous action. */
-export const PROTECT_FAMILY: ReadonlySet<string> = new Set([...PROTECT_MOVES, 'wideguard', 'quickguard', 'endure']);
+export const PROTECT_FAMILY: ReadonlySet<string> = new Set([...PROTECT_MOVES, 'wideguard', 'quickguard', 'endure', 'allyswitch']);
 
 export const ENTRY_WEATHER: Readonly<Record<string, 'Sun' | 'Rain' | 'Sand' | 'Snow'>> = { drizzle: 'Rain', drought: 'Sun', sandstream: 'Sand', snowwarning: 'Snow', orichalcumpulse: 'Sun' };
 export const ENTRY_TERRAIN: Readonly<Record<string, 'Electric' | 'Grassy' | 'Psychic' | 'Misty'>> = { electricsurge: 'Electric', hadronengine: 'Electric', grassysurge: 'Grassy', psychicsurge: 'Psychic', mistysurge: 'Misty' };
@@ -213,4 +213,77 @@ export const ALWAYS_FLINCH: ReadonlySet<string> = new Set(['fakeout', 'upperhand
 /** Attacks after which the user must spend its next action recharging (if the attack hit). */
 export const RECHARGE_MOVES: ReadonlySet<string> = new Set([
   'hyperbeam', 'gigaimpact', 'blastburn', 'hydrocannon', 'frenzyplant', 'rockwrecker', 'roaroftime', 'prismaticlaser', 'eternabeam', 'meteorassault',
+]);
+
+/* ---------- Speed ---------- */
+
+/** Abilities that double Speed in a weather or terrain. */
+export const SPEED_WEATHER: Readonly<Record<string, { weather?: 'Sun' | 'Rain' | 'Sand' | 'Snow'; terrain?: 'Electric' }>> = {
+  swiftswim: { weather: 'Rain' }, chlorophyll: { weather: 'Sun' }, sandrush: { weather: 'Sand' }, slushrush: { weather: 'Snow' }, surgesurfer: { terrain: 'Electric' },
+};
+
+/* ---------- reactions to being hit ---------- */
+
+/**
+ * Abilities that react to being hit by a damaging move: `type` limits it to moves of that type, `category` to
+ * physical or special moves; `boost` goes to the holder. Stamina, Weak Armor, Justified and friends.
+ */
+export const ON_HIT_ABILITIES: Readonly<Record<string, { type?: readonly string[]; category?: 'Physical' | 'Special'; boost: BoostChange }>> = {
+  stamina: { boost: { def: 1 } }, weakarmor: { category: 'Physical', boost: { def: -1, spe: 2 } }, justified: { type: ['Dark'], boost: { atk: 1 } },
+  thermalexchange: { type: ['Fire'], boost: { atk: 1 } }, steamengine: { type: ['Fire', 'Water'], boost: { spe: 6 } }, watercompaction: { type: ['Water'], boost: { def: 2 } },
+  rattled: { type: ['Bug', 'Dark', 'Ghost'], boost: { spe: 1 } },
+};
+/** Items used up when their holder is hit by a move of a type or category, raising a stat. */
+export const ON_HIT_ITEMS: Readonly<Record<string, { type?: string; category?: 'Physical' | 'Special'; boost: BoostChange }>> = {
+  keeberry: { category: 'Physical', boost: { def: 1 } }, marangaberry: { category: 'Special', boost: { spd: 1 } },
+  absorbbulb: { type: 'Water', boost: { spa: 1 } }, cellbattery: { type: 'Electric', boost: { atk: 1 } },
+  luminousmoss: { type: 'Water', boost: { spd: 1 } }, snowball: { type: 'Ice', boost: { atk: 1 } },
+};
+/** Abilities that raise a stat when their holder knocks a Pokémon out with an attack ('best': its highest stat). */
+export const ON_KO_ABILITIES: Readonly<Record<string, BoostChange | 'best'>> = {
+  moxie: { atk: 1 }, chillingneigh: { atk: 1 }, grimneigh: { spa: 1 }, asoneglastrier: { atk: 1 }, asonespectrier: { spa: 1 }, beastboost: 'best',
+};
+/** Items and abilities that force a switch: the holder leaves (Eject Button, Eject Pack, Emergency Exit) or the attacker does (Red Card). */
+export const EJECT_ITEMS: ReadonlySet<string> = new Set(['ejectbutton', 'ejectpack', 'redcard']);
+export const EXIT_ABILITIES: ReadonlySet<string> = new Set(['emergencyexit', 'wimpout']);
+/** Attackers' abilities that ignore the target's ability (Sturdy, Disguise...). */
+export const MOLD_BREAKERS: ReadonlySet<string> = new Set(['moldbreaker', 'teravolt', 'turboblaze']);
+
+/* ---------- status moves with an effect of their own ---------- */
+
+/** Moves that restore a share of the user's max HP; the weather ones change with the weather. */
+export const HEAL_MOVES: Readonly<Record<string, number | 'weather' | 'sand'>> = {
+  recover: 1 / 2, roost: 1 / 2, slackoff: 1 / 2, softboiled: 1 / 2, milkdrink: 1 / 2, healorder: 1 / 2,
+  moonlight: 'weather', morningsun: 'weather', synthesis: 'weather', shoreup: 'sand',
+};
+/** Moves that heal the user and its ally (Life Dew; Jungle Healing and Lunar Blessing also cure conditions). */
+export const TEAM_HEAL_MOVES: Readonly<Record<string, { share: number; cure?: true }>> = {
+  lifedew: { share: 1 / 4 }, junglehealing: { share: 1 / 4, cure: true }, lunarblessing: { share: 1 / 4, cure: true },
+};
+/** Moves that remove the stat stages of everyone (Haze) or of the target after hitting (Clear Smog). */
+export const CLEARS_STATS: ReadonlySet<string> = new Set(['haze', 'clearsmog']);
+/** Attacks that break Reflect, Light Screen and Aurora Veil on the target's side before hitting. */
+export const SCREEN_BREAKERS: ReadonlySet<string> = new Set(['brickbreak', 'psychicfangs', 'ragingbull']);
+/** Moves that set an entry hazard on the foe's side. */
+export const HAZARD_MOVES: Readonly<Record<string, 'rocks' | 'spikes' | 'tspikes' | 'web'>> = {
+  stealthrock: 'rocks', spikes: 'spikes', toxicspikes: 'tspikes', stickyweb: 'web',
+};
+/** Attacks that also lay a hazard on the target's side. */
+export const HAZARD_ATTACKS: Readonly<Record<string, 'rocks' | 'spikes'>> = { stoneaxe: 'rocks', ceaselessedge: 'spikes' };
+/** Room moves and Gravity: 5 turns; using a room again while it's up ends it. */
+export const ROOM_MOVES: Readonly<Record<string, 'gravity' | 'magicRoom' | 'wonderRoom'>> = { gravity: 'gravity', magicroom: 'magicRoom', wonderroom: 'wonderRoom' };
+/** Moves the user can't use under Gravity. */
+export const GRAVITY_BANNED: ReadonlySet<string> = new Set(['fly', 'bounce', 'skydrop', 'highjumpkick', 'jumpkick', 'splash', 'magnetrise', 'telekinesis', 'floatyfall']);
+/** Moves that change the target's ability to a set one. */
+export const ABILITY_SETTERS: Readonly<Record<string, string>> = { worryseed: 'Insomnia', simplebeam: 'Simple' };
+/** Abilities that can't be swapped, copied or replaced. */
+export const FIXED_ABILITIES: ReadonlySet<string> = new Set([
+  'multitype', 'stancechange', 'schooling', 'comatose', 'shieldsdown', 'disguise', 'rkssystem', 'battlebond', 'powerconstruct', 'iceface',
+  'gulpmissile', 'asoneglastrier', 'asonespectrier', 'zerotohero', 'commander', 'tetraformzero', 'protosynthesis', 'quarkdrive', 'wonderguard',
+  'trace', 'imposter', 'neutralizinggas', 'illusion', 'receiver', 'powerofalchemy', 'hungerswitch', 'poisonpuppeteer',
+]);
+/** Moves that call a target's move back or can't be repeated by Instruct / Encore. */
+export const NOT_REPEATABLE: ReadonlySet<string> = new Set([
+  'instruct', 'encore', 'mimic', 'transform', 'sketch', 'assist', 'copycat', 'mefirst', 'mirrormove', 'metronome', 'sleeptalk', 'struggle',
+  'focuspunch', 'beakblast', 'shelltrap', 'bide', 'dynamaxcannon', 'outrage', 'thrash', 'petaldance', 'ragingfury', 'uproar', 'rollout', 'iceball',
 ]);

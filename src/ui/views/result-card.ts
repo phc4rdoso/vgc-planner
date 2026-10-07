@@ -38,6 +38,7 @@ const inflictedText = (s: StatusId | undefined, cured: string | undefined): stri
 
 function hitText(r: HitResult, n: Names): string {
   if (r.protected) return '<span class="muted">protected</span>';
+  if (r.substitute) return `<span class="muted">${r.substitute === 'broken' ? 'breaks the Substitute' : 'hits the Substitute'}</span>`;
   if (r.blockedBy) return `<span class="muted">blocked by ${esc(n.text(r.blockedBy))}</span>`;
   if (r.immune || r.minPct === undefined || r.maxPct === undefined) return '<span class="muted">no effect</span>';
   const range = r.minPct === r.maxPct ? `${fmtPct(r.minPct)}%` : `${fmtPct(r.minPct)}–${fmtPct(r.maxPct)}%`;
@@ -100,7 +101,8 @@ function hpRow(x: EndMon): string {
   const tip = x.fainted
     ? (x.mayLive ? `Faints on the average roll; could survive a low one (${x.lo}–${x.hi}%)` : 'Faints')
     : `${x.lo}–${x.hi}% depending on rolls`;
-  const charging = x.charging ? `<span class="bchip up" title="${esc(`Charging ${x.charging}: it attacks on its next action`)}">charging ${esc(x.charging)}</span>` : '';
+  const charging = (x.charging ? `<span class="bchip up" title="${esc(`Charging ${x.charging}: it attacks on its next action`)}">charging ${esc(x.charging)}</span>` : '')
+    + (x.effects ?? []).map((fx) => `<span class="bchip vol">${esc(fx)}</span>`).join('');
   const lost = x.lostItem ? `<s class="muted lost-item" title="${esc(`${x.lostItem}: used up or removed`)}">${esc(x.lostItem)}</s>` : '';
   return `<div class="hp-row ${x.fainted ? 'ko' : ''}" title="${esc(tip)}">${monIcon(x.species, 'xs')}<span class="hp-name">${esc(x.species)}</span>${statusChip(x.condition)}${lost}
     <span class="hp-bar"><i class="${tone}" data-w="${x.pct}"></i></span>
@@ -200,10 +202,10 @@ export function fieldStripHTML(node: FlowNode, sim: SimView): string {
   if (!effects.length) return '';
   const chips = effects.map((fx) => {
     const whose = fx.side === 'me' ? 'your side' : fx.side === 'opp' ? "the opponent's side" : '';
-    const when = fx.left ? `${fx.left} more turn${fx.left > 1 ? 's' : ''} after this one` : 'ends after this turn';
+    const when = fx.left === null ? 'stays until removed' : fx.left ? `${fx.left} more turn${fx.left > 1 ? 's' : ''} after this one` : 'ends after this turn';
     const tip = `${fx.label}${whose ? ` on ${whose}` : ''}: ${when}`;
     const sideTag = fx.side ? `<em>${fx.side === 'me' ? 'You' : 'Opp'}</em>` : '';
-    return `<span class="fx ${fx.side ?? ''}" title="${esc(tip)}">${esc(fx.label)}${sideTag}<small>${fx.left ? `${fx.left} left` : 'ends'}</small></span>`;
+    return `<span class="fx ${fx.side ?? ''}" title="${esc(tip)}">${esc(fx.label)}${sideTag}${fx.left === null ? '' : `<small>${fx.left ? `${fx.left} left` : 'ends'}</small>`}</span>`;
   }).join('');
   return `<div class="fx-strip" aria-label="Field effects in play">${chips}</div>`;
 }

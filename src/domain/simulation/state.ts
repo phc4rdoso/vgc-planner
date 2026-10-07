@@ -7,6 +7,7 @@ import type { CalcEngine } from './engine.ts';
 import { Effects } from './effects.ts';
 import type { LogEntry } from './log.ts';
 import type { ScreenKey, StatusId } from './tables.ts';
+import { SPEED_WEATHER } from './tables.ts';
 
 export interface MonState {
   /** Name from the paste; the stable key used by plans and actions. */
@@ -61,7 +62,41 @@ export interface MonState {
   lastFailed: boolean;
   /** Its last action was a successful Protect-like move (using one again straight away fails). */
   protectStreak: boolean;
+  /** The last move it used, and at whom (Encore, Disable, Instruct, Choice lock). */
+  lastMove: string;
+  lastTarget: string;
+  /** Locked into this move by a Choice item (until it switches out or loses the item). */
+  choiceLock: string | null;
+  /** Encore: must repeat `move` for `turns` more turns. Disable: can't use `move` for `turns` more turns. Taunt: no status moves. */
+  encore: { move: string; turns: number } | null;
+  disable: { move: string; turns: number } | null;
+  taunt: number;
+  /** Imprison: foes can't use the moves this Pokémon knows. */
+  imprison: boolean;
+  /** Substitute's remaining HP (0 = none). */
+  sub: number;
+  /** Yawn: falls asleep at the end of the turn this reaches 0 (2 when it was yawned at). */
+  yawn: number;
+  /** Perish Song count (faints when it reaches 0); null when not under it. */
+  perish: number | null;
+  /** Leech Seed: the side and position that gets the drained HP. */
+  seeded: { side: Side; slot: number } | null;
+  saltCure: boolean;
+  /** Destiny Bond is up until its next action. */
+  destinyBond: boolean;
+  /** Protosynthesis / Quark Drive switched on by Booster Energy (stays on while it's in), with the stat it boosts. */
+  boosted: BoostKey | 'hp' | null;
+  /** Flash Fire has been activated; Electromorphosis / Wind Power charged its next Electric move. */
+  flashFire: boolean;
+  charge: boolean;
+  /** Disguise / Ice Face has been used up. */
+  disguiseBroken: boolean;
+  /** Transform / Imposter: the form to go back to when it switches out. */
+  transformedFrom: { species: string; ability: string; stats: StatTable | null } | null;
 }
+
+export interface Hazards { rocks: boolean; spikes: number; tspikes: number; web: boolean }
+export const noHazards = (): Hazards => ({ rocks: false, spikes: 0, tspikes: 0, web: false });
 
 export interface FieldState {
   weather: 'Sun' | 'Rain' | 'Sand' | 'Snow' | null;
@@ -71,6 +106,13 @@ export interface FieldState {
   trick: number;
   tailwind: Record<Side, number>;
   screens: Record<Side, Record<ScreenKey, number>>;
+  /** Entry hazards on each side. */
+  hazards: Record<Side, Hazards>;
+  gravity: number;
+  magicRoom: number;
+  wonderRoom: number;
+  /** Wish: heals whoever stands in `slot` at the end of the turn `turns` reaches 0. */
+  wish: Record<Side, { slot: number; amount: number; turns: number }[]>;
 }
 
 /** Things that only matter within one turn. */
@@ -91,6 +133,13 @@ export interface TurnScratch {
   hitBy: Record<string, string[]>;
   /** Pokémon that started charging a two-turn move this turn. */
   charged: Record<string, boolean>;
+  /** The last damage each Pokémon took from a foe's attack this turn (Counter, Mirror Coat, Metal Burst). */
+  damaged: Record<string, { amount: number; category: string; by: string }>;
+  /** Switches forced by Eject Button, Eject Pack, Red Card or Emergency Exit, carried out after the current action. */
+  forced: { side: Side; name: string; reason: string }[];
+  /** After You / Quash: Pokémon made to act next, or last. */
+  next: Record<string, boolean>;
+  last: Record<string, boolean>;
 }
 
 export interface BattleState {
@@ -119,9 +168,13 @@ export const newField = (): FieldState => ({
   weather: null, wTurns: 0, terrain: null, tTurns: 0, trick: 0,
   tailwind: { me: 0, opp: 0 },
   screens: { me: { reflect: 0, light: 0, veil: 0 }, opp: { reflect: 0, light: 0, veil: 0 } },
+  hazards: { me: noHazards(), opp: noHazards() }, gravity: 0, magicRoom: 0, wonderRoom: 0, wish: { me: [], opp: [] },
 });
-/** One field effect in play during a turn. `left` is how many more turns it lasts after this one (0 = ends this turn). */
-export interface FieldEffect { label: string; side: Side | null; left: number }
+/**
+ * One field effect in play during a turn. `left` is how many more turns it lasts after this one (0 = ends this turn),
+ * null for effects with no timer (entry hazards).
+ */
+export interface FieldEffect { label: string; side: Side | null; left: number | null }
 
 const SCREEN_LABEL: Readonly<Record<ScreenKey, string>> = { reflect: 'Reflect', light: 'Light Screen', veil: 'Aurora Veil' };
 
@@ -132,16 +185,46 @@ export function fieldEffects(f: FieldState): FieldEffect[] {
   if (f.weather) add(f.weather, f.wTurns);
   if (f.terrain) add(`${f.terrain} Terrain`, f.tTurns);
   add('Trick Room', f.trick);
+  add('Gravity', f.gravity ?? 0);
+  add('Magic Room', f.magicRoom ?? 0);
+  add('Wonder Room', f.wonderRoom ?? 0);
   for (const side of SIDES) {
     add('Tailwind', f.tailwind[side], side);
     for (const k of Object.keys(SCREEN_LABEL) as ScreenKey[]) add(SCREEN_LABEL[k], f.screens[side][k], side);
+    const h = f.hazards?.[side];
+    if (h?.rocks) out.push({ label: 'Stealth Rock', side, left: null });
+    if (h?.spikes) out.push({ label: h.spikes > 1 ? `Spikes ×${h.spikes}` : 'Spikes', side, left: null });
+    if (h?.tspikes) out.push({ label: h.tspikes > 1 ? 'Toxic Spikes ×2' : 'Toxic Spikes', side, left: null });
+    if (h?.web) out.push({ label: 'Sticky Web', side, left: null });
   }
   return out;
 }
 
 export const newScratch = (): TurnScratch => ({
   protect: {}, redirect: { me: null, opp: null }, entered: {}, wide: { me: false, opp: false }, quick: { me: false, opp: false }, helped: {}, flinched: {}, acted: {}, hitBy: {}, charged: {},
+  damaged: {}, forced: [], next: {}, last: {},
 });
+
+/** The item that counts right now: none under Magic Room (the item is still held, and comes back when it ends). */
+export const heldItem = (st: BattleState, mon: MonState): string => (st.field.magicRoom > 0 ? '' : mon.item);
+
+/** Protosynthesis / Quark Drive is boosting this Pokémon: from sun / Electric Terrain, or from Booster Energy. */
+export function paradoxActive(st: BattleState, mon: MonState): boolean {
+  const ability = toID(mon.ability);
+  if (ability !== 'protosynthesis' && ability !== 'quarkdrive') return false;
+  if (mon.boosted) return true;
+  return ability === 'protosynthesis' ? st.field.weather === 'Sun' && toID(heldItem(st, mon)) !== 'utilityumbrella' : st.field.terrain === 'Electric';
+}
+
+/** The stat Protosynthesis / Quark Drive boosts: the highest one, counting stat stages (ties go to the earlier stat). */
+export function bestStat(mon: MonState): BoostKey {
+  const stats = statsOf(mon);
+  let best: BoostKey = 'atk';
+  for (const k of ['def', 'spa', 'spd', 'spe'] as const) {
+    if (Math.floor(stats[k] * boostMult(mon.boosts[k])) > Math.floor(stats[best] * boostMult(mon.boosts[best]))) best = k;
+  }
+  return best;
+}
 
 /** Mon that must have stats; throws a plain Error (shown as a calculator problem) otherwise. */
 export function statsOf(mon: MonState): StatTable {
@@ -250,11 +333,23 @@ export function outcomeOf(st: BattleState): Outcome | null {
   return won && lost ? 'draw' : won ? 'win' : lost ? 'loss' : null;
 }
 
+/**
+ * Speed as the turn order sees it: stat stages, Choice Scarf / Iron Ball, Unburden, weather and terrain abilities
+ * (Swift Swim, Chlorophyll, Sand Rush, Slush Rush, Surge Surfer), Protosynthesis / Quark Drive on Speed, Quick Feet,
+ * paralysis and Tailwind.
+ */
 export function effSpeed(st: BattleState, side: Side, mon: MonState): number {
   let speed = Math.floor(statsOf(mon).spe * boostMult(mon.boosts.spe));
-  if (toID(mon.item) === 'choicescarf') speed = Math.floor(speed * 1.5);
+  const item = toID(heldItem(st, mon));
+  const ability = toID(mon.ability);
+  if (item === 'choicescarf') speed = Math.floor(speed * 1.5);
+  if (item === 'ironball') speed = Math.floor(speed / 2);
   if (mon.unburden && !mon.item) speed *= 2;
-  if (mon.status && toID(mon.ability) === 'quickfeet') speed = Math.floor(speed * 1.5);
+  const fast = SPEED_WEATHER[ability];
+  const umbrella = item === 'utilityumbrella';
+  if (fast && ((fast.weather && st.field.weather === fast.weather && !(umbrella && (fast.weather === 'Rain' || fast.weather === 'Sun'))) || (fast.terrain && st.field.terrain === fast.terrain))) speed *= 2;
+  if (paradoxActive(st, mon) && bestStat(mon) === 'spe') speed = Math.floor(speed * 1.5);
+  if (mon.status && ability === 'quickfeet') speed = Math.floor(speed * 1.5);
   else if (mon.status === 'par') speed = Math.floor(speed / 2);
   if (st.field.tailwind[side] > 0) speed *= 2;
   return speed;
@@ -287,6 +382,8 @@ export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection'>, 
         sp: (statPoints(set) ?? { sp: emptyStatTable() }).sp, stats: null, boosts: zeroBoosts(), hp: 0, hpLo: 0, hpHi: 0, fainted: false,
         status: null, toxic: 0, slept: 0, item: set.item, unburden: false, entryBoosted: false,
         charging: null, recharging: null, activeTurns: 0, timesHit: 0, lastFailed: false, protectStreak: false,
+        lastMove: '', lastTarget: '', choiceLock: null, encore: null, disable: null, taunt: 0, imprison: false, sub: 0, yawn: 0, perish: null,
+        seeded: null, saltCure: false, destinyBond: false, boosted: null, flashFire: false, charge: false, disguiseBroken: false, transformedFrom: null,
       };
       refreshStats(engine, mon);
       st.mons[side][set.species] = mon;

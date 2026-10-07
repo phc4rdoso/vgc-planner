@@ -11,7 +11,7 @@ import { monIcon } from '../icons.ts';
 import { formOf } from '../names.ts';
 import { startStateOf, turnResult } from '../turn-results.ts';
 import { rerenderCanvas } from './plan-view.ts';
-import { lockedAction } from '../../domain/simulation/turn.ts';
+import { lockedAction, mayBeForcedOut, moveLock } from '../../domain/simulation/turn.ts';
 
 /** `label` turns a stored value (a paste name) into what is shown (its current form). */
 const options = (list: readonly string[], current: string, blank?: string, label: (v: string) => string = (v) => v): string =>
@@ -104,8 +104,12 @@ function actionEditor(a: TurnAction, i: number, st: BattleState | null, depth: n
   const kindOption = (value: TurnAction['kind'], label: string): string => `<option value="${value}" ${a.kind === value ? 'selected' : ''}>${label}</option>`;
   const mega = a.kind === 'mega' || canOfferMega(a, st, actions, set?.item ?? '') ? kindOption('mega', 'Mega evolve + move') : '';
   const incoming = incomingChoices(a, st, depth, actions);
-  const pivot = a.kind !== 'switch' && isPivotMove(a.move)
-    ? `<div><label class="lbl" for="a-pivot-${i}">Then switch to</label><select class="field" id="a-pivot-${i}" data-a="pivot" data-i="${i}">${options(incoming, a.pivot ?? '', 'Choose…', own)}</select></div>`
+  // Who comes in after a pivot move, or if an Eject Button / Eject Pack / Red Card / Emergency Exit forces it out.
+  const starter = st?.mons[a.side][a.mon];
+  const forcible = !!starter && !!st && st.active[a.side].includes(a.mon) && mayBeForcedOut(st, a.side, starter);
+  const pivotLabel = isPivotMove(a.move) ? 'Then switch to' : 'If forced out, switch to';
+  const pivot = a.kind !== 'switch' && (isPivotMove(a.move) || forcible)
+    ? `<div><label class="lbl" for="a-pivot-${i}">${pivotLabel}</label><select class="field" id="a-pivot-${i}" data-a="pivot" data-i="${i}">${options(incoming, a.pivot ?? '', 'Choose…', own)}</select></div>`
     : '';
   const head = `<div class="act-top"><span class="side-tag ${a.side}">${a.side === 'me' ? 'You' : 'Opponent'}</span></div>`;
   // Charging a two-turn move or recharging after Hyper Beam: no move or switch to pick this turn.
@@ -118,8 +122,11 @@ function actionEditor(a: TurnAction, i: number, st: BattleState | null, depth: n
   </div>`;
   }
   // Only the moves in the paste (plus a move already saved that isn't there, so nothing is lost silently).
-  const known = set?.moves ?? [];
+  // Encore or a Choice item: only that move (it can still switch out).
+  const lock = current && st?.active[a.side].includes(a.mon) ? moveLock(st, current) : null;
+  const known = lock ? [lock.move] : set?.moves ?? [];
   const moveList = a.move && !known.some((m) => m.toLowerCase() === a.move.toLowerCase()) ? [...known, a.move] : known;
+  const lockNote = lock ? `<div class="hint">Locked into ${esc(lock.move)} by ${esc(lock.reason)}: it can use only that move, or switch out.</div>` : '';
   const moveField = known.length
     ? `<select class="field" id="a-move-${i}" data-a="move" data-i="${i}">${options(moveList, a.move, 'Choose…', (v) => (known.includes(v) ? v : `${v} (not in the paste)`))}</select>`
     : `<input class="field" id="a-move-${i}" data-a="move" data-i="${i}" value="${esc(a.move)}" placeholder="Move name">`;
@@ -134,7 +141,7 @@ function actionEditor(a: TurnAction, i: number, st: BattleState | null, depth: n
       : `<div class="row2">
       <div><label class="lbl" for="a-move-${i}">Move</label>${moveField}</div>
       <div><label class="lbl" for="a-target-${i}">Target</label><select class="field" id="a-target-${i}" data-a="target" data-i="${i}">${options(targets, a.target, '—', anyone)}</select></div>
-    </div>${pivot}`}
+    </div>${lockNote}${pivot}`}
   </div>`;
 }
 

@@ -18,7 +18,7 @@ export interface CalcPokemon {
 
 export interface CalcMove {
   name?: string; bp?: number; type?: string; priority?: number; category?: string; target?: string;
-  flags?: { contact?: number };
+  flags?: { contact?: number; sound?: number; wind?: number; punch?: number };
   /** Number of hits the calculator applies (more than 1 for multi-hit moves). */
   hits?: number;
   secondaries?: unknown;
@@ -28,12 +28,20 @@ export interface CalcItem { megaStone?: string | Record<string, string>; isBerry
 
 export interface CalcGeneration {
   num?: number;
+  types?: { get(id: string): { effectiveness: Record<string, number> } | undefined };
   moves?: { get(id: string): unknown };
   items?: { get(id: string): CalcItem | undefined };
 }
 
 export interface SideOptions {
   isHelpingHand?: boolean;
+  isFriendGuard?: boolean;
+  isBattery?: boolean;
+  isPowerSpot?: boolean;
+  isSteelySpirit?: boolean;
+  isFlowerGift?: boolean;
+  isCharge?: boolean;
+  isSwitching?: 'out' | 'in';
   isTailwind?: boolean;
   isReflect?: boolean;
   isLightScreen?: boolean;
@@ -44,6 +52,13 @@ export interface FieldOptions {
   gameType: 'Singles' | 'Doubles';
   weather?: string;
   terrain?: string;
+  isGravity?: boolean;
+  isMagicRoom?: boolean;
+  isWonderRoom?: boolean;
+  isBeadsOfRuin?: boolean;
+  isSwordOfRuin?: boolean;
+  isTabletsOfRuin?: boolean;
+  isVesselOfRuin?: boolean;
   attackerSide: SideOptions;
   defenderSide: SideOptions;
 }

@@ -6,13 +6,15 @@ type Scoped<T> = T & { userId: string };
 
 export class MemoryStore implements Store {
   users: User[] = [];
+  /** Users who picked their own display name (sign-ins keep it). */
+  customNames = new Set<string>();
   sessions = new Map<string, { userId: string; expiresAt: number }>();
   teams: Scoped<StoredTeam>[] = [];
   plans: Scoped<StoredPlan>[] = [];
 
   async upsertUser(provider: User['provider'], providerId: string, name: string, now: number, avatar = 'Pikachu') {
     const found = this.users.find((u) => u.provider === provider && u.providerId === providerId);
-    if (found) { found.name = name; return { user: { ...found }, created: false }; }
+    if (found) { if (!this.customNames.has(found.id)) found.name = name; return { user: { ...found }, created: false }; }
     const user: User = { id: `u${this.users.length + 1}`, provider, providerId, name, createdAt: now, onboardedAt: null, avatar };
     this.users.push(user);
     return { user: { ...user }, created: true };
@@ -24,6 +26,7 @@ export class MemoryStore implements Store {
     return user ? { ...user } : null;
   }
   async deleteSession(hash: string) { this.sessions.delete(hash); }
+  async setName(userId: string, name: string) { const u = this.users.find((x) => x.id === userId); if (u) { u.name = name; this.customNames.add(userId); } }
   async setAvatar(userId: string, avatar: string) { const u = this.users.find((x) => x.id === userId); if (u) u.avatar = avatar; }
   async markOnboarded(userId: string, now: number) { const u = this.users.find((x) => x.id === userId); if (u) u.onboardedAt ??= now; }
 

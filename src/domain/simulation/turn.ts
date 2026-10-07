@@ -1,19 +1,22 @@
 import { round1, toID } from '../strings.ts';
 import { BOOST_KEYS } from '../stats.ts';
-import type { FlowNode, Side, TurnAction } from '../types.ts';
+import type { BoostKey, FlowNode, Side, TurnAction } from '../types.ts';
 import { SIDES } from '../types.ts';
 import type { FieldOptions } from './calc-types.ts';
+import type { Inflicted } from './effects.ts';
 import { Effects, share } from './effects.ts';
 import type { CalcEngine, HitCalc, MoveInfo } from './engine.ts';
 import type { DebuffTarget, EndMon, HitResult, LogEntry, StatusTarget, TurnResult } from './log.ts';
 import type { BattleState, FieldState, MonState } from './state.ts';
-import { aliveActive, bench, effSpeed, monKey, newScratch, otherSide, outcomeOf, refreshStats, statsOf, zeroBoosts } from './state.ts';
+import { aliveActive, bench, effSpeed, heldItem, monKey, newScratch, noHazards, otherSide, outcomeOf, refreshStats, statsOf, zeroBoosts } from './state.ts';
 import type { BoostChange, StatusId } from './tables.ts';
 import {
-  ABSORB_ABILITIES, ALL_STATUS_IMMUNE, ALWAYS_FLINCH, BREAKS_PROTECT, CHARGE_MOVES, CONTACT_ABILITIES, CONTACT_ITEMS, CONTACT_PROTECT, CURE_BERRIES,
+  ABILITY_SETTERS, CLEARS_STATS, EJECT_ITEMS, EXIT_ABILITIES, FIXED_ABILITIES, GRAVITY_BANNED, HAZARD_ATTACKS, HAZARD_MOVES, HEAL_MOVES,
+  MOLD_BREAKERS, NOT_REPEATABLE, ON_HIT_ABILITIES, ON_HIT_ITEMS, ON_KO_ABILITIES, ROOM_MOVES, SCREEN_BREAKERS, TEAM_HEAL_MOVES,
+  ABSORB_ABILITIES, ALWAYS_FLINCH, BREAKS_PROTECT, CHARGE_MOVES, CONTACT_ABILITIES, CONTACT_ITEMS, CONTACT_PROTECT, 
   DEBUFF_MOVES, FIELD_MOVES, FIRST_TURN_ONLY, HITS_SEMI_INVULNERABLE, IGNORES_REDIRECT, ITEM_REMOVAL, ITEM_SWAP, NEEDS_TARGET_MOVE, PIVOT_MOVES,
   POWDER_MOVES, PRIORITY_BLOCKERS, PROTECT_FAMILY, PROTECT_MOVES, RECHARGE_MOVES, REDIRECT_MOVES, SECONDARY_DROPS, SECONDARY_STATUS, SELF_DROPS, SETUP_MOVES,
-  STATUS_ABILITY_IMMUNE, STATUS_LABEL, STATUS_MOVES, STATUS_TYPE_IMMUNE,
+  STATUS_LABEL, STATUS_MOVES,
 } from './tables.ts';
 
 /**
@@ -27,8 +30,25 @@ export function lockedAction(mon: MonState): string | null {
   return null;
 }
 
-/** Outcome of trying to give a Pokémon a condition. */
-interface Inflicted { status?: StatusId; blocked?: string; cured?: string }
+/**
+ * A move the Pokémon has to use (it can still switch out): Encore, or a Choice item it's locked by. Null when free.
+ */
+export function moveLock(st: BattleState, mon: MonState): { move: string; reason: string } | null {
+  if (mon.fainted) return null;
+  if (mon.encore) return { move: mon.encore.move, reason: `Encore (${mon.encore.turns} more turn${mon.encore.turns === 1 ? '' : 's'})` };
+  const item = heldItem(st, mon);
+  if (mon.choiceLock && /^choice /i.test(item)) return { move: mon.choiceLock, reason: item };
+  return null;
+}
+
+/** Whether something could force this Pokémon out this turn (its item or ability, or a foe's Red Card), so it needs a "comes in" pick. */
+export function mayBeForcedOut(st: BattleState, side: Side, mon: MonState): boolean {
+  const item = toID(heldItem(st, mon));
+  if (EJECT_ITEMS.has(item) && item !== 'redcard') return true;
+  if (EXIT_ABILITIES.has(toID(mon.ability))) return true;
+  const foe = otherSide(side);
+  return aliveActive(st, foe).some((n) => toID(heldItem(st, st.mons[foe][n]!)) === 'redcard');
+}
 
 /** The user can fix this by editing the turn (as opposed to a calculator problem). */
 class Incomplete extends Error {
@@ -41,6 +61,17 @@ interface Entry { action: TurnAction; index: number; mon: MonState; info: MoveIn
 interface Target { side: Side; name: string }
 
 const mean = (xs: readonly number[]): number => xs.reduce((s, x) => s + x, 0) / xs.length;
+
+/** Moves that hit back for damage taken this turn: `category` limits it to physical or special hits. */
+const COUNTER_MOVES: Readonly<Record<string, { category?: string; mult: number }>> = {
+  counter: { category: 'Physical', mult: 2 }, mirrorcoat: { category: 'Special', mult: 2 }, metalburst: { mult: 1.5 }, comeuppance: { mult: 1.5 },
+};
+
+/** Beast Boost: the highest stat other than HP (stat stages don't count). */
+const bestStatOf = (mon: MonState): BoostKey => {
+  const stats = statsOf(mon);
+  return (['atk', 'def', 'spa', 'spd', 'spe'] as const).reduce((best, k) => (stats[k] > stats[best] ? k : best), 'atk' as BoostKey);
+};
 /** Hits every foe (or everyone): Wide Guard blocks it, and the damage is cut when it has two targets. */
 const isSpread = (info: MoveInfo, a: TurnAction): boolean =>
   info.target === 'allAdjacentFoes' || info.target === 'allAdjacent' || a.target === 'Both foes' || a.target === 'All';
@@ -154,15 +185,18 @@ class TurnRunner {
       const locked = !mon.fainted && this.st.active[planned.side].includes(planned.mon);
       const charge = locked ? mon.charging : null;
       const recharge = locked && !charge && mon.recharging !== null;
+      const lock = locked && !charge && !recharge && planned.kind !== 'switch' ? moveLock(this.st, mon) : null;
       const action: TurnAction = charge ? { ...planned, kind: 'move', move: charge.move, target: charge.target }
-        : recharge ? { ...planned, kind: 'move', move: '', target: '' } : planned;
+        : recharge ? { ...planned, kind: 'move', move: '', target: '' }
+        : lock && toID(lock.move) !== toID(planned.move) ? { ...planned, move: lock.move, target: planned.target || mon.lastTarget } : planned;
       const info = action.kind === 'switch' || recharge ? null : this.engine.moveInfo(action.move);
       return { action, index, mon, info, priority: 0 };
     });
     for (const e of entries) this.planned.set(monKey(e.action.side, e.action.mon), e);
     const switches = entries.filter((e) => e.action.kind === 'switch').sort((x, y) => this.compare(x, y));
-    for (const e of switches) this.execute(e);
+    for (const e of switches) { this.execute(e); this.forcedSwitches(); }
     this.megaEvolve(entries.map((e) => e.action));
+    this.forcedSwitches();
     // Priority is fixed when moves are chosen; Speed is read again before every action, as in Scarlet/Violet and
     // Champions, so a Tailwind, Trick Room, paralysis or Speed drop changes the order of the actions still to come.
     const queue = entries.filter((e) => e.action.kind !== 'switch');
@@ -172,8 +206,10 @@ class TurnRunner {
       const e = queue.shift()!;
       this.priority = e.priority;
       this.execute(e);
+      this.forcedSwitches();
     }
     this.fx.residuals();
+    this.forcedSwitches();
     for (const side of SIDES) {
       for (const name of aliveActive(this.st, side)) {
         const m = this.st.mons[side][name]!;
@@ -216,9 +252,14 @@ class TurnRunner {
   /** Switches first, then priority, then speed (reversed under Trick Room); ties keep the order they were entered. */
   private compare(x: Entry, y: Entry): number {
     const bracket = (e: Entry): number => (e.action.kind === 'switch' ? 1000 : e.priority);
+    // After You: acts next, whatever its priority. Quash: acts last.
+    const moved = (e: Entry): number => {
+      const key = monKey(e.action.side, e.action.mon);
+      return this.st.turn.next[key] ? 1 : this.st.turn.last[key] ? -1 : 0;
+    };
     const trick = this.st.field.trick > 0 ? 1 : -1;
     const speed = effSpeed(this.st, x.action.side, x.mon) - effSpeed(this.st, y.action.side, y.mon);
-    return bracket(y) - bracket(x) || trick * speed || x.index - y.index;
+    return moved(y) - moved(x) || bracket(y) - bracket(x) || trick * speed || x.index - y.index;
   }
 
   /**
@@ -242,11 +283,28 @@ class TurnRunner {
       this.st.megaUsed[a.side] = a.mon;
       refreshStats(this.engine, mon);
       this.log.push({ type: 'mega', side: a.side, mon: a.mon, species: mon.megaForm });
-      this.fx.enter(a.side, a.mon);
+      this.fx.enter(a.side, a.mon, true);
     }
   }
 
-  private execute(e: Entry): void {
+  /**
+   * Switches forced by Eject Button, Eject Pack, Red Card or Emergency Exit, carried out after the action that caused
+   * them, into the Pokémon picked on the forced Pokémon's own action ("If forced out, switch to").
+   */
+  private forcedSwitches(): void {
+    for (const f of this.st.turn.forced.splice(0)) {
+      const mon = this.st.mons[f.side][f.name];
+      if (!mon || mon.fainted || !this.st.active[f.side].includes(f.name)) continue;
+      const options = bench(this.st, f.side);
+      if (!options.length) continue;
+      const to = this.planned.get(monKey(f.side, f.name))?.action.pivot;
+      if (!to) throw new Incomplete(`${f.name}: ${f.reason} forces it out; choose who comes in on its action`);
+      if (!options.includes(to)) throw new Incomplete(`${f.name}: ${to} can't come in after ${f.reason}`);
+      this.doSwitch(f.side, f.name, to, { via: f.reason });
+    }
+  }
+
+  private execute(e: Entry, instructed = false): void {
     const { action: a, mon: actor } = e;
     const side = a.side;
     this.st.turn.acted[monKey(side, a.mon)] = true;
@@ -262,7 +320,8 @@ class TurnRunner {
     }
     // e.g. it was pivoted out earlier this turn, or the action was planned for a Pokémon on the bench.
     if (!this.st.active[side].includes(a.mon)) { this.log.push({ type: 'skip', side, mon: a.mon, why: "isn't on the field" }); return; }
-    this.acted.push({ side, slot: this.st.active[side].indexOf(a.mon) });
+    if (!instructed) this.acted.push({ side, slot: this.st.active[side].indexOf(a.mon) });
+    actor.destinyBond = false;
     if (actor.recharging) {
       this.log.push({ type: 'skip', side, mon: a.mon, why: `must recharge after ${actor.recharging}` });
       actor.recharging = null;
@@ -272,7 +331,11 @@ class TurnRunner {
     if (a.kind === 'switch' || !e.info) { this.doSwitch(side, a.mon, a.target); return; }
     // Sleep lasts 1-3 turns; only the first is certain, so the Pokémon is assumed to wake on its next action.
     if (actor.status === 'slp') {
-      if (actor.slept < 1) { actor.slept++; this.log.push({ type: 'skip', side, mon: a.mon, why: 'is asleep (may sleep up to 2 more turns)' }); return; }
+      if (actor.slept < 1) {
+        actor.slept++;
+        this.log.push({ type: 'skip', side, mon: a.mon, why: actor.slept <= 0 ? 'is asleep (Rest: one more turn)' : 'is asleep (may sleep up to 2 more turns)' });
+        return;
+      }
       actor.status = null; actor.slept = 0;
       this.log.push({ type: 'cure', side, mon: a.mon, text: 'wakes up' });
     }
@@ -289,6 +352,9 @@ class TurnRunner {
       return;
     }
     actor.protectStreak = PROTECT_FAMILY.has(id);
+    actor.lastMove = info.name;
+    actor.lastTarget = a.target;
+    if (/^choice /i.test(heldItem(this.st, actor)) && !actor.choiceLock) actor.choiceLock = info.name;
     if (PROTECT_MOVES.has(id)) { this.st.turn.protect[monKey(side, a.mon)] = id; this.log.push({ type: 'protect', side, mon: a.mon, move: info.name, text: 'protects itself' }); return; }
     if (id === 'wideguard') { this.st.turn.wide[side] = true; this.log.push({ type: 'protect', side, mon: a.mon, move: info.name, text: 'guards its side from spread moves' }); return; }
     if (id === 'quickguard') { this.st.turn.quick[side] = true; this.log.push({ type: 'protect', side, mon: a.mon, move: info.name, text: 'guards its side from priority moves' }); return; }
@@ -316,6 +382,15 @@ class TurnRunner {
    */
   private failReason(side: Side, a: TurnAction, actor: MonState, info: MoveInfo, id: string): string | null {
     if (FIRST_TURN_ONLY.has(id) && actor.activeTurns > 0) return 'only works on its first turn out';
+    if (actor.taunt > 0 && info.category === 'Status') return "it's taunted (attacks only)";
+    if (info.category === 'Status' && toID(heldItem(this.st, actor)) === 'assaultvest') return 'Assault Vest allows attacks only';
+    if (actor.disable && toID(actor.disable.move) === id) return 'the move is disabled';
+    if (this.st.field.gravity > 0 && GRAVITY_BANNED.has(id)) return "it can't be used under Gravity";
+    const foeSide = otherSide(side);
+    const imprisoner = aliveActive(this.st, foeSide).map((n) => this.st.mons[foeSide][n]!).find((m) => m.imprison && m.set.moves.some((x) => toID(x) === id));
+    if (imprisoner) return `${imprisoner.name} imprisoned it`;
+    if (id === 'destinybond' && toID(actor.lastMove) === 'destinybond' && !this.failedBefore) return "can't be used twice in a row";
+    if ((id === 'afteryou' || id === 'quash' || id === 'instruct') && !this.repeatOrMoveTarget(side, a, info, actor, id)) return 'nothing to do';
     if ((id === 'snore' || id === 'sleeptalk') && actor.status !== 'slp') return "it isn't asleep";
     if (id === 'fling' && !actor.item) return 'no item to fling';
     if (id === 'steelroller' && !this.st.field.terrain) return 'no terrain';
@@ -400,19 +475,28 @@ class TurnRunner {
     }
   }
 
-  private doSwitch(side: Side, outName: string, inName: string, opts: { replace?: true; passBoosts?: boolean; via?: string } = {}): void {
+  private doSwitch(side: Side, outName: string, inName: string, opts: { replace?: true; passBoosts?: boolean; via?: string; sub?: number } = {}): void {
     const incoming = this.mon(side, inName);
     if (incoming.fainted) throw new Incomplete(`${inName} has fainted and can't switch in`);
     if (this.st.active[side].includes(inName)) throw new Incomplete(`${inName} is already on the field`);
     if (!this.st.party[side].includes(inName)) throw new Incomplete(`${inName} wasn't brought to this battle (pick it as a lead or back)`);
     statsOf(incoming);
     const outgoing = this.mon(side, outName);
-    if (opts.passBoosts) incoming.boosts = { ...outgoing.boosts };
-    // Stat stages and Unburden end on switching out; the condition, HP and a lost item stay as they are.
+    if (opts.passBoosts) { incoming.boosts = { ...outgoing.boosts }; incoming.sub = outgoing.sub; incoming.seeded = outgoing.seeded; incoming.perish = outgoing.perish; }
+    if (opts.sub) incoming.sub = opts.sub;
+    // Stat stages, Unburden and every volatile effect end on switching out; the condition, HP and a lost item stay.
     outgoing.boosts = zeroBoosts();
     outgoing.unburden = false;
     outgoing.charging = null;
     outgoing.protectStreak = false;
+    Object.assign(outgoing, {
+      choiceLock: null, encore: null, disable: null, taunt: 0, imprison: false, sub: 0, yawn: 0, perish: null, seeded: null, saltCure: false,
+      destinyBond: false, boosted: null, charge: false, flashFire: false,
+    });
+    if (outgoing.transformedFrom) {
+      const back = outgoing.transformedFrom;
+      outgoing.species = back.species; outgoing.ability = back.ability; outgoing.stats = back.stats; outgoing.transformedFrom = null;
+    }
     incoming.activeTurns = 0;
     if (outgoing.status === 'tox') outgoing.toxic = 1;
     if (!outgoing.fainted && outgoing.status && toID(outgoing.ability) === 'naturalcure') {
@@ -439,7 +523,7 @@ class TurnRunner {
   }
 
   /** Switches the user out after a pivot move. Nothing happens if nobody is left to come in. */
-  private pivot(side: Side, a: TurnAction, moveName: string, opts: { passBoosts?: boolean; via?: string } = {}): void {
+  private pivot(side: Side, a: TurnAction, moveName: string, opts: { passBoosts?: boolean; via?: string; sub?: number } = {}): void {
     if (this.mon(side, a.mon).fainted) return;
     const options = bench(this.st, side);
     if (!options.length) {
@@ -479,6 +563,10 @@ class TurnRunner {
       const table: BoostChange = { ...setup };
       if (id === 'growth' && this.st.field.weather === 'Sun') { table.atk = 2; table.spa = 2; }
       this.boostLog(side, a.mon, info.name, table, { own: true });
+      if (id === 'tidyup') {
+        for (const s2 of SIDES) { this.st.field.hazards[s2] = noHazards(); for (const n of aliveActive(this.st, s2)) this.st.mons[s2][n]!.sub = 0; }
+        this.log.push({ type: 'field', side, mon: a.mon, move: info.name, text: 'clears hazards and Substitutes' });
+      }
       return;
     }
 
@@ -537,11 +625,240 @@ class TurnRunner {
         if (actor.hp <= cost) { this.log.push({ type: 'other', side, mon: a.mon, move: info.name, note: 'fails (not enough HP)' }); return; }
         this.fx.hurt(side, a.mon, cost, null);
       }
-      this.pivot(side, a, info.name, { passBoosts: pivot.passBoosts === true, via: info.name });
+      this.pivot(side, a, info.name, { passBoosts: pivot.passBoosts === true, via: info.name, ...(id === 'shedtail' ? { sub: Math.floor(stats.hp / 4) } : {}) });
       return;
     }
 
+    if (this.utilityMove(side, a, actor, info, id)) return;
     this.log.push({ type: 'other', side, mon: a.mon, move: info.name, note: 'no effect is modeled' });
+  }
+
+  /** The single target of a status move, unless Protect, a Substitute or Magic Bounce / Good as Gold stops it (logged as a failure). */
+  private statusTarget(side: Side, a: TurnAction, actor: MonState, info: MoveInfo): { t: Target; target: MonState } | null {
+    const t = this.resolveTargets(side, a, info, actor)[0];
+    const target = t ? this.st.mons[t.side][t.name] : undefined;
+    const fail = (why: string): null => { actor.lastFailed = true; this.log.push({ type: 'other', side, mon: a.mon, move: info.name, note: `fails (${why})` }); return null; };
+    if (!t || !target || target.fainted) return fail('no target');
+    if (t.side !== side) {
+      if (this.st.turn.protect[monKey(t.side, t.name)]) return fail(`${t.name} protected itself`);
+      const block = this.priorityBlock(side, t);
+      if (block) return fail(`blocked by ${block}`);
+      if (['goodasgold', 'magicbounce'].includes(toID(target.ability))) return fail(target.ability);
+      if (target.sub && !info.sound && toID(actor.ability) !== 'infiltrator') return fail(`${t.name}'s Substitute`);
+    }
+    return { t, target };
+  }
+
+  /** For After You, Quash and Instruct: whether the target can be moved in the order / made to repeat its move. */
+  private repeatOrMoveTarget(side: Side, a: TurnAction, info: MoveInfo, actor: MonState, id: string): boolean {
+    const t = this.resolveTargets(side, a, info, actor)[0];
+    const target = t ? this.st.mons[t.side][t.name] : undefined;
+    if (!t || !target || target.fainted) return false;
+    if (id === 'instruct') return !!target.lastMove && !NOT_REPEATABLE.has(toID(target.lastMove)) && !target.charging && !target.recharging && !CHARGE_MOVES[toID(target.lastMove)];
+    return !this.st.turn.acted[monKey(t.side, t.name)] && this.planned.has(monKey(t.side, t.name));
+  }
+
+  /**
+   * Recovery and utility status moves: Recover and friends (by weather for Moonlight / Synthesis / Shore Up), Life Dew,
+   * Heal Pulse, Floral Healing, Wish, Pain Split, Rest, Substitute, Haze, hazards, Defog, Court Change, rooms and
+   * Gravity, Taunt, Encore, Disable, Imprison, Yawn, Perish Song, Leech Seed, Destiny Bond, ability changers,
+   * Transform, Ally Switch, After You, Quash, Instruct. Returns false for moves it doesn't know.
+   */
+  private utilityMove(side: Side, a: TurnAction, actor: MonState, info: MoveInfo, id: string): boolean {
+    const f = this.st.field;
+    const max = statsOf(actor).hp;
+    const note = (text: string, failed = false): true => {
+      if (failed) actor.lastFailed = true;
+      this.log.push({ type: 'other', side, mon: a.mon, move: info.name, note: text });
+      return true;
+    };
+
+    const heal = HEAL_MOVES[id];
+    if (heal !== undefined) {
+      const weather = f.weather && toID(heldItem(this.st, actor)) !== 'utilityumbrella' ? f.weather : null;
+      const frac = heal === 'weather' ? (weather === 'Sun' ? 2 / 3 : weather ? 1 / 4 : 1 / 2) : heal === 'sand' ? (weather === 'Sand' ? 2 / 3 : 1 / 2) : heal;
+      if (actor.hp >= max) return note('fails (already at full HP)', true);
+      this.log.push({ type: 'other', side, mon: a.mon, move: info.name, note: 'restores HP' });
+      this.fx.heal(side, a.mon, share(max, frac).amount, info.name, frac);
+      return true;
+    }
+    const team = TEAM_HEAL_MOVES[id];
+    if (team) {
+      this.log.push({ type: 'other', side, mon: a.mon, move: info.name, note: 'heals its side' });
+      for (const n of aliveActive(this.st, side)) {
+        const m = this.st.mons[side][n]!;
+        this.fx.heal(side, n, share(statsOf(m).hp, team.share).amount, info.name, team.share);
+        if (team.cure && m.status) { m.status = null; this.log.push({ type: 'cure', side, mon: n, text: `is cured by ${info.name}` }); }
+      }
+      return true;
+    }
+    if (id === 'healpulse' || id === 'floralhealing') {
+      const got = this.statusTarget(side, a, actor, info);
+      if (!got) return true;
+      const frac = id === 'floralhealing' && f.terrain === 'Grassy' ? 2 / 3 : 1 / 2;
+      if (got.target.hp >= statsOf(got.target).hp) return note('fails (already at full HP)', true);
+      this.fx.heal(got.t.side, got.t.name, share(statsOf(got.target).hp, frac).amount, info.name, frac);
+      return true;
+    }
+    if (id === 'wish') {
+      const slot = this.st.active[side].indexOf(a.mon);
+      if (f.wish[side].some((w) => w.slot === slot)) return note('fails (a Wish is already coming)', true);
+      f.wish[side].push({ slot, amount: Math.floor(max / 2), turns: 2 });
+      return note('makes a wish (heals this position at the end of next turn)');
+    }
+    if (id === 'painsplit') {
+      const got = this.statusTarget(side, a, actor, info);
+      if (!got) return true;
+      const avg = Math.floor((actor.hp + got.target.hp) / 2);
+      for (const m of [actor, got.target]) {
+        const cap = statsOf(m).hp;
+        const value = Math.min(cap, avg);
+        m.hp = value; m.hpLo = Math.min(cap, value); m.hpHi = Math.min(cap, value);
+      }
+      return note(`shares HP with ${got.t.name}: both at ${avg} HP`);
+    }
+    if (id === 'rest') {
+      const ability = toID(actor.ability);
+      if (actor.hp >= max) return note('fails (already at full HP)', true);
+      if (actor.status === 'slp' || ['insomnia', 'vitalspirit', 'comatose', 'purifyingsalt'].includes(ability)) return note("fails (it can't fall asleep)", true);
+      if (this.fx.grounded(actor) && (f.terrain === 'Electric' || f.terrain === 'Misty')) return note(`fails (${f.terrain} Terrain)`, true);
+      this.log.push({ type: 'other', side, mon: a.mon, move: info.name, note: 'sleeps for two turns and restores all HP' });
+      this.fx.heal(side, a.mon, max - actor.hp, info.name);
+      actor.status = 'slp'; actor.toxic = 0; actor.slept = -1;
+      const berry = heldItem(this.st, actor);
+      if (['chestoberry', 'lumberry'].includes(toID(berry))) { this.fx.takeItem(side, a.mon); actor.status = null; actor.slept = 0; this.log.push({ type: 'cure', side, mon: a.mon, text: `wakes up thanks to ${berry}` }); }
+      return true;
+    }
+    if (id === 'substitute') {
+      const cost = Math.floor(max / 4);
+      if (actor.sub) return note('fails (it already has a Substitute)', true);
+      if (actor.hp <= cost) return note('fails (not enough HP)', true);
+      this.fx.hurt(side, a.mon, cost, null);
+      actor.sub = cost;
+      return note('puts up a Substitute (25% of its HP)');
+    }
+    if (id === 'haze') {
+      for (const s2 of SIDES) for (const n of aliveActive(this.st, s2)) this.fx.clearBoosts(s2, n);
+      return note('resets every stat change');
+    }
+    const hazard = HAZARD_MOVES[id];
+    if (hazard) {
+      if (!this.layHazard(otherSide(side), hazard, info.name, side, a.mon)) return note('fails (already at its limit)', true);
+      return true;
+    }
+    if (id === 'defog') {
+      const foe = otherSide(side);
+      f.screens[foe] = { reflect: 0, light: 0, veil: 0 };
+      f.hazards = { me: noHazards(), opp: noHazards() };
+      f.terrain = null; f.tTurns = 0;
+      return note("clears hazards, the terrain and the opponent's screens");
+    }
+    if (id === 'courtchange') {
+      const swap = <T,>(rec: Record<Side, T>): void => { const me = rec.me; rec.me = rec.opp; rec.opp = me; };
+      swap(f.screens); swap(f.tailwind); swap(f.hazards);
+      return note('swaps the effects on each side');
+    }
+    const room = ROOM_MOVES[id];
+    if (room) {
+      if (f[room] > 0) {
+        if (room === 'gravity') return note('fails (Gravity is already in effect)', true);
+        f[room] = 0;
+        return note(`${info.name} ends`);
+      }
+      f[room] = 5;
+      if (room === 'gravity') for (const s2 of SIDES) for (const n of aliveActive(this.st, s2)) { const m = this.st.mons[s2][n]!; if (m.charging?.semi && ['fly', 'bounce'].includes(toID(m.charging.move))) m.charging = null; }
+      return note(`${info.name} for 5 turns`);
+    }
+    if (id === 'perishsong') {
+      for (const s2 of SIDES) for (const n of aliveActive(this.st, s2)) {
+        const m = this.st.mons[s2][n]!;
+        if (m.perish === null && toID(m.ability) !== 'soundproof') m.perish = 4;
+      }
+      return note('every Pokémon that hears it faints in 3 turns');
+    }
+    if (id === 'destinybond') { actor.destinyBond = true; return note('takes its attacker down with it if it faints before moving again'); }
+    if (id === 'imprison') { actor.imprison = true; return note("the opponents can't use the moves it knows"); }
+    if (id === 'allyswitch') {
+      const row = this.st.active[side];
+      if (row.length < 2 || !aliveActive(this.st, side).some((n) => n !== a.mon)) return note('fails (no partner)', true);
+      row.reverse();
+      return note('swaps places with its partner');
+    }
+
+    const targeted = ['taunt', 'encore', 'disable', 'yawn', 'leechseed', 'skillswap', 'entrainment', 'transform', 'afteryou', 'quash', 'instruct', ...Object.keys(ABILITY_SETTERS)];
+    if (!targeted.includes(id)) return false;
+    const got = this.statusTarget(side, a, actor, info);
+    if (!got) return true;
+    const { t, target } = got;
+    const tAbility = toID(target.ability);
+    const aromaVeil = aliveActive(this.st, t.side).some((n) => toID(this.st.mons[t.side][n]!.ability) === 'aromaveil');
+    switch (id) {
+      case 'taunt':
+        if (target.taunt > 0 || tAbility === 'oblivious' || aromaVeil) return note(`fails (${target.taunt > 0 ? 'already taunted' : aromaVeil ? 'Aroma Veil' : target.ability})`, true);
+        target.taunt = 3;
+        if (toID(heldItem(this.st, target)) === 'mentalherb') { this.fx.loseItem(t.side, t.name, 'cures the Taunt'); target.taunt = 0; }
+        return note(`${t.name} can only attack for 3 turns`);
+      case 'encore': {
+        if (!target.lastMove || target.encore || NOT_REPEATABLE.has(toID(target.lastMove)) || aromaVeil) return note('fails (nothing to repeat)', true);
+        target.encore = { move: target.lastMove, turns: 3 };
+        // If it hasn't moved yet, it uses the encored move this turn.
+        const pending = this.planned.get(monKey(t.side, t.name));
+        if (pending && !this.st.turn.acted[monKey(t.side, t.name)] && pending.action.kind !== 'switch') {
+          pending.action = { ...pending.action, move: target.lastMove, target: target.lastTarget };
+          pending.info = this.engine.moveInfo(target.lastMove);
+          pending.priority = this.priorityOf(target, pending.info);
+        }
+        return note(`${t.name} must repeat ${target.lastMove} for 3 turns`);
+      }
+      case 'disable':
+        if (!target.lastMove || target.disable || aromaVeil) return note('fails (nothing to disable)', true);
+        target.disable = { move: target.lastMove, turns: 4 };
+        return note(`${t.name} can't use ${target.lastMove} for 4 turns`);
+      case 'yawn':
+        if (target.status || target.yawn) return note(`fails (${target.status ? `already ${STATUS_LABEL[target.status]}` : 'already drowsy'})`, true);
+        target.yawn = 2;
+        return note(`${t.name} grows drowsy: it falls asleep at the end of next turn`);
+      case 'leechseed':
+        if (target.seeded || this.engine.typesOf(target.species).includes('Grass')) return note(`fails (${target.seeded ? 'already seeded' : 'Grass type'})`, true);
+        target.seeded = { side, slot: this.st.active[side].indexOf(a.mon) };
+        return note(`${t.name} is seeded`);
+      case 'skillswap':
+        if (FIXED_ABILITIES.has(toID(actor.ability)) || FIXED_ABILITIES.has(tAbility)) return note("fails (an ability can't be swapped)", true);
+        [actor.ability, target.ability] = [target.ability, actor.ability];
+        note(`swaps abilities with ${t.name}`);
+        this.fx.enter(side, a.mon, true);
+        this.fx.enter(t.side, t.name, true);
+        return true;
+      case 'entrainment':
+        if (FIXED_ABILITIES.has(toID(actor.ability)) || FIXED_ABILITIES.has(tAbility) || tAbility === toID(actor.ability)) return note("fails (the ability can't be passed on)", true);
+        target.ability = actor.ability;
+        note(`${t.name} gets ${actor.ability}`);
+        this.fx.enter(t.side, t.name, true);
+        return true;
+      case 'transform':
+        if (!this.fx.transform(side, a.mon, t.side, t.name, info.name)) return note('fails', true);
+        return true;
+      case 'afteryou':
+        this.st.turn.next[monKey(t.side, t.name)] = true;
+        return note(`${t.name} moves next`);
+      case 'quash':
+        this.st.turn.last[monKey(t.side, t.name)] = true;
+        return note(`${t.name} moves last`);
+      case 'instruct': {
+        note(`${t.name} uses ${target.lastMove} again`);
+        const again: TurnAction = { side: t.side, mon: t.name, kind: 'move', move: target.lastMove, target: target.lastTarget };
+        const info2 = this.engine.moveInfo(target.lastMove);
+        this.execute({ action: again, index: -1, mon: target, info: info2, priority: this.priorityOf(target, info2) }, true);
+        return true;
+      }
+      default: {
+        const set = ABILITY_SETTERS[id];
+        if (!set || FIXED_ABILITIES.has(tAbility) || tAbility === toID(set)) return note("fails (the ability can't be changed)", true);
+        target.ability = set;
+        if (id === 'worryseed' && target.status === 'slp') { target.status = null; this.log.push({ type: 'cure', side: t.side, mon: t.name, text: 'wakes up' }); }
+        return note(`${t.name}'s ability becomes ${set}`);
+      }
+    }
   }
 
   /** Trick / Switcheroo: the user and the target swap items (not Mega Stones, not with Sticky Hold, not through Protect). */
@@ -588,35 +905,10 @@ class TurnRunner {
     }
   }
 
-  /**
-   * Gives `target` a condition unless its type, ability, the terrain or an existing condition prevents it. A
-   * matching berry (Lum, Chesto...) cures it straight away and is used up.
-   */
+  /** Gives `target` a condition (see {@link Effects.inflict}); a Substitute blocks conditions from others. */
   private inflict(side: Side, name: string, actor: MonState, target: MonState, status: StatusId): Inflicted {
-    if (target.fainted) return { blocked: 'fainted' };
-    if (target.status) return { blocked: `already ${STATUS_LABEL[target.status]}` };
-    const types = this.engine.typesOf(target.species);
-    const ability = toID(target.ability);
-    const corrosion = toID(actor.ability) === 'corrosion' && (status === 'psn' || status === 'tox');
-    const immuneType = corrosion ? undefined : STATUS_TYPE_IMMUNE[status].find((t) => types.includes(t));
-    if (immuneType) return { blocked: `${immuneType} type` };
-    if (ALL_STATUS_IMMUNE.includes(ability) || STATUS_ABILITY_IMMUNE[status].includes(ability) || (ability === 'leafguard' && this.st.field.weather === 'Sun')) {
-      return { blocked: target.ability };
-    }
-    const grounded = this.fx.grounded(target);
-    if (grounded && this.st.field.terrain === 'Misty') return { blocked: 'Misty Terrain' };
-    if (grounded && this.st.field.terrain === 'Electric' && status === 'slp') return { blocked: 'Electric Terrain' };
-
-    target.status = status;
-    target.toxic = status === 'tox' ? 1 : 0;
-    target.slept = 0;
-    const berry = target.item;
-    if (CURE_BERRIES[toID(berry)]?.includes(status)) {
-      target.status = null;
-      this.fx.takeItem(side, name);
-      return { status, cured: berry };
-    }
-    return { status };
+    if (target.sub && target !== actor) return { blocked: 'Substitute' };
+    return this.fx.inflict(side, name, actor, status);
   }
 
   private resolveTargets(side: Side, a: TurnAction, info: MoveInfo, actor: MonState): Target[] {
@@ -624,7 +916,10 @@ class TurnRunner {
     const spread = info.target === 'allAdjacentFoes' || info.target === 'allAdjacent';
     if (spread || a.target === 'Both foes' || a.target === 'All') {
       const out = aliveActive(this.st, foe).map((name) => ({ side: foe, name }));
-      if (info.target === 'allAdjacent') aliveActive(this.st, side).filter((n) => n !== a.mon).forEach((name) => out.push({ side, name }));
+      // Telepathy keeps a Pokémon out of its partner's spread moves.
+      if (info.target === 'allAdjacent') {
+        aliveActive(this.st, side).filter((n) => n !== a.mon && toID(this.st.mons[side][n]!.ability) !== 'telepathy').forEach((name) => out.push({ side, name }));
+      }
       return out;
     }
     let t: Target | null = null;
@@ -673,6 +968,10 @@ class TurnRunner {
 
   /** An ability that absorbed the move (the calculator found the holder immune): its boost or healing. */
   private absorb(side: Side, name: string, target: MonState, info: MoveInfo): void {
+    if (toID(target.ability) === 'flashfire' && info.type === 'Fire' && !target.flashFire) {
+      target.flashFire = true;
+      this.log.push({ type: 'effect', side, mon: name, source: target.ability, text: 'powers up its Fire moves' });
+    }
     const ab = ABSORB_ABILITIES[toID(target.ability)];
     if (!ab || ab.type !== info.type) return;
     if (ab.boost) this.boostLog(side, name, target.ability, ab.boost, { own: true });
@@ -690,7 +989,7 @@ class TurnRunner {
     const max = statsOf(actor).hp;
     const ability = CONTACT_ABILITIES[toID(target.ability)];
     if (ability) this.fx.hurt(side, name, share(max, ability).amount, `${target.name}'s ${target.ability}`, ability);
-    const item = CONTACT_ITEMS[toID(target.item)];
+    const item = CONTACT_ITEMS[toID(heldItem(this.st, target))];
     if (item) this.fx.hurt(side, name, share(max, item).amount, `${target.name}'s ${target.item}`, item);
   }
 
@@ -719,18 +1018,44 @@ class TurnRunner {
     } else if (kind === 'burn' && (this.engine.isBerry(target.item) || / Gem$/.test(target.item))) this.fx.loseItem(t.side, t.name, 'burned up');
   }
 
-  private fieldOptions(attSide: Side, defSide: Side, gameType: 'Singles' | 'Doubles', helped: boolean): FieldOptions {
+  /**
+   * The field the calculator sees for one hit: weather, terrain, rooms, Gravity, screens, Tailwind, Helping Hand, the
+   * partners' abilities (Friend Guard, Battery, Power Spot, Steely Spirit, Flower Gift), any Ruin ability in play, and
+   * a Charge from Electromorphosis / Wind Power.
+   */
+  private fieldOptions(attSide: Side, attName: string, defSide: Side, defName: string, gameType: 'Singles' | 'Doubles', helped: boolean): FieldOptions {
     const f = this.st.field;
+    const partners = (side: Side, name: string): string[] => aliveActive(this.st, side).filter((n) => n !== name).map((n) => toID(this.st.mons[side][n]!.ability));
+    const att = partners(attSide, attName);
+    const def = partners(defSide, defName);
+    const inPlay = (ability: string): boolean => SIDES.some((side) => aliveActive(this.st, side).some((n) => toID(this.st.mons[side][n]!.ability) === ability));
+    const sun = f.weather === 'Sun';
     return {
       gameType,
       weather: f.weather ?? undefined,
       terrain: f.terrain ?? undefined,
-      attackerSide: { isHelpingHand: helped, isTailwind: f.tailwind[attSide] > 0 },
+      isGravity: f.gravity > 0, isMagicRoom: f.magicRoom > 0, isWonderRoom: f.wonderRoom > 0,
+      isSwordOfRuin: inPlay('swordofruin'), isBeadsOfRuin: inPlay('beadsofruin'), isTabletsOfRuin: inPlay('tabletsofruin'), isVesselOfRuin: inPlay('vesselofruin'),
+      attackerSide: {
+        isHelpingHand: helped, isTailwind: f.tailwind[attSide] > 0,
+        isBattery: att.includes('battery'), isPowerSpot: att.includes('powerspot'), isSteelySpirit: att.includes('steelyspirit'),
+        isFlowerGift: sun && att.includes('flowergift'), isCharge: this.st.mons[attSide][attName]?.charge === true,
+      },
       defenderSide: {
         isReflect: f.screens[defSide].reflect > 0, isLightScreen: f.screens[defSide].light > 0,
         isAuroraVeil: f.screens[defSide].veil > 0, isTailwind: f.tailwind[defSide] > 0,
+        isFriendGuard: def.includes('friendguard'), isFlowerGift: sun && def.includes('flowergift'),
       },
     };
+  }
+
+  /** Abilities the calculator applies only when told they're on: Plus / Minus with a partner, Flash Fire once lit, Stakeout on a Pokémon that just came in. */
+  private abilityOn(side: Side, name: string, actor: MonState, t: Target): boolean {
+    const ability = toID(actor.ability);
+    if (ability === 'plus' || ability === 'minus') return aliveActive(this.st, side).some((n) => n !== name && ['plus', 'minus'].includes(toID(this.st.mons[side][n]!.ability)));
+    if (ability === 'flashfire') return actor.flashFire;
+    if (ability === 'stakeout') return this.st.turn.entered[monKey(t.side, t.name)] === true;
+    return false;
   }
 
   /**
@@ -757,9 +1082,13 @@ class TurnRunner {
     }
     actor.charging = null;
 
+    if (COUNTER_MOVES[id]) { this.counterMove(side, a, actor, info, id); return; }
     const spread = info.target === 'allAdjacentFoes' || info.target === 'allAdjacent';
     const targets = this.resolveTargets(side, a, info, actor);
     const gameType = spread && targets.length < 2 ? 'Singles' : 'Doubles'; // the 0.75 spread cut needs two targets
+    const moldBreaker = MOLD_BREAKERS.has(toID(actor.ability));
+    const bypassSub = info.sound || toID(actor.ability) === 'infiltrator';
+    let hazardsLaid = false;
     const helped = this.st.turn.helped[monKey(side, a.mon)] === true;
     // Sheer Force drops the move's added effects, and with them Life Orb's recoil (the calculator adds the power).
     const sheerForce = toID(actor.ability) === 'sheerforce' && info.secondaries;
@@ -791,12 +1120,37 @@ class TurnRunner {
           result.blockedBy = `out of reach (${t.name} ${target.charging.semi})`;
           continue;
         }
+        // Pollen Puff heals a partner instead of hurting it.
+        if (id === 'pollenpuff' && t.side === side) {
+          const healed = this.fx.heal(t.side, t.name, share(statsOf(target).hp, 1 / 2).amount, info.name, 1 / 2);
+          if (!healed) result.blockedBy = 'already at full HP';
+          else anyHit = true;
+          continue;
+        }
+        // Brick Break and friends shatter screens on the target's side before hitting.
+        if (SCREEN_BREAKERS.has(id) && t.side !== side) {
+          const sc = this.st.field.screens[t.side];
+          if (sc.reflect || sc.light || sc.veil) {
+            this.st.field.screens[t.side] = { reflect: 0, light: 0, veil: 0 };
+            this.log.push({ type: 'effect', side: t.side, mon: t.name, source: info.name, text: 'shatters the screens' });
+          }
+        }
+        // Disguise (any attack) and Ice Face (physical) take the first hit, unless the attacker breaks the mould.
+        const shield = toID(target.ability);
+        if (!moldBreaker && !target.disguiseBroken && (shield === 'disguise' || (shield === 'iceface' && info.category === 'Physical'))) {
+          target.disguiseBroken = true;
+          result.blockedBy = target.ability;
+          anyHit = true;
+          this.log.push({ type: 'effect', side: t.side, mon: t.name, source: target.ability, text: 'takes the hit and is broken' });
+          if (shield === 'disguise') this.fx.hurt(t.side, t.name, share(statsOf(target).hp, 1 / 8).amount, target.ability, 1 / 8);
+          continue;
+        }
       }
       const power = this.powerFor(side, a.mon, actor, info, id, t, target);
       if (power && power.shown !== info.bp) result.power = power.shown;
       const alliesFainted = this.faintedAllies(side, a.mon);
-      const { hit, hits } = this.attack(side, actor, target, info, id, this.fieldOptions(side, t.side, gameType, helped), {
-        ...(power ? { basePower: power.send } : {}), ...(alliesFainted ? { alliesFainted } : {}),
+      const { hit, hits } = this.attack(side, actor, target, info, id, this.fieldOptions(side, a.mon, t.side, t.name, gameType, helped), {
+        ...(power ? { basePower: power.send } : {}), ...(alliesFainted ? { alliesFainted } : {}), ...(this.abilityOn(side, a.mon, actor, t) ? { attackerOn: true } : {}),
       });
       if (id === 'beatup') result.hits = hits;
       const rolls = hit.rolls;
@@ -808,10 +1162,21 @@ class TurnRunner {
       result.maxPct = round1((max / maxHP) * 100);
       if (max === 0) { result.immune = true; this.absorb(t.side, t.name, target, info); continue; }
 
+      // A Substitute takes the hit (sound moves and Infiltrator go around it); none of the other effects happen.
+      if (target.sub && !isSelf && !bypassSub) {
+        const taken = Math.min(target.sub, avg);
+        target.sub -= taken;
+        anyHit = true;
+        result.substitute = target.sub > 0 ? 'hit' : 'broken';
+        if (target.sub <= 0) { target.sub = 0; this.log.push({ type: 'effect', side: t.side, mon: t.name, source: 'Substitute', text: 'breaks' }); }
+        continue;
+      }
+
       // Focus Sash and Sturdy: at full HP, a single hit that would knock it out leaves it at 1 HP.
       const before = target.hp;
-      const sash = toID(target.item) === 'focussash';
-      const holdsOn = before === maxHP && before > 1 && !info.multihit && hits <= 1 && (sash || toID(target.ability) === 'sturdy');
+      const sash = toID(heldItem(this.st, target)) === 'focussash';
+      const sturdy = toID(target.ability) === 'sturdy' && !moldBreaker;
+      const holdsOn = before === maxHP && before > 1 && !info.multihit && hits <= 1 && (sash || sturdy);
       const cap = (x: number): number => (holdsOn ? Math.min(x, before - 1) : x);
       const kos = rolls.filter((x) => cap(x) >= before).length;
       if (kos) result.koChance = kos === rolls.length ? 100 : Math.max(1, Math.round((kos / rolls.length) * 100));
@@ -825,6 +1190,7 @@ class TurnRunner {
         // Each hit counts for Rage Fist (Beat Up from an ally is the classic way to stack it).
         target.timesHit += Math.max(1, hits);
         (this.st.turn.hitBy[monKey(t.side, t.name)] ??= []).push(monKey(side, a.mon));
+        if (t.side !== side) this.st.turn.damaged[monKey(t.side, t.name)] = { amount: dealt, category: info.category, by: monKey(side, a.mon) };
       }
       if (holdsOn && max >= before) {
         result.endured = sash ? target.item : target.ability;
@@ -838,12 +1204,16 @@ class TurnRunner {
       if (toID(target.item) === 'airballoon') this.fx.loseItem(t.side, t.name, 'pops');
 
       // Drain and recoil follow the damage actually dealt (less when Focus Sash held or the target had little HP left).
-      const share = (x: number): number => Math.round((x * dealt) / Math.max(1, Math.min(avg, before)));
-      if (hit.drain > 0) this.fx.heal(side, a.mon, share(hit.drain), info.name);
-      recoil += share(hit.recoil);
+      const scaled = (x: number): number => Math.round((x * dealt) / Math.max(1, Math.min(avg, before)));
+      if (hit.drain > 0) this.fx.heal(side, a.mon, scaled(hit.drain), info.name);
+      recoil += scaled(hit.recoil);
 
       this.fx.berries(t.side, t.name);
       if (info.contact && !isSelf) this.contactDamage(side, a.mon, actor, target);
+      if (!isSelf) this.reactToHit(side, a.mon, actor, t, target, info, before);
+      if (target.fainted) this.knockedOut(side, a.mon, actor, t, target);
+      if (HAZARD_ATTACKS[id] && t.side !== side && !hazardsLaid) { hazardsLaid = true; this.layHazard(t.side, HAZARD_ATTACKS[id], info.name, side, a.mon); }
+      if (id === 'saltcure' && !target.fainted && !target.saltCure) { target.saltCure = true; this.log.push({ type: 'effect', side: t.side, mon: t.name, source: info.name, text: 'is being salt cured' }); }
 
       const targetAbility = toID(target.ability);
       if (!sheerForce) {
@@ -857,10 +1227,21 @@ class TurnRunner {
           if (got.status) { result.status = got.status; if (got.cured) result.cured = got.cured; }
         }
       }
+      if (CLEARS_STATS.has(id) && !target.fainted) this.fx.clearBoosts(t.side, t.name);
       this.takeTargetItem(a.mon, actor, t, target, id);
     }
 
+    if (actor.charge && info.type === 'Electric') actor.charge = false;
     if (!anyHit) { actor.lastFailed = true; return; }
+    // Rapid Spin and Mortal Spin clear hazards from the user's side (Rapid Spin also raises Speed).
+    if ((id === 'rapidspin' || id === 'mortalspin') && !actor.fainted) {
+      this.st.field.hazards[side] = noHazards();
+      if (id === 'rapidspin') this.boostLog(side, a.mon, info.name, { spe: 1 }, { own: true });
+    }
+    if (info.sound && toID(heldItem(this.st, actor)) === 'throatspray' && !actor.fainted) {
+      const spray = this.fx.takeItem(side, a.mon);
+      this.boostLog(side, a.mon, spray, { spa: 1 }, { own: true });
+    }
     if (RECHARGE_MOVES.has(id) && !actor.fainted) actor.recharging = info.name;
     if (SELF_DROPS[id] && !actor.fainted) entry.self = this.fx.changes(side, a.mon, SELF_DROPS[id], { own: true });
     if (!this.fx.indirectImmune(actor)) {
@@ -870,8 +1251,100 @@ class TurnRunner {
     if (PIVOT_MOVES[id]) this.pivot(side, a, info.name);
   }
 
+  /**
+   * What a hit sets off in the target: Stamina, Weak Armor, Justified and the like, Electromorphosis / Wind Power,
+   * Cotton Down, Seed Sower, Sand Spit, Toxic Debris, Kee / Maranga Berry and the other type-triggered items,
+   * Weakness Policy, Berserk / Anger Shell / Emergency Exit, Eject Button and Red Card.
+   */
+  private reactToHit(side: Side, user: string, actor: MonState, t: Target, target: MonState, info: MoveInfo, before: number): void {
+    const ability = toID(target.ability);
+    if (!target.fainted) {
+      const onHit = ON_HIT_ABILITIES[ability];
+      if (onHit && (!onHit.type || onHit.type.includes(info.type)) && (!onHit.category || onHit.category === info.category)) {
+        this.boostLog(t.side, t.name, target.ability, onHit.boost, { own: true });
+      }
+      if ((ability === 'electromorphosis' || (ability === 'windpower' && info.wind)) && !target.charge) {
+        target.charge = true;
+        this.log.push({ type: 'effect', side: t.side, mon: t.name, source: target.ability, text: 'is charged: its next Electric move doubles' });
+      }
+      const item = toID(heldItem(this.st, target));
+      const onItem = ON_HIT_ITEMS[item];
+      if (onItem && (!onItem.type || onItem.type === info.type) && (!onItem.category || onItem.category === info.category)) {
+        const used = this.fx.takeItem(t.side, t.name);
+        this.boostLog(t.side, t.name, used, onItem.boost, { own: true });
+      }
+      if (item === 'weaknesspolicy' && this.engine.effectiveness(info.type, target.species) > 1) {
+        const used = this.fx.takeItem(t.side, t.name);
+        this.boostLog(t.side, t.name, used, { atk: 2, spa: 2 }, { own: true });
+      }
+      this.fx.droppedBelowHalf(t.side, t.name, before, true);
+      if (item === 'ejectbutton' && t.side !== side) { this.fx.loseItem(t.side, t.name, 'sends it back'); this.fx.forceOut(t.side, t.name, 'Eject Button'); }
+      if (item === 'redcard' && t.side !== side && !actor.fainted) { this.fx.loseItem(t.side, t.name, `sends ${user} back`); this.fx.forceOut(side, user, 'Red Card'); }
+    }
+    if (ability === 'cottondown') {
+      for (const s2 of SIDES) for (const n of aliveActive(this.st, s2)) {
+        if (s2 === t.side && n === t.name) continue;
+        this.boostLog(s2, n, `${t.name}'s Cotton Down`, { spe: -1 }, { foe: s2 !== t.side });
+      }
+    }
+    if (ability === 'seedsower') this.fx.setTerrain('Grassy', t.side, t.name, target.ability);
+    if (ability === 'sandspit') this.fx.setWeather('Sand', t.side, t.name, target.ability);
+    if (ability === 'toxicdebris' && info.category === 'Physical' && this.st.field.hazards[side].tspikes < 2) {
+      this.layHazard(side, 'tspikes', target.ability, t.side, t.name);
+    }
+  }
+
+  /** A Pokémon knocked out by an attack: Destiny Bond takes the attacker too; Moxie and friends raise its stats. */
+  private knockedOut(side: Side, user: string, actor: MonState, t: Target, target: MonState): void {
+    this.fx.fainted(t.side, t.name);
+    if (t.side === side) return;
+    if (target.destinyBond && !actor.fainted) { this.fx.hurt(side, user, actor.hp, `${t.name}'s Destiny Bond`); return; }
+    const onKo = ON_KO_ABILITIES[toID(actor.ability)];
+    if (!onKo || actor.fainted) return;
+    const stat = onKo === 'best' ? bestStatOf(actor) : null;
+    this.boostLog(side, user, actor.ability, stat ? { [stat]: 1 } : (onKo as BoostChange), { own: true });
+  }
+
+  /** Lays one layer of an entry hazard on `on`'s side (Stealth Rock and Sticky Web once, Spikes up to 3, Toxic Spikes up to 2). */
+  private layHazard(on: Side, kind: 'rocks' | 'spikes' | 'tspikes' | 'web', source: string, side: Side, name: string): boolean {
+    const h = this.st.field.hazards[on];
+    const label = { rocks: 'Stealth Rock', spikes: 'Spikes', tspikes: 'Toxic Spikes', web: 'Sticky Web' }[kind];
+    if ((kind === 'rocks' && h.rocks) || (kind === 'web' && h.web) || (kind === 'spikes' && h.spikes >= 3) || (kind === 'tspikes' && h.tspikes >= 2)) return false;
+    if (kind === 'rocks') h.rocks = true; else if (kind === 'web') h.web = true; else if (kind === 'spikes') h.spikes++; else h.tspikes++;
+    this.log.push({ type: 'field', side, mon: name, move: source, text: `${label} on ${on === 'me' ? 'your' : "the opponent's"} side` });
+    return true;
+  }
+
+  /** Counter (2× physical damage taken), Mirror Coat (2× special), Metal Burst / Comeuppance (1.5× either), back at whoever dealt it. */
+  private counterMove(side: Side, a: TurnAction, actor: MonState, info: MoveInfo, id: string): void {
+    const rule = COUNTER_MOVES[id]!;
+    const taken = this.st.turn.damaged[monKey(side, a.mon)];
+    const fail = (why: string): void => { actor.lastFailed = true; this.log.push({ type: 'other', side, mon: a.mon, move: info.name, note: `fails (${why})` }); };
+    if (!taken || (rule.category && taken.category !== rule.category)) { fail(`no ${rule.category ? rule.category.toLowerCase() : ''} hit taken from a foe this turn`.replace('  ', ' ')); return; }
+    const [bySide, byName] = taken.by.split(':') as [Side, string];
+    const target = this.st.mons[bySide][byName];
+    if (!target || target.fainted || !this.st.active[bySide].includes(byName)) { fail("the attacker isn't on the field"); return; }
+    const entry: Extract<LogEntry, { type: 'hit' }> = { type: 'hit', side, mon: a.mon, move: info.name, results: [] };
+    this.log.push(entry);
+    const result: HitResult = { side: bySide, mon: byName };
+    entry.results.push(result);
+    if (this.st.turn.protect[monKey(bySide, byName)]) { result.protected = true; return; }
+    const damage = Math.max(1, Math.floor(taken.amount * rule.mult));
+    const maxHP = statsOf(target).hp;
+    result.minPct = result.maxPct = round1((damage / maxHP) * 100);
+    if (damage >= target.hp) result.koChance = 100;
+    target.hp = Math.max(0, target.hp - damage);
+    target.hpLo = Math.max(0, target.hpLo - damage);
+    target.hpHi = Math.max(0, target.hpHi - damage);
+    if (target.hp <= 0) { target.fainted = true; this.knockedOut(side, a.mon, actor, { side: bySide, name: byName }, target); }
+    else this.fx.berries(bySide, byName);
+  }
+
   private tickTimers(): void {
     const f = this.st.field;
+    if (f.gravity > 0) f.gravity--;
+    if (f.magicRoom > 0) f.magicRoom--;
+    if (f.wonderRoom > 0) f.wonderRoom--;
     if (f.weather && --f.wTurns <= 0) { f.weather = null; f.wTurns = 0; }
     if (f.terrain && --f.tTurns <= 0) { f.terrain = null; f.tTurns = 0; }
     if (f.trick > 0) f.trick--;
@@ -905,11 +1378,34 @@ class TurnRunner {
           condition: m.fainted ? null : m.status,
           ...(m.set.item && !m.item ? { lostItem: m.set.item } : {}),
           ...(m.charging && !m.fainted ? { charging: m.charging.move } : {}),
+          ...(m.fainted ? {} : { effects: volatileLabels(this.st, m) }),
         });
       }
     }
     return end;
   }
+}
+
+/** Short labels for what is affecting a Pokémon besides its condition and stat stages (shown on the turn result). */
+function volatileLabels(st: BattleState, m: MonState): string[] {
+  const out: string[] = [];
+  const lock = moveLock(st, m);
+  if (lock) out.push(`${lock.reason.startsWith('Encore') ? 'Encore' : 'Locked'}: ${lock.move}`);
+  if (m.recharging) out.push('must recharge');
+  if (m.sub) out.push('Substitute');
+  if (m.taunt) out.push(`Taunt ${m.taunt}`);
+  if (m.disable) out.push(`Disabled: ${m.disable.move}`);
+  if (m.yawn) out.push('drowsy');
+  if (m.perish !== null) out.push(`Perish ${m.perish}`);
+  if (m.seeded) out.push('Leech Seed');
+  if (m.saltCure) out.push('Salt Cure');
+  if (m.destinyBond) out.push('Destiny Bond');
+  if (m.imprison) out.push('Imprison');
+  if (m.charge) out.push('Charged');
+  if (m.flashFire) out.push('Flash Fire');
+  if (m.boosted) out.push(`${m.ability}: ${m.boosted.toUpperCase()}`);
+  if (m.transformedFrom) out.push(`Transformed`);
+  return out;
 }
 
 /**

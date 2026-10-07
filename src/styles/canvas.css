@@ -130,3 +130,6 @@ ul.tree.rootlist { padding-top: 0; }
 .addbox { width: 110px; height: 42px; border: 2px dashed var(--line); border-radius: 10px; background: transparent; color: var(--ink-3); display: flex; align-items: center; justify-content: center; }
 .addbox:hover { border-color: var(--me); color: var(--me); background: var(--me-soft); }
 .addbox.first { width: 160px; height: 48px; }
+
+/* Volatile effects on a Pokémon in the turn result (Substitute, Taunt, Encore...). */
+.bchip.vol { background: var(--line); color: var(--ink-2); }

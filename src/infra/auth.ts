@@ -57,6 +57,14 @@ export async function setAvatar(avatar: string): Promise<Account> {
   return body.user;
 }
 
+/** Changes the display name (shown in the app and on share links). Returns the updated account. */
+export async function setDisplayName(name: string): Promise<Account> {
+  const res = await send('/api/me/name', { method: 'POST', body: JSON.stringify({ name }) });
+  const body = (await res.json().catch(() => ({}))) as { user?: Account; error?: string };
+  if (!res.ok || !body.user) throw new Error(body.error ?? 'Couldn’t change the name. Try again.');
+  return body.user;
+}
+
 /** Remembers on the account that the welcome tour was seen, so it shows only after the first sign-in. */
 export async function markOnboarded(): Promise<void> {
   await send('/api/me/onboarded', { method: 'POST', body: '{}' });

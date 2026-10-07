@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { newNode, newPlan, newTeam, sheetOf } from '../src/domain/model.ts';
 import { createEngine } from '../src/domain/simulation/engine.ts';
-import type { HitResult, LogEntry, TurnResult } from '../src/domain/simulation/log.ts';
+import type { EndMon, HitResult, LogEntry, TurnResult } from '../src/domain/simulation/log.ts';
 import { simulatePlan } from '../src/domain/simulation/plan.ts';
 import type { ActionKind, FlowNode, Side, TurnAction } from '../src/domain/types.ts';
 import type { CalcCall } from './helpers/stub-calc.ts';
@@ -480,4 +480,175 @@ test('the turn result numbers the positions in the order they acted, a switch cr
     [sw('me', 'Rillaboom', 'Pelipper'), act('me', 'Garchomp', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
   );
   assert.deepEqual(r1!.order, { 'me:Pelipper': 1, 'me:Garchomp': 2, 'opp:Incineroar': 3, 'opp:Kingambit': 4 });
+});
+
+/* ---------- speed abilities ---------- */
+
+const swap = (a: TurnAction, pivot: string): TurnAction => ({ ...a, pivot });
+const boostsOf = (r: Ready, who: string): Record<string, number> => Object.fromEntries((r.end.find((e) => e.name === who)?.boosts ?? []).map((b) => [b.stat, b.delta]));
+
+test('Swift Swim doubles Speed in rain, which changes the turn order', () => {
+  const t = [act('me', 'Kingambit', 'move', 'Swords Dance'), act('me', 'Pelipper', 'move', 'Swords Dance'), act('opp', 'Garchomp', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance')];
+  const order = (ability: string): string[] => movers(play(
+    { me: [mon('Kingambit', ability), mon('Pelipper', 'Drizzle')], opp: [mon('Garchomp', 'Rough Skin'), mon('Incineroar', 'Blaze')], leads: { me: ['Kingambit', 'Pelipper'], opp: ['Garchomp', 'Incineroar'] } }, t,
+  )[0]!.log);
+  assert.ok(order('Swift Swim').indexOf('Kingambit') < order('Swift Swim').indexOf('Garchomp'));
+  assert.ok(order('Defiant').indexOf('Kingambit') > order('Defiant').indexOf('Garchomp'));
+});
+
+/* ---------- reactions to hits and knock-outs ---------- */
+
+test('Stamina raises Defense when hit; Weakness Policy answers a super-effective hit', () => {
+  const [r1] = play(
+    { me: ME, opp: [mon('Incineroar', 'Blaze'), mon('Kingambit', 'Stamina', 'Weakness Policy')], leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Close Combat', 'Kingambit'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+  );
+  assert.deepEqual(boostsFrom(r1!.log, 'Kingambit', 'Stamina'), { def: 1 });
+  assert.deepEqual(boostsFrom(r1!.log, 'Kingambit', 'Weakness Policy'), { atk: 2, spa: 2 });
+});
+
+test('Moxie raises Attack after a knock-out', () => {
+  const [r1] = play(
+    { me: [mon('Garchomp', 'Moxie'), mon('Rillaboom', 'Overgrow')], opp: [mon('Smeargle', 'Own Tempo', '', 'EVs: 1 Spe\nHardy Nature'), mon('Kingambit', 'Defiant')], leads: { me: ['Garchomp', 'Rillaboom'], opp: ['Smeargle', 'Kingambit'] } },
+    [act('me', 'Garchomp', 'move', 'Close Combat', 'Smeargle'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', 'Smeargle', 'Kingambit')],
+  );
+  assert.deepEqual(boostsFrom(r1!.log, 'Garchomp', 'Moxie'), { atk: 1 });
+});
+
+/* ---------- recovery and utility moves ---------- */
+
+test('Recover heals half, Substitute takes the next hit', () => {
+  const [, r2] = play(
+    { me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Flare Blitz', 'Garchomp'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+    [act('me', 'Garchomp', 'move', 'Recover'), act('me', 'Rillaboom', 'move', 'Substitute'), act('opp', 'Incineroar', 'move', 'Flare Blitz', 'Rillaboom'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+  );
+  assert.ok(residuals(r2!.log, 'Garchomp').some((x) => x.text === 'Recover' && x.pct > 0));
+  assert.ok(hitOn(r2!.log, 'Incineroar', 'Flare Blitz')[0]?.substitute);
+});
+
+test('Wish heals whoever stands in that position at the end of the next turn', () => {
+  const t = [act('me', 'Garchomp', 'move', 'Wish'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Flare Blitz', 'Garchomp'), act('opp', 'Kingambit', 'move', 'Swords Dance')];
+  const [r1, r2] = play({ me: ME, opp: OPP, leads: ME_LEADS }, t, [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)]);
+  assert.ok(!residuals(r1!.log, 'Garchomp').some((x) => x.text === 'Wish'));
+  assert.ok(residuals(r2!.log, 'Garchomp').some((x) => x.text === 'Wish' && x.pct > 0));
+});
+
+test('Taunt makes status moves fail; Encore locks the target into its last move this very turn', () => {
+  const [r1] = play(
+    { me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Taunt', 'Kingambit'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+  );
+  assert.equal(failNote(r1!.log, 'Kingambit', 'Swords Dance'), "fails (it's taunted (attacks only))");
+
+  const [, e2] = play(
+    { me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+    [act('me', 'Garchomp', 'move', 'Encore', 'Kingambit'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance'), act('opp', 'Kingambit', 'move', 'Close Combat', 'Garchomp')],
+  );
+  assert.ok(!hits(e2!.log, 'Kingambit', 'Close Combat'));
+  assert.ok(boostsFrom(e2!.log, 'Kingambit', 'Swords Dance'));
+  assert.ok(e2!.end.find((x) => x.name === 'Kingambit')?.effects?.some((x) => x.startsWith('Encore')));
+});
+
+test('a Choice item locks its holder into the first move it uses', () => {
+  const [, r2] = play(
+    { me: [mon('Garchomp', 'Rough Skin', 'Choice Scarf'), mon('Rillaboom', 'Overgrow')], opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Close Combat', 'Incineroar'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+    [act('me', 'Garchomp', 'move', 'Earthquake'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+  );
+  assert.ok(hits(r2!.log, 'Garchomp', 'Close Combat'));
+  assert.ok(!hits(r2!.log, 'Garchomp', 'Earthquake'));
+});
+
+test('Ally Switch swaps positions, so a move aimed at one hits its partner; After You makes the target act next', () => {
+  const [r1] = play(
+    { me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Ally Switch'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Flare Blitz', 'Garchomp'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+  );
+  assert.equal(hitOn(r1!.log, 'Incineroar', 'Flare Blitz')[0]?.mon, 'Rillaboom');
+
+  const [a1] = play(
+    { me: [mon('Garchomp', 'Rough Skin'), mon('Kingambit', 'Defiant')], opp: [mon('Rillaboom', 'Overgrow'), mon('Incineroar', 'Blaze')], leads: { me: ['Garchomp', 'Kingambit'], opp: ['Rillaboom', 'Incineroar'] } },
+    [act('me', 'Garchomp', 'move', 'After You', 'Ally'), act('me', 'Kingambit', 'move', 'Swords Dance'), act('opp', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance')],
+  );
+  assert.deepEqual(movers(a1!.log).slice(0, 2), ['Kingambit', 'Rillaboom']);
+});
+
+test('Eject Button sends its holder out into the Pokémon picked on its action; no pick asks for one', () => {
+  const battle: Battle = { me: [mon('Garchomp', 'Rough Skin'), mon('Kingambit', 'Defiant', 'Eject Button'), mon('Rillaboom', 'Overgrow')], opp: OPP,
+    leads: { me: ['Garchomp', 'Kingambit'], opp: OPP_LEADS }, backs: { me: ['Rillaboom'] } };
+  const turn1 = (kingambit: TurnAction): TurnAction[] => [act('me', 'Garchomp', 'move', 'Swords Dance'), kingambit, act('opp', 'Incineroar', 'move', 'Flare Blitz', 'Kingambit'), act('opp', 'Kingambit', 'move', 'Swords Dance')];
+  const [r1] = play(battle, turn1(swap(act('me', 'Kingambit', 'move', 'Swords Dance'), 'Rillaboom')));
+  assert.ok(r1!.log.some((l) => l.type === 'switch' && l.mon === 'Kingambit' && l.in === 'Rillaboom' && l.via === 'Eject Button'));
+  assert.ok(r1!.state.active.me.includes('Rillaboom'));
+});
+
+test('Stealth Rock hurts on the way in by Rock effectiveness; Defog clears it', () => {
+  const battle: Battle = { me: [mon('Garchomp', 'Rough Skin'), mon('Rillaboom', 'Overgrow'), mon('Charizard', 'Blaze')], opp: OPP,
+    leads: { me: ['Garchomp', 'Rillaboom'], opp: OPP_LEADS }, backs: { me: ['Charizard'] } };
+  const [r1, r2] = play(battle,
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Stealth Rock'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), sw('me', 'Rillaboom', 'Charizard'), ...idle('opp', ...OPP_LEADS)],
+  );
+  assert.equal(r1!.field.hazards.me.rocks, true);
+  assert.deepEqual(residuals(r2!.log, 'Charizard').map((x) => [x.text, x.pct]), [['Stealth Rock', -50]]);
+});
+
+test('Perish Song counts down 3, 2, 1 and everyone who heard it faints at the end of the third turn after', () => {
+  const calm = [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)];
+  const [, , r3, r4] = play({ me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Perish Song'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)], calm, calm, calm);
+  const onField = (r: Ready): EndMon[] => r.end.filter((x) => r.state.active[x.side].includes(x.name));
+  assert.ok(onField(r3!).every((x) => !x.fainted && x.effects?.includes('Perish 1')));
+  assert.ok(onField(r4!).every((x) => x.fainted));
+});
+
+test('Leech Seed drains 1/8 to the seeder each turn; Counter hits back for twice the physical damage', () => {
+  const [r1] = play({ me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Leech Seed', 'Kingambit'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Flare Blitz', 'Garchomp'), act('opp', 'Kingambit', 'move', 'Swords Dance')]);
+  assert.deepEqual(residuals(r1!.log, 'Kingambit').map((x) => [x.text, x.pct]), [['Leech Seed', -12.5]]);
+  assert.ok(residuals(r1!.log, 'Garchomp').some((x) => x.text === 'Leech Seed' && x.pct > 0));
+
+  const [c1] = play({ me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Counter'), act('opp', 'Incineroar', 'move', 'Flare Blitz', 'Rillaboom'), act('opp', 'Kingambit', 'move', 'Swords Dance')]);
+  const blitz = hitOn(c1!.log, 'Incineroar', 'Flare Blitz')[0]!;
+  const counter = hitOn(c1!.log, 'Rillaboom', 'Counter')[0]!;
+  assert.equal(counter.mon, 'Incineroar');
+  assert.ok((counter.maxPct ?? 0) > 0 && blitz.maxPct !== undefined);
+});
+
+test('partners\' abilities reach the calculator (Friend Guard), and Telepathy dodges the partner\'s Earthquake', () => {
+  play({ me: [mon('Garchomp', 'Rough Skin'), mon('Rillaboom', 'Friend Guard')], opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Flare Blitz', 'Garchomp'), act('opp', 'Kingambit', 'move', 'Swords Dance')]);
+  assert.equal(lastCalls.find((c) => c.move === 'Flare Blitz')?.field.defenderSide.isFriendGuard, true);
+
+  const [r1] = play({ me: [mon('Garchomp', 'Rough Skin'), mon('Rillaboom', 'Telepathy')], opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Earthquake'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)]);
+  assert.deepEqual(hitOn(r1!.log, 'Garchomp', 'Earthquake').map((x) => x.mon), ['Incineroar', 'Kingambit']);
+});
+
+test('Disguise takes the first hit and costs 1/8 HP; a Mold Breaker attacker goes straight through', () => {
+  const battle = (ability: string): Battle => ({ me: [mon('Garchomp', ability), mon('Rillaboom', 'Overgrow')], opp: [mon('Flutter', 'Disguise'), mon('Kingambit', 'Defiant')], leads: { me: ['Garchomp', 'Rillaboom'], opp: ['Flutter', 'Kingambit'] } });
+  const t = [act('me', 'Garchomp', 'move', 'Close Combat', 'Flutter'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', 'Flutter', 'Kingambit')];
+  const [r1] = play(battle('Rough Skin'), t);
+  assert.equal(hitOn(r1!.log, 'Garchomp', 'Close Combat')[0]?.blockedBy, 'Disguise');
+  assert.deepEqual(residuals(r1!.log, 'Flutter').map((x) => x.pct), [-12.5]);
+  const [m1] = play(battle('Mold Breaker'), t);
+  assert.equal(hitOn(m1!.log, 'Garchomp', 'Close Combat')[0]?.blockedBy, undefined);
+});
+
+test('Pollen Puff heals a partner; Rest sleeps for exactly two turns', () => {
+  const [, r2] = play({ me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Flare Blitz', 'Garchomp'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Pollen Puff', 'Ally'), ...idle('opp', ...OPP_LEADS)]);
+  assert.ok(residuals(r2!.log, 'Garchomp').some((x) => x.text === 'Pollen Puff' && x.pct > 0));
+
+  const rest = [act('me', 'Garchomp', 'move', 'Rest'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)];
+  const [, z2, z3, z4] = play({ me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Flare Blitz', 'Garchomp'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+    rest, rest, rest);
+  assert.equal(z2!.end.find((x) => x.name === 'Garchomp')?.condition, 'slp');
+  for (const r of [z3, z4]) assert.ok(r!.log.some((l) => l.type === 'skip' && l.mon === 'Garchomp'));
+  void boostsOf;
 });
