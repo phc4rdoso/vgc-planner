@@ -106,8 +106,11 @@ function actionEditor(a: TurnAction, i: number, st: BattleState | null, depth: n
   const pivot = a.kind !== 'switch' && isPivotMove(a.move)
     ? `<div><label class="lbl" for="a-pivot-${i}">Then switch to</label><select class="field" id="a-pivot-${i}" data-a="pivot" data-i="${i}">${options(incoming, a.pivot ?? '', 'Choose…', own)}</select></div>`
     : '';
+  const charging = st?.mons[a.side][a.mon]?.charging;
+  const locked = charging && st?.active[a.side].includes(a.mon)
+    ? `<div class="hint">Charged ${esc(charging.move)} last turn: it attacks with it now, whatever is picked here.</div>` : '';
   return `<div class="act-edit ${a.side}" data-i="${i}">
-    <div class="act-top"><span class="side-tag ${a.side}">${a.side === 'me' ? 'You' : 'Opponent'}</span></div>
+    <div class="act-top"><span class="side-tag ${a.side}">${a.side === 'me' ? 'You' : 'Opponent'}</span></div>${locked}
     <div class="row2">
       ${monField(a, i, st, actions)}
       <div><label class="lbl" for="a-kind-${i}">Action</label><select class="field" id="a-kind-${i}" data-a="kind" data-i="${i}">${kindOption('move', 'Move')}${mega}${kindOption('switch', 'Switch')}</select></div>

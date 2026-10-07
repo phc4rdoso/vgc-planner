@@ -45,7 +45,8 @@ function hitText(r: HitResult, n: Names): string {
   const changes = r.changes?.length ? ` ${statChips(r.changes)}` : '';
   const status = r.status ? ` ${inflictedText(r.status, r.cured)}` : '';
   const endured = r.endured ? ` <span class="muted">holds on with ${esc(r.endured)}</span>` : '';
-  return `<span class="dmg">${range}</span>${ko}${endured}${changes}${status}`;
+  const power = r.power ? ` <span class="bchip up" title="Power this turn, from the battle so far">${r.power} BP</span>` : '';
+  return `<span class="dmg">${range}</span>${power}${ko}${endured}${changes}${status}`;
 }
 
 function statusTargetText(t: StatusTarget, n: Names): string {
@@ -98,8 +99,9 @@ function hpRow(x: EndMon): string {
   const tip = x.fainted
     ? (x.mayLive ? `Faints on the average roll; could survive a low one (${x.lo}–${x.hi}%)` : 'Faints')
     : `${x.lo}–${x.hi}% depending on rolls`;
+  const charging = x.charging ? `<span class="bchip up" title="${esc(`Charging ${x.charging}: it attacks on its next action`)}">charging ${esc(x.charging)}</span>` : '';
   const lost = x.lostItem ? `<s class="muted lost-item" title="${esc(`${x.lostItem}: used up or removed`)}">${esc(x.lostItem)}</s>` : '';
-  return `<div class="hp-row ${x.fainted ? 'ko' : ''}" title="${esc(tip)}">${monIcon(x.species, 'xs')}<span class="hp-name">${esc(x.species)}</span>${statusChip(x.condition)}${lost}
+  return `<div class="hp-row ${x.fainted ? 'ko' : ''}" title="${esc(tip)}">${monIcon(x.species, 'xs')}<span class="hp-name">${esc(x.species)}</span>${statusChip(x.condition)}${lost}${charging}
     <span class="hp-bar"><i class="${tone}" data-w="${x.pct}"></i></span>
     <span class="hp-pct">${x.fainted ? 'KO' : `${x.pct}%`}</span>${range}${x.mayFaint ? '<span class="ko-tag">may KO</span>' : ''}
     ${statChips(x.boosts)}</div>`;
@@ -141,7 +143,8 @@ const hpTone = (pct: number): string => (pct > 50 ? 'ok' : pct > 20 ? 'mid' : 'l
 
 /** One Pokémon in the card summary: sprite plus a small HP bar, or a KO tag. Details are in the tooltip. */
 function miniHp(x: EndMon): string {
-  const tip = x.fainted ? `${x.species}: KO` : `${x.species}: ${x.pct}% (${x.lo}–${x.hi}% depending on rolls)`;
+  const tip = x.fainted ? `${x.species}: KO`
+    : `${x.species}: ${x.pct}% (${x.lo}–${x.hi}% depending on rolls)${x.charging ? `, charging ${x.charging}` : ''}`;
   return `<span class="mini-hp ${x.fainted ? 'ko' : ''}" title="${esc(tip)}">${monIcon(x.species, 'xs')}${x.fainted
     ? '<span class="ko-tag">KO</span>'
     : `<span class="hp-bar"><i class="${hpTone(x.pct)}" data-w="${x.pct}"></i></span>`}${statusChip(x.condition)}</span>`;

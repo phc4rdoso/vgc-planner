@@ -57,7 +57,10 @@ export const FIELD_MOVES: Readonly<Record<string, FieldMove>> = {
 };
 
 export const PROTECT_MOVES: ReadonlySet<string> = new Set(['protect', 'detect', 'spikyshield', 'kingsshield', 'banefulbunker', 'obstruct', 'silktrap', 'burningbulwark']);
+/** Moves that go through Protect and lift it (and Wide Guard / Quick Guard on that side) for the rest of the turn. */
 export const BREAKS_PROTECT: ReadonlySet<string> = new Set(['feint', 'phantomforce', 'shadowforce', 'hyperspacefury', 'hyperspacehole']);
+/** Moves that fail when the user used one of them successfully on its previous action. */
+export const PROTECT_FAMILY: ReadonlySet<string> = new Set([...PROTECT_MOVES, 'wideguard', 'quickguard', 'endure']);
 
 export const ENTRY_WEATHER: Readonly<Record<string, 'Sun' | 'Rain' | 'Sand' | 'Snow'>> = { drizzle: 'Rain', drought: 'Sun', sandstream: 'Sand', snowwarning: 'Snow', orichalcumpulse: 'Sun' };
 export const ENTRY_TERRAIN: Readonly<Record<string, 'Electric' | 'Grassy' | 'Psychic' | 'Misty'>> = { electricsurge: 'Electric', hadronengine: 'Electric', grassysurge: 'Grassy', psychicsurge: 'Psychic', mistysurge: 'Misty' };
@@ -175,3 +178,34 @@ export const STICKY_ABILITIES: readonly string[] = ['stickyhold'];
 export const ITEM_REMOVAL: Readonly<Record<string, 'knock' | 'steal' | 'burn'>> = { knockoff: 'knock', thief: 'steal', covet: 'steal', incinerate: 'burn' };
 /** Status moves that swap the user's and the target's items. */
 export const ITEM_SWAP: ReadonlySet<string> = new Set(['trick', 'switcheroo']);
+
+/**
+ * Two-turn moves: the first action charges (with an optional stat boost, as Electro Shot and Meteor Beam give), the
+ * next one attacks. `instantIn`: no charging needed in that weather. Power Herb skips the charge once. `semi`: the
+ * user is out of reach while charging (Fly, Dig...).
+ */
+export interface ChargeMove { instantIn?: 'Sun' | 'Rain' | 'Sand' | 'Snow'; boost?: BoostChange; semi?: string; text?: string }
+export const CHARGE_MOVES: Readonly<Record<string, ChargeMove>> = {
+  solarbeam: { instantIn: 'Sun', text: 'absorbs light' }, solarblade: { instantIn: 'Sun', text: 'absorbs light' },
+  electroshot: { instantIn: 'Rain', boost: { spa: 1 }, text: 'absorbs electricity' }, meteorbeam: { boost: { spa: 1 }, text: 'is overflowing with space power' },
+  skullbash: { boost: { def: 1 }, text: 'tucks in its head' }, skyattack: { text: 'is glowing' }, razorwind: { text: 'whipped up a whirlwind' },
+  freezeshock: { text: 'is cloaked in a freezing light' }, iceburn: { text: 'is cloaked in freezing air' },
+  fly: { semi: 'flies up high' }, bounce: { semi: 'springs up' }, dig: { semi: 'burrows underground' }, dive: { semi: 'dives underwater' },
+  phantomforce: { semi: 'vanishes' }, shadowforce: { semi: 'vanishes' },
+};
+/** Moves that still reach a Pokémon in the middle of a semi-invulnerable move, by that move. */
+export const HITS_SEMI_INVULNERABLE: Readonly<Record<string, readonly string[]>> = {
+  fly: ['thunder', 'hurricane', 'skyuppercut', 'smackdown', 'thousandarrows', 'gust', 'twister'],
+  bounce: ['thunder', 'hurricane', 'skyuppercut', 'smackdown', 'thousandarrows', 'gust', 'twister'],
+  dig: ['earthquake', 'magnitude', 'fissure'], dive: ['surf', 'whirlpool'],
+};
+
+/** Moves that only work on the user's first turn after coming in. */
+export const FIRST_TURN_ONLY: ReadonlySet<string> = new Set(['fakeout', 'firstimpression', 'matblock']);
+/**
+ * Moves that need the target to be about to use a certain kind of move (and not to have moved yet):
+ * an attack (Sucker Punch, Thunderclap) or a priority move (Upper Hand).
+ */
+export const NEEDS_TARGET_MOVE: Readonly<Record<string, 'attack' | 'priority'>> = { suckerpunch: 'attack', thunderclap: 'attack', upperhand: 'priority' };
+/** Attacks that make the target flinch every time (only on the target's first turn for Fake Out, see FIRST_TURN_ONLY). */
+export const ALWAYS_FLINCH: ReadonlySet<string> = new Set(['fakeout', 'upperhand']);

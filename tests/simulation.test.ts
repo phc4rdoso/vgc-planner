@@ -323,14 +323,14 @@ test('Gale Wings gives Flying moves +1 priority only at full HP', () => {
 });
 
 test('priority moves fail into Psychic Terrain, priority-blocking abilities and Quick Guard (including Prankster moves)', () => {
-  // Psychic Terrain set on turn 1 stops Fake Out on a grounded target on turn 2.
+  // Psychic Terrain set on turn 1 stops a priority attack on a grounded target on turn 2 (Fake Out would fail anyway after turn 1).
   const s = setup();
   const t1 = turn('Protect', 'Protect', 'Psychic Terrain', 'Protect');
-  const t2 = turn('Fake Out', 'Protect', 'Swords Dance', 'Swords Dance', { ril: 'Incineroar' });
+  const t2 = turn('Aqua Jet', 'Swords Dance', 'Swords Dance', 'Swords Dance', { ril: 'Incineroar' });
   t1.children.push(t2); s.plan.children.push(t1);
   const r2 = ready(run(s.plan, s.team).results.get(t2.id));
-  assert.equal(whyBlocked(r2, 'Fake Out'), 'Psychic Terrain');
-  assert.ok(!r2.log.some((l) => l.type === 'skip' && l.why === 'flinched'), 'a blocked Fake Out does not flinch');
+  assert.equal(whyBlocked(r2, 'Aqua Jet'), 'Psychic Terrain');
+  assert.ok(!r2.log.some((l) => l.type === 'skip' && l.why === 'flinched'), 'the blocked move does nothing');
 
   // Armor Tail on Incineroar protects its partner too.
   const tail = setup(MY_TEAM, OPP_TEAM.replace('Ability: Blaze', 'Ability: Armor Tail'));

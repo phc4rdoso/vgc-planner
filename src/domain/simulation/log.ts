@@ -21,6 +21,8 @@ export interface HitResult {
   cured?: string;
   /** Focus Sash or Sturdy left it at 1 HP (on at least the highest roll). */
   endured?: string;
+  /** The move's power when the battle changed it (Rage Fist, Last Respects, Payback...). */
+  power?: number;
 }
 
 export interface DebuffTarget { side: Side; mon: string; protected?: boolean; blocked?: string; changes?: StatChange[] }
@@ -65,6 +67,8 @@ export interface EndMon {
   condition: StatusId | null;
   /** The item from the paste, when it has been used up or removed. */
   lostItem?: string;
+  /** The two-turn move it is charging (released on its next action). */
+  charging?: string;
 }
 
 /** `field` is the field during the turn (before the end-of-turn countdown), so it includes what was set up this turn. */

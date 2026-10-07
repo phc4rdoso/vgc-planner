@@ -77,9 +77,22 @@ export const MOVES: Record<string, MoveData> = {
   sandstorm: mv('Sandstorm', 0, 'Status', 'all', 0, 'Rock'),
   grassyterrain: mv('Grassy Terrain', 0, 'Status', 'all', 0, 'Grass'),
   bellydrum: mv('Belly Drum', 0, 'Status', 'self'),
+  aquajet: mv('Aqua Jet', 40, 'Physical', 'normal', 1, 'Water', contact),
+  solarbeam: mv('Solar Beam', 120, 'Special', 'normal', 0, 'Grass'),
+  electroshot: mv('Electro Shot', 130, 'Special', 'normal', 0, 'Electric'),
+  fly: mv('Fly', 90, 'Physical', 'any', 0, 'Flying', contact),
+  feint: mv('Feint', 30, 'Physical', 'normal', 2),
+  suckerpunch: mv('Sucker Punch', 70, 'Physical', 'normal', 1, 'Dark', contact),
+  ragefist: mv('Rage Fist', 50, 'Physical', 'normal', 0, 'Ghost', contact),
+  lastrespects: mv('Last Respects', 50, 'Physical', 'normal', 0, 'Ghost'),
+  stompingtantrum: mv('Stomping Tantrum', 75, 'Physical', 'normal', 0, 'Ground', contact),
+  payback: mv('Payback', 50, 'Physical', 'normal', 0, 'Dark', contact),
+  sunnyday: mv('Sunny Day', 0, 'Status', 'all', 0, 'Fire'),
+  raindance: mv('Rain Dance', 0, 'Status', 'all', 0, 'Water'),
+  auroraveil: mv('Aurora Veil', 0, 'Status', 'allySide', 0, 'Ice'),
 };
 
-export interface CalcCall { attacker: string; defender: string; move: string; field: FieldOptions; attackerBoostAtk: number; defenderHP: number; attackerStatus: string; attackerAbility: string }
+export interface CalcCall { attacker: string; defender: string; move: string; field: FieldOptions; attackerBoostAtk: number; defenderHP: number; attackerStatus: string; attackerAbility: string; bp: number }
 
 const idOf = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 const mult = (b: number): number => (b >= 0 ? (2 + b) / 2 : 2 / (2 - b));
@@ -114,9 +127,10 @@ export function makeStubCalc(options: { champions?: boolean } = {}): { lib: Calc
   }
   class Move implements CalcMove {
     name: string; priority: number; category: string; target: string; bp: number; type: string; flags: { contact?: number }; recoil?: [number, number]; drain?: [number, number];
-    constructor(_gen: CalcGeneration, name: string) {
+    constructor(_gen: CalcGeneration, name: string, options: { overrides?: { basePower?: number } } = {}) {
       const d = MOVES[idOf(name)] ?? mv(name, 0, 'Status', 'normal');
-      this.name = d.name; this.priority = d.priority; this.category = d.category; this.target = d.target; this.bp = d.bp; this.type = d.type;
+      this.name = d.name; this.priority = d.priority; this.category = d.category; this.target = d.target; this.type = d.type;
+      this.bp = options.overrides?.basePower ?? d.bp;
       this.flags = d.contact ? { contact: 1 } : {};
       if (d.recoil) this.recoil = d.recoil;
       if (d.drain) this.drain = d.drain;
@@ -137,9 +151,9 @@ export function makeStubCalc(options: { champions?: boolean } = {}): { lib: Calc
     },
     calculate(_gen, attacker, defender, move, field) {
       const att = attacker as StubPokemon; const def = defender as StubPokemon; const f = field as unknown as FieldOptions;
-      calls.push({ attacker: att.name, defender: def.name, move: move.name ?? '', field: f, attackerBoostAtk: att.boosts.atk, defenderHP: def.originalCurHP, attackerStatus: att.status, attackerAbility: att.ability ?? '' });
+      calls.push({ attacker: att.name, defender: def.name, move: move.name ?? '', field: f, attackerBoostAtk: att.boosts.atk, defenderHP: def.originalCurHP, attackerStatus: att.status, attackerAbility: att.ability ?? '', bp: (move as Move).bp });
       if (move.name === 'Earthquake' && def.name === 'Aerodactyl') return { damage: 0 };
-      const bp = (MOVES[idOf(move.name ?? '')]?.bp) ?? 0;
+      const bp = (move as Move).bp;
       let base = Math.floor((bp * att.stats.atk * mult(att.boosts.atk)) / def.stats.def / 3);
       if (att.status === 'brn' && move.category === 'Physical') base = Math.floor(base / 2);
       if (f.gameType === 'Doubles' && /allAdjacent/.test(move.target ?? '')) base = Math.floor(base * 0.75);

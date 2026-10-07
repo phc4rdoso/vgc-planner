@@ -14,6 +14,8 @@ export interface MoveInfo {
   type: string;
   /** Showdown target type: "normal", "allAdjacent", "allAdjacentFoes", "self", ... */
   target: string;
+  /** Base power (0 for status moves). */
+  bp: number;
   /** Makes contact (Rough Skin, Rocky Helmet, Spiky Shield). */
   contact: boolean;
   /** Hits more than once (Focus Sash and Sturdy don't hold against it). */
@@ -27,6 +29,9 @@ export interface MoveInfo {
  * `attackerItem` / `defenderItem` name a held item that took part (Life Orb, a Gem, a resist berry...);
  * `recoil` and `drain` are the user's HP lost / regained on the average roll, before anything caps the damage.
  */
+/** Battle facts the calculator can't see on the two Pokémon: a move's power from the battle so far, fainted allies (Supreme Overlord). */
+export interface HitOptions { basePower?: number; alliesFainted?: number }
+
 export interface HitCalc { rolls: number[]; attackerItem: string; defenderItem: string; recoil: number; drain: number }
 
 /** What the simulator needs from the damage calculator. */
@@ -42,7 +47,7 @@ export interface CalcEngine {
   megaOf(species: string, item: string): string | null;
   isBerry(item: string): boolean;
   /** The 16 damage rolls (summed across hits for multi-hit moves), plus the side effects the calculator knows. */
-  damage(attacker: MonState, defender: MonState, moveName: string, field: FieldOptions): HitCalc;
+  damage(attacker: MonState, defender: MonState, moveName: string, field: FieldOptions, opts?: HitOptions): HitCalc;
 }
 
 /** Calculator results can be a number, a list of rolls, or a list of lists (multi-hit). Normalises to one list of rolls. */
@@ -84,8 +89,9 @@ export function createEngine(lib: CalcLib): CalcEngine {
 
   const baseCache = new Map<string, StatTable | null>();
   const typeCache = new Map<string, string[]>();
-  const buildPoke = (mon: MonState): InstanceType<CalcLib['Pokemon']> => {
+  const buildPoke = (mon: MonState, alliesFainted = 0): InstanceType<CalcLib['Pokemon']> => {
     const options: Record<string, unknown> = { level: 50, nature: mon.set.nature || 'Serious', evs: { ...mon.sp }, boosts: { ...mon.boosts } };
+    if (alliesFainted) options.alliesFainted = alliesFainted;
     // The item it holds now: consumed or removed items no longer count.
     if (mon.item) options.item = mon.item;
     // The calculator applies burn's Attack cut (and Guts / Facade) from the status.
@@ -127,12 +133,12 @@ export function createEngine(lib: CalcLib): CalcEngine {
         const known = generation.moves ? data !== undefined : true;
         const m = new lib.Move(generation, name);
         return {
-          exists: known, name: m.name || name, priority: m.priority ?? 0, category: m.category ?? 'Status', type: m.type ?? '', target: m.target ?? 'normal',
+          exists: known, name: m.name || name, priority: m.priority ?? 0, category: m.category ?? 'Status', type: m.type ?? '', target: m.target ?? 'normal', bp: m.bp ?? 0,
           contact: !!m.flags?.contact, multihit: (m.hits ?? 1) > 1 || data?.multihit !== undefined,
           secondaries: Array.isArray(m.secondaries) ? m.secondaries.length > 0 : !!m.secondaries,
         };
       } catch {
-        return { exists: false, name, priority: 0, category: 'Status', type: '', target: 'normal', contact: false, multihit: false, secondaries: false };
+        return { exists: false, name, priority: 0, category: 'Status', type: '', target: 'normal', bp: 0, contact: false, multihit: false, secondaries: false };
       }
     },
     megaOf(species, item) {
@@ -147,8 +153,9 @@ export function createEngine(lib: CalcLib): CalcEngine {
       try { return generation.items?.get(toID(item))?.isBerry ?? / Berry$/.test(item); }
       catch { return / Berry$/.test(item); }
     },
-    damage(attacker, defender, moveName, field) {
-      const result = lib.calculate(generation, buildPoke(attacker), buildPoke(defender), new lib.Move(generation, moveName), new lib.Field(field));
+    damage(attacker, defender, moveName, field, opts = {}) {
+      const move = new lib.Move(generation, moveName, opts.basePower !== undefined ? { overrides: { basePower: opts.basePower } } : undefined);
+      const result = lib.calculate(generation, buildPoke(attacker, opts.alliesFainted), buildPoke(defender), move, new lib.Field(field));
       const rolls = rollsOf(result.damage);
       const average = (xs: readonly number[]): number => (xs.length ? xs.reduce((s, x) => s + x, 0) / xs.length : 0);
       const attackerMax = statsOf(attacker).hp;

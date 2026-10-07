@@ -17,7 +17,7 @@ export interface CalcPokemon {
 }
 
 export interface CalcMove {
-  name?: string; type?: string; priority?: number; category?: string; target?: string;
+  name?: string; bp?: number; type?: string; priority?: number; category?: string; target?: string;
   flags?: { contact?: number };
   /** Number of hits the calculator applies (more than 1 for multi-hit moves). */
   hits?: number;
@@ -59,7 +59,8 @@ export interface CalcResult {
 export interface CalcLib {
   Generations?: { get(num: number): CalcGeneration };
   Pokemon: new (gen: CalcGeneration, name: string, options?: Record<string, unknown>) => CalcPokemon;
-  Move: new (gen: CalcGeneration, name: string) => CalcMove;
+  /** `overrides.basePower` sets the power for moves whose power the calculator can't know (Rage Fist, Last Respects). */
+  Move: new (gen: CalcGeneration, name: string, options?: { overrides?: { basePower?: number } }) => CalcMove;
   Field: new (options?: FieldOptions) => object;
   calculate(gen: CalcGeneration, attacker: CalcPokemon, defender: CalcPokemon, move: CalcMove, field: object): CalcResult;
 }

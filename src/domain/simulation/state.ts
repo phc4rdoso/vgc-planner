@@ -46,6 +46,19 @@ export interface MonState {
   unburden: boolean;
   /** Once-per-battle entry abilities (Intrepid Sword, Dauntless Shield) have triggered. */
   entryBoosted: boolean;
+  /**
+   * A two-turn move charged last turn (Solar Beam outside sun, Electro Shot outside rain, Fly...): it is released
+   * on its next action whatever was picked. `semi` describes a semi-invulnerable state (Fly: up high).
+   */
+  charging: { move: string; target: string; semi: string | null } | null;
+  /** Full turns spent on the field since it last came in (Fake Out only works when 0). */
+  activeTurns: number;
+  /** Times it has been hit by an attack this battle (Rage Fist), kept through switching. */
+  timesHit: number;
+  /** Its last action failed or was blocked (Stomping Tantrum, Temper Flare double their power). */
+  lastFailed: boolean;
+  /** Its last action was a successful Protect-like move (using one again straight away fails). */
+  protectStreak: boolean;
 }
 
 export interface FieldState {
@@ -70,6 +83,12 @@ export interface TurnScratch {
   quick: Record<Side, boolean>;
   helped: Record<string, boolean>;
   flinched: Record<string, boolean>;
+  /** Pokémon that have taken their action this turn (Sucker Punch, Payback, Bolt Beak). */
+  acted: Record<string, boolean>;
+  /** For each Pokémon hit this turn, the keys of who hit it (Avalanche, Revenge, Assurance, Focus Punch). */
+  hitBy: Record<string, string[]>;
+  /** Pokémon that started charging a two-turn move this turn. */
+  charged: Record<string, boolean>;
 }
 
 export interface BattleState {
@@ -119,7 +138,7 @@ export function fieldEffects(f: FieldState): FieldEffect[] {
 }
 
 export const newScratch = (): TurnScratch => ({
-  protect: {}, redirect: { me: null, opp: null }, entered: {}, wide: { me: false, opp: false }, quick: { me: false, opp: false }, helped: {}, flinched: {},
+  protect: {}, redirect: { me: null, opp: null }, entered: {}, wide: { me: false, opp: false }, quick: { me: false, opp: false }, helped: {}, flinched: {}, acted: {}, hitBy: {}, charged: {},
 });
 
 /** Mon that must have stats; throws a plain Error (shown as a calculator problem) otherwise. */
@@ -265,6 +284,7 @@ export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection'>, 
         mega: false, megaForm, megaAbility,
         sp: (statPoints(set) ?? { sp: emptyStatTable() }).sp, stats: null, boosts: zeroBoosts(), hp: 0, hpLo: 0, hpHi: 0, fainted: false,
         status: null, toxic: 0, slept: 0, item: set.item, unburden: false, entryBoosted: false,
+        charging: null, activeTurns: 0, timesHit: 0, lastFailed: false, protectStreak: false,
       };
       refreshStats(engine, mon);
       st.mons[side][set.species] = mon;

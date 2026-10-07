@@ -10,6 +10,7 @@ import { createEngine } from '../src/domain/simulation/engine.ts';
 import type { HitResult, LogEntry, TurnResult } from '../src/domain/simulation/log.ts';
 import { simulatePlan } from '../src/domain/simulation/plan.ts';
 import type { ActionKind, FlowNode, Side, TurnAction } from '../src/domain/types.ts';
+import type { CalcCall } from './helpers/stub-calc.ts';
 import { makeStubCalc } from './helpers/stub-calc.ts';
 
 type Ready = Extract<TurnResult, { status: 'ready' }>;
@@ -25,6 +26,9 @@ interface Battle {
   backs?: Partial<Record<Side, string[]>>;
 }
 
+/** What the stand-in calculator was asked during the last {@link play}. */
+let lastCalls: CalcCall[] = [];
+
 /** Runs the turns one after another down a single branch and returns each turn's result (all must be ready). */
 function play(b: Battle, ...turns: TurnAction[][]): Ready[] {
   const team = newTeam('T', b.me.join('\n\n'));
@@ -37,7 +41,9 @@ function play(b: Battle, ...turns: TurnAction[][]): Ready[] {
   const nodes: FlowNode[] = turns.map((actions) => newNode({ actions }));
   let parent: { children: FlowNode[] } = plan;
   for (const n of nodes) { parent.children.push(n); parent = n; }
-  const results = simulatePlan(createEngine(makeStubCalc().lib), team, plan);
+  const stub = makeStubCalc();
+  lastCalls = stub.calls;
+  const results = simulatePlan(createEngine(stub.lib), team, plan);
   return nodes.map((n, i) => {
     const r = results.get(n.id);
     assert.equal(r?.status, 'ready', `turn ${i + 1}: ${JSON.stringify(r)}`);
@@ -257,4 +263,154 @@ test('draining moves heal the user by part of the damage dealt', () => {
   );
   const drain = residuals(r2!.log, 'Rillaboom').find((x) => x.text === 'Giga Drain');
   assert.ok(drain && drain.pct > 0, JSON.stringify(r2!.log));
+});
+
+/* ---------- two-turn moves ---------- */
+
+const ME = [mon('Garchomp', 'Rough Skin'), mon('Rillaboom', 'Overgrow')];
+const ME_LEADS = { me: ['Garchomp', 'Rillaboom'], opp: OPP_LEADS };
+const hits = (log: readonly LogEntry[], user: string, move: string): boolean => log.some((l) => l.type === 'hit' && l.mon === user && l.move === move);
+
+test('Solar Beam charges outside sun and fires on the next action, whatever was picked for it', () => {
+  const [r1, r2] = play(
+    { me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Solar Beam', 'Incineroar'), ...idle('opp', ...OPP_LEADS)],
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', ''), ...idle('opp', ...OPP_LEADS)],
+  );
+  assert.ok(!hits(r1!.log, 'Rillaboom', 'Solar Beam'));
+  assert.deepEqual(effects(r1!.log, 'Rillaboom'), ['Solar Beam: absorbs light: attacks on its next action']);
+  assert.equal(r1!.end.find((e) => e.name === 'Rillaboom')?.charging, 'Solar Beam');
+  assert.equal(hitOn(r2!.log, 'Rillaboom', 'Solar Beam')[0]?.mon, 'Incineroar');
+  assert.equal(r2!.end.find((e) => e.name === 'Rillaboom')?.charging, undefined);
+});
+
+test('Solar Beam fires at once in sun, and Power Herb skips the charge once', () => {
+  const [sun] = play(
+    { me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Sunny Day'), act('me', 'Rillaboom', 'move', 'Solar Beam', 'Incineroar'), ...idle('opp', ...OPP_LEADS)],
+  );
+  assert.ok(hits(sun!.log, 'Rillaboom', 'Solar Beam'));
+  const [herb] = play(
+    { me: [mon('Garchomp', 'Rough Skin'), mon('Rillaboom', 'Overgrow', 'Power Herb')], opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Solar Beam', 'Incineroar'), ...idle('opp', ...OPP_LEADS)],
+  );
+  assert.deepEqual(effects(herb!.log, 'Rillaboom'), ['Power Herb: lets it use Solar Beam at once']);
+  assert.ok(hits(herb!.log, 'Rillaboom', 'Solar Beam'));
+  assert.equal(herb!.end.find((e) => e.name === 'Rillaboom')?.lostItem, 'Power Herb');
+});
+
+test('Electro Shot raises Sp. Atk while charging, and attacks the same turn in rain', () => {
+  const [dry] = play(
+    { me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Electro Shot', 'Incineroar'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+  );
+  assert.deepEqual(boostsFrom(dry!.log, 'Garchomp', 'Electro Shot'), { spa: 1 });
+  assert.ok(!hits(dry!.log, 'Garchomp', 'Electro Shot'));
+  const [rain] = play(
+    { me: [mon('Garchomp', 'Rough Skin'), mon('Pelipper', 'Drizzle')], opp: OPP, leads: { me: ['Garchomp', 'Pelipper'], opp: OPP_LEADS } },
+    [act('me', 'Garchomp', 'move', 'Electro Shot', 'Incineroar'), act('me', 'Pelipper', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+  );
+  assert.deepEqual(boostsFrom(rain!.log, 'Garchomp', 'Electro Shot'), { spa: 1 });
+  assert.ok(hits(rain!.log, 'Garchomp', 'Electro Shot'));
+});
+
+test('a Pokémon up in the air with Fly is out of reach for most moves', () => {
+  const [r1] = play(
+    { me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Fly', 'Incineroar'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Flare Blitz', 'Garchomp'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+  );
+  assert.match(hitOn(r1!.log, 'Incineroar', 'Flare Blitz')[0]?.blockedBy ?? '', /out of reach \(Garchomp flies up high\)/);
+});
+
+/* ---------- Feint ---------- */
+
+test('Feint breaks Protect, so later attacks that turn land', () => {
+  const [r1] = play(
+    { me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Feint', 'Incineroar'), act('me', 'Rillaboom', 'move', 'Close Combat', 'Incineroar'), act('opp', 'Incineroar', 'move', 'Protect'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+  );
+  assert.equal(hitOn(r1!.log, 'Garchomp', 'Feint')[0]?.protected, undefined);
+  assert.ok(effects(r1!.log, 'Incineroar').includes('Feint: breaks its protection'));
+  assert.equal(hitOn(r1!.log, 'Rillaboom', 'Close Combat')[0]?.protected, undefined);
+});
+
+test('Feint lifts Wide Guard for the whole side', () => {
+  const [r1] = play(
+    { me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Earthquake'), act('me', 'Rillaboom', 'move', 'Feint', 'Kingambit'), act('opp', 'Incineroar', 'move', 'Swords Dance'), act('opp', 'Kingambit', 'move', 'Wide Guard')],
+  );
+  assert.ok(effects(r1!.log, 'Kingambit').includes('Feint: breaks Wide Guard'));
+  assert.ok(hitOn(r1!.log, 'Garchomp', 'Earthquake').every((x) => !x.protected));
+});
+
+/* ---------- moves that fail ---------- */
+
+const failNote = (log: readonly LogEntry[], user: string, move: string): string | undefined => {
+  const e = log.find((l) => l.type === 'other' && l.mon === user && l.move === move);
+  return e?.type === 'other' ? e.note : undefined;
+};
+
+test('Fake Out only works on the first turn out; a second Protect in a row fails', () => {
+  const both = [act('me', 'Garchomp', 'move', 'Protect'), act('me', 'Rillaboom', 'move', 'Fake Out', 'Incineroar'), ...idle('opp', ...OPP_LEADS)];
+  const [r1, r2] = play({ me: ME, opp: OPP, leads: ME_LEADS }, both, both);
+  assert.ok(hits(r1!.log, 'Rillaboom', 'Fake Out'));
+  assert.equal(failNote(r2!.log, 'Rillaboom', 'Fake Out'), 'fails (only works on its first turn out)');
+  assert.match(failNote(r2!.log, 'Garchomp', 'Protect') ?? '', /^fails \(used right after another protecting move/);
+});
+
+test('Sucker Punch fails unless the target is about to attack', () => {
+  const sucker = (garchomp: TurnAction): Ready => play(
+    { me: ME, opp: OPP, leads: ME_LEADS },
+    [garchomp, act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance'), act('opp', 'Kingambit', 'move', 'Sucker Punch', 'Garchomp')],
+  )[0]!;
+  assert.equal(failNote(sucker(act('me', 'Garchomp', 'move', 'Swords Dance')).log, 'Kingambit', 'Sucker Punch'), "fails (Garchomp isn't attacking)");
+  assert.ok(hits(sucker(act('me', 'Garchomp', 'move', 'Close Combat', 'Incineroar')).log, 'Kingambit', 'Sucker Punch'));
+});
+
+test('Aurora Veil fails without Snow', () => {
+  const [r1] = play({ me: ME, opp: OPP, leads: ME_LEADS }, [act('me', 'Garchomp', 'move', 'Aurora Veil'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)]);
+  const veil = r1!.log.find((l) => l.type === 'field' && l.move === 'Aurora Veil');
+  assert.ok(veil?.type === 'field' && veil.text === 'fails (needs Snow)');
+});
+
+/* ---------- power from the battle so far ---------- */
+
+const powerOf = (log: readonly LogEntry[], user: string, move: string): number | undefined => hitOn(log, user, move)[0]?.power;
+
+test('Rage Fist gains 50 power for each hit taken, even across turns', () => {
+  const [, r2] = play(
+    { me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Flare Blitz', 'Garchomp'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+    [act('me', 'Garchomp', 'move', 'Rage Fist', 'Incineroar'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+  );
+  assert.equal(powerOf(r2!.log, 'Garchomp', 'Rage Fist'), 100);
+});
+
+test('Last Respects gains 50 power for each fainted Pokémon of its side', () => {
+  const [, r2] = play(
+    { me: [mon('Smeargle', 'Own Tempo', '', 'EVs: 1 Spe\nHardy Nature'), mon('Kingambit', 'Defiant'), mon('Rillaboom', 'Overgrow')], opp: [mon('Garchomp', 'Rough Skin'), mon('Incineroar', 'Blaze')],
+      leads: { me: ['Smeargle', 'Kingambit'], opp: ['Garchomp', 'Incineroar'] }, backs: { me: ['Rillaboom'] } },
+    [act('me', 'Smeargle', 'move', 'Swords Dance'), act('me', 'Kingambit', 'move', 'Swords Dance'), act('opp', 'Garchomp', 'move', 'Close Combat', 'Smeargle'), act('opp', 'Incineroar', 'move', 'Swords Dance')],
+    [act('me', 'Rillaboom', 'move', 'Swords Dance'), act('me', 'Kingambit', 'move', 'Last Respects', 'Incineroar'), ...idle('opp', 'Garchomp', 'Incineroar')],
+  );
+  assert.equal(powerOf(r2!.log, 'Kingambit', 'Last Respects'), 100);
+});
+
+test('Stomping Tantrum doubles after a failed move', () => {
+  const [, r2] = play(
+    { me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Aurora Veil'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+    [act('me', 'Garchomp', 'move', 'Stomping Tantrum', 'Incineroar'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+  );
+  assert.equal(powerOf(r2!.log, 'Garchomp', 'Stomping Tantrum'), 150);
+});
+
+test('Payback doubles when the target really moved first (correcting the calculator\'s Speed-only guess)', () => {
+  const [r1] = play(
+    { me: [mon('Kingambit', 'Defiant'), mon('Rillaboom', 'Overgrow')], opp: OPP, leads: { me: ['Kingambit', 'Rillaboom'], opp: OPP_LEADS } },
+    [act('me', 'Kingambit', 'move', 'Payback', 'Incineroar'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+  );
+  assert.equal(powerOf(r1!.log, 'Kingambit', 'Payback'), 100);
+  // Kingambit is slower than Incineroar, so the real calculator doubles Payback by itself: it gets the base power.
+  assert.equal(lastCalls.find((c) => c.move === 'Payback')?.bp, 50);
 });
