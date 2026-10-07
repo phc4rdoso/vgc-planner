@@ -10,6 +10,7 @@ import { itemIcon, monIcon } from '../icons.ts';
 import { toast } from '../overlays.ts';
 import { PASTE_LINK_HINT } from '../paste-links.ts';
 import { renderNav } from './sidebar.ts';
+import { extLinksHTML } from '../ext-links.ts';
 
 function monCard(m: PokemonSet): string {
   const sp = statPoints(m);
@@ -28,7 +29,7 @@ export function renderTeamView(main: HTMLElement, team: Team): void {
   <div class="topbar"><input class="title-input" id="team-name" value="${esc(team.name)}" aria-label="Team name">
     <span class="chip">${esc(REGULATION.label)}</span><span class="spacer"></span>
     <button class="btn" data-act="export-team" data-team="${esc(team.id)}">Export team</button>
-    <button class="btn danger" data-act="delete-team" data-team="${esc(team.id)}">Delete</button></div>
+    <button class="btn danger" data-act="delete-team" data-team="${esc(team.id)}">Delete</button>${extLinksHTML()}</div>
   <div class="page"><div class="page-inner">
     <div class="section"><div class="section-head"><h3>Team</h3><button class="btn primary sm" id="save-paste">Update team</button></div>
       <textarea class="paste" id="team-paste" data-team-paste placeholder="Paste your team in Showdown format, ${PASTE_LINK_HINT}">${esc(team.paste)}</textarea>

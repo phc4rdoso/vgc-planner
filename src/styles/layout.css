@@ -50,6 +50,14 @@
 .title-input:hover { border-color: var(--line-soft); }
 .title-input:focus { border-color: var(--me); outline: none; background: var(--panel); }
 .spacer { flex: 1; }
+/* Source code and Buy Me a Coffee, at the right end of the top bar. */
+.ext-links { display: flex; align-items: center; gap: 6px; margin-left: 4px; padding-left: 10px; border-left: 1px solid var(--line-soft); }
+.btn.ext-link { padding: 6px 8px; color: var(--ink-2); text-decoration: none; }
+.btn.ext-link:hover { color: var(--ink); }
+.btn.ext-link.coffee { color: #1f1f1f; background: #ffdd00; border-color: #ffdd00; }
+.btn.ext-link.coffee:hover { filter: brightness(1.05); color: #1f1f1f; }
+.topbar.bare { border-bottom: 0; background: transparent; }
+@media (max-width: 720px) { .btn.ext-link .label { display: none; } }
 
 /* ---------- gameplan tabs (bottom bar, like spreadsheet sheets) ---------- */
 .tabbar { display: flex; align-items: stretch; gap: 4px; padding: 0 10px; min-height: 38px; background: var(--panel); border-top: 1px solid var(--line-soft); }
