@@ -74,9 +74,9 @@ export const STAT_DROP_BLOCKERS: readonly string[] = ['clearbody', 'whitesmoke',
 export const INTIMIDATE_IMMUNE: readonly string[] = ['clearbody', 'whitesmoke', 'fullmetalbody', 'hypercutter', 'innerfocus', 'owntempo', 'oblivious', 'scrappy', 'mirrorarmor'];
 
 /** Non-volatile status conditions the simulator tracks (freeze only comes from chance effects, so it is not modeled). */
-export type StatusId = 'brn' | 'par' | 'psn' | 'tox' | 'slp';
-export const STATUS_LABEL: Readonly<Record<StatusId, string>> = { brn: 'burned', par: 'paralyzed', psn: 'poisoned', tox: 'badly poisoned', slp: 'asleep' };
-export const STATUS_SHORT: Readonly<Record<StatusId, string>> = { brn: 'BRN', par: 'PAR', psn: 'PSN', tox: 'TOX', slp: 'SLP' };
+export type StatusId = 'brn' | 'par' | 'psn' | 'tox' | 'slp' | 'frz';
+export const STATUS_LABEL: Readonly<Record<StatusId, string>> = { brn: 'burned', par: 'paralyzed', psn: 'poisoned', tox: 'badly poisoned', slp: 'asleep', frz: 'frozen' };
+export const STATUS_SHORT: Readonly<Record<StatusId, string>> = { brn: 'BRN', par: 'PAR', psn: 'PSN', tox: 'TOX', slp: 'SLP', frz: 'FRZ' };
 
 /** Status moves that inflict a condition (accuracy is not modeled, so they always land unless something blocks them). */
 export const STATUS_MOVES: Readonly<Record<string, StatusId>> = {
@@ -87,16 +87,16 @@ export const STATUS_MOVES: Readonly<Record<string, StatusId>> = {
 export const SECONDARY_STATUS: Readonly<Record<string, StatusId>> = { nuzzle: 'par', mortalspin: 'psn' };
 export const POWDER_MOVES: ReadonlySet<string> = new Set(['spore', 'sleeppowder', 'stunspore', 'poisonpowder']);
 
-export const STATUS_TYPE_IMMUNE: Readonly<Record<StatusId, readonly string[]>> = { brn: ['Fire'], par: ['Electric'], psn: ['Poison', 'Steel'], tox: ['Poison', 'Steel'], slp: [] };
+export const STATUS_TYPE_IMMUNE: Readonly<Record<StatusId, readonly string[]>> = { brn: ['Fire'], par: ['Electric'], psn: ['Poison', 'Steel'], tox: ['Poison', 'Steel'], slp: [], frz: ['Ice'] };
 export const STATUS_ABILITY_IMMUNE: Readonly<Record<StatusId, readonly string[]>> = {
   brn: ['waterveil', 'waterbubble', 'thermalexchange'], par: ['limber'], psn: ['immunity', 'pastelveil'], tox: ['immunity', 'pastelveil'],
-  slp: ['insomnia', 'vitalspirit', 'sweetveil'],
+  slp: ['insomnia', 'vitalspirit', 'sweetveil'], frz: ['magmaarmor'],
 };
 /** Abilities that block every status condition. */
 export const ALL_STATUS_IMMUNE: readonly string[] = ['comatose', 'purifyingsalt'];
 /** Berries eaten as soon as their holder gets a matching condition. */
 export const CURE_BERRIES: Readonly<Record<string, readonly StatusId[]>> = {
-  lumberry: ['brn', 'par', 'psn', 'tox', 'slp'], cheriberry: ['par'], chestoberry: ['slp'], rawstberry: ['brn'], pechaberry: ['psn', 'tox'],
+  lumberry: ['brn', 'par', 'psn', 'tox', 'slp', 'frz'], cheriberry: ['par'], chestoberry: ['slp'], rawstberry: ['brn'], pechaberry: ['psn', 'tox'], aspearberry: ['frz'],
 };
 
 /** Moves after which the user switches out (if the move worked and someone is left on the bench). */
@@ -287,3 +287,22 @@ export const NOT_REPEATABLE: ReadonlySet<string> = new Set([
   'instruct', 'encore', 'mimic', 'transform', 'sketch', 'assist', 'copycat', 'mefirst', 'mirrormove', 'metronome', 'sleeptalk', 'struggle',
   'focuspunch', 'beakblast', 'shelltrap', 'bide', 'dynamaxcannon', 'outrage', 'thrash', 'petaldance', 'ragingfury', 'uproar', 'rollout', 'iceball',
 ]);
+
+/* ---------- chance ---------- */
+
+/** Moves that thaw their frozen user before it moves, and thaw a frozen target they hit. */
+export const THAW_MOVES: ReadonlySet<string> = new Set([
+  'scald', 'scorchingsands', 'steameruption', 'flamewheel', 'flareblitz', 'fusionflare', 'pyroball', 'sacredfire', 'burnup', 'matchagotcha',
+]);
+/** Status moves that confuse the target; some raise one of its stats first (Swagger, Flatter). */
+export const CONFUSE_MOVES: Readonly<Record<string, BoostChange | null>> = {
+  confuseray: null, supersonic: null, sweetkiss: null, teeterdance: null, swagger: { atk: 2 }, flatter: { spa: 1 },
+};
+/** The chance effects a move with secondary effects can be given by hand (a replay names the exact one). */
+export const CHANCE_EFFECTS: readonly string[] = [
+  'flinch', 'brn', 'par', 'psn', 'tox', 'slp', 'frz', 'confusion', 'atk-1', 'def-1', 'spa-1', 'spd-1', 'spe-1', 'def-2', 'spd-2',
+];
+/** Short labels for chance effects in the log. */
+export const CHANCE_LABEL: Readonly<Record<string, string>> = {
+  flinch: 'flinch', brn: 'burn', par: 'paralysis', psn: 'poison', tox: 'bad poison', slp: 'sleep', frz: 'freeze', confusion: 'confusion',
+};

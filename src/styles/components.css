@@ -156,3 +156,18 @@ textarea.paste.short { min-height: 160px; }
 .pal-name { font-weight: 600; font-size: 13px; }
 .pal-hint { font-size: 11px; color: var(--ink-3); }
 #foot-theme[hidden] { display: none; }
+
+/* "Chance results" in the turn editor. */
+.outcome { margin-top: 8px; border-top: 1px dashed var(--line); padding-top: 6px; font-size: 12px; }
+.outcome summary { cursor: pointer; color: var(--ink-2); font-weight: 600; list-style: none; }
+.outcome summary::-webkit-details-marker { display: none; }
+.outcome summary::before { content: '\25B8  '; }
+.outcome[open] summary::before { content: '\25BE  '; }
+.outcome[open] > * + * { margin-top: 6px; }
+.oc-dot { display: inline-block; width: 6px; height: 6px; border-radius: 50%; background: var(--warn); vertical-align: middle; }
+.oc-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.oc-name { min-width: 84px; font-weight: 600; }
+.oc-check { display: inline-flex; align-items: center; gap: 4px; color: var(--ink-2); }
+.field.sm { padding: 3px 6px; font-size: 12px; width: auto; }
+.oc-hp { width: 70px; }
+.oc-hits { width: 52px; }

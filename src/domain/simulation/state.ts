@@ -91,6 +91,10 @@ export interface MonState {
   charge: boolean;
   /** Disguise / Ice Face has been used up. */
   disguiseBroken: boolean;
+  /** HP percentage a turn pinned at its end (shown once on that turn's result). */
+  actual?: number;
+  /** Confusion: actions left before it snaps out (0 = not confused). */
+  confused: number;
   /** Transform / Imposter: the form to go back to when it switches out. */
   transformedFrom: { species: string; ability: string; stats: StatTable | null } | null;
 }
@@ -383,7 +387,7 @@ export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection'>, 
         status: null, toxic: 0, slept: 0, item: set.item, unburden: false, entryBoosted: false,
         charging: null, recharging: null, activeTurns: 0, timesHit: 0, lastFailed: false, protectStreak: false,
         lastMove: '', lastTarget: '', choiceLock: null, encore: null, disable: null, taunt: 0, imprison: false, sub: 0, yawn: 0, perish: null,
-        seeded: null, saltCure: false, destinyBond: false, boosted: null, flashFire: false, charge: false, disguiseBroken: false, transformedFrom: null,
+        seeded: null, saltCure: false, destinyBond: false, boosted: null, flashFire: false, charge: false, disguiseBroken: false, transformedFrom: null, confused: 0,
       };
       refreshStats(engine, mon);
       st.mons[side][set.species] = mon;

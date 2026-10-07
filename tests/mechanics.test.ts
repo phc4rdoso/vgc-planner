@@ -9,7 +9,7 @@ import { newNode, newPlan, newTeam, sheetOf } from '../src/domain/model.ts';
 import { createEngine } from '../src/domain/simulation/engine.ts';
 import type { EndMon, HitResult, LogEntry, TurnResult } from '../src/domain/simulation/log.ts';
 import { simulatePlan } from '../src/domain/simulation/plan.ts';
-import type { ActionKind, FlowNode, Side, TurnAction } from '../src/domain/types.ts';
+import type { ActionKind, ActionOutcome, FlowNode, Side, TurnAction } from '../src/domain/types.ts';
 import type { CalcCall } from './helpers/stub-calc.ts';
 import { makeStubCalc } from './helpers/stub-calc.ts';
 
@@ -651,4 +651,82 @@ test('Pollen Puff heals a partner; Rest sleeps for exactly two turns', () => {
   assert.equal(z2!.end.find((x) => x.name === 'Garchomp')?.condition, 'slp');
   for (const r of [z3, z4]) assert.ok(r!.log.some((l) => l.type === 'skip' && l.mon === 'Garchomp'));
   void boostsOf;
+});
+
+/* ---------- chance outcomes ---------- */
+
+const told = (a: TurnAction, outcome: ActionOutcome): TurnAction => ({ ...a, outcome });
+
+test('a miss does nothing to that target; a crit and a hit count reach the calculator', () => {
+  const [r1] = play({ me: ME, opp: OPP, leads: ME_LEADS },
+    [told(act('me', 'Garchomp', 'move', 'Rock Slide'), { targets: { Incineroar: { miss: true }, Kingambit: { crit: true } } }),
+      told(act('me', 'Rillaboom', 'move', 'Bullet Seed', 'Incineroar'), { hits: 5 }), ...idle('opp', ...OPP_LEADS)]);
+  const slide = hitOn(r1!.log, 'Garchomp', 'Rock Slide');
+  assert.equal(slide.find((x) => x.mon === 'Incineroar')?.missed, true);
+  assert.equal(slide.find((x) => x.mon === 'Incineroar')?.minPct, undefined);
+  assert.equal(slide.find((x) => x.mon === 'Kingambit')?.crit, true);
+  assert.equal(lastCalls.find((c) => c.move === 'Rock Slide' && c.defender === 'Kingambit')?.crit, true);
+  assert.equal(lastCalls.find((c) => c.move === 'Bullet Seed')?.hits, 5);
+});
+
+test('a flinch from Rock Slide stops a slower target that hasn\'t moved yet', () => {
+  const [r1] = play({ me: ME, opp: OPP, leads: ME_LEADS },
+    [told(act('me', 'Garchomp', 'move', 'Rock Slide'), { targets: { Kingambit: { effects: ['flinch'] } } }), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)]);
+  assert.deepEqual(hitOn(r1!.log, 'Garchomp', 'Rock Slide').find((x) => x.mon === 'Kingambit')?.effects, ['flinch']);
+  assert.ok(r1!.log.some((l) => l.type === 'skip' && l.mon === 'Kingambit' && l.why === 'flinched'));
+});
+
+test('full paralysis, staying asleep and waking up follow the turn\'s outcome', () => {
+  const para = [act('me', 'Garchomp', 'move', 'Thunder Wave', 'Kingambit'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)];
+  const [, p2] = play({ me: ME, opp: OPP, leads: ME_LEADS }, para,
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance'), told(act('opp', 'Kingambit', 'move', 'Swords Dance'), { cant: 'par' })]);
+  assert.ok(p2!.log.some((l) => l.type === 'skip' && l.mon === 'Kingambit' && l.why === 'is fully paralysed'));
+
+  const spore = [act('me', 'Garchomp', 'move', 'Spore', 'Kingambit'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)];
+  const awake = [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance'), told(act('opp', 'Kingambit', 'move', 'Swords Dance'), { wake: true })];
+  const [, s2] = play({ me: ME, opp: OPP, leads: ME_LEADS }, spore, awake);
+  assert.ok(s2!.log.some((l) => l.type === 'cure' && l.mon === 'Kingambit' && l.text === 'wakes up'));
+  assert.ok(boostsFrom(s2!.log, 'Kingambit', 'Swords Dance'));
+  const asleep = awake.map((x) => (x.mon === 'Kingambit' ? told(x, { cant: 'slp' }) : x));
+  const [, , z3] = play({ me: ME, opp: OPP, leads: ME_LEADS }, spore, asleep, asleep);
+  assert.ok(z3!.log.some((l) => l.type === 'skip' && l.mon === 'Kingambit' && l.why === 'is still asleep'));
+});
+
+test('a freeze stops the target until it thaws', () => {
+  const [, f2, f3] = play({ me: ME, opp: OPP, leads: ME_LEADS },
+    [told(act('me', 'Garchomp', 'move', 'Ice Beam', 'Kingambit'), { targets: { Kingambit: { effects: ['frz'] } } }), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance'), told(act('opp', 'Kingambit', 'move', 'Swords Dance'), { wake: true })]);
+  assert.ok(f2!.log.some((l) => l.type === 'skip' && l.mon === 'Kingambit' && l.why === 'is frozen solid'));
+  assert.ok(f3!.log.some((l) => l.type === 'cure' && l.mon === 'Kingambit' && l.text === 'thaws out'));
+});
+
+test('Swagger confuses and raises Attack; a confused Pokémon can hit itself', () => {
+  const [s1, s2] = play({ me: ME, opp: OPP, leads: ME_LEADS },
+    [act('me', 'Garchomp', 'move', 'Swagger', 'Kingambit'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance'), told(act('opp', 'Kingambit', 'move', 'Swords Dance'), { cant: 'confusion' })]);
+  assert.deepEqual(boostsFrom(s1!.log, 'Kingambit', 'Swagger'), { atk: 2 });
+  assert.ok(s1!.end.find((x) => x.name === 'Kingambit')?.effects?.includes('confused'));
+  assert.ok(residuals(s2!.log, 'Kingambit').some((x) => x.text === 'hurt itself in confusion' && x.pct < 0));
+});
+
+test('recorded HP replaces the average roll, recorded order wins over Speed, and a lucky second Protect works', () => {
+  const t1 = [act('me', 'Garchomp', 'move', 'Protect'), told(act('me', 'Rillaboom', 'move', 'Close Combat', 'Incineroar'), { targets: { Incineroar: { hp: 65 } } }), ...idle('opp', ...OPP_LEADS)];
+  const team = newTeam('T', ME.join('\n\n'));
+  const gameplan = newPlan('p', OPP.join('\n\n'));
+  const plan = sheetOf(gameplan, gameplan.tabs[0]!);
+  plan.selection.me.lead = ME_LEADS.me; plan.selection.opp.lead = ME_LEADS.opp;
+  const n1 = newNode({ actions: t1, order: ['opp:Kingambit', 'me:Rillaboom', 'opp:Incineroar'], hpEnd: { 'opp:Kingambit': 40 } });
+  const n2 = newNode({ actions: [told(act('me', 'Garchomp', 'move', 'Protect'), { protectWorks: true }), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)] });
+  plan.children.push(n1); n1.children.push(n2);
+  const results = simulatePlan(createEngine(makeStubCalc().lib), team, plan);
+  const r1 = results.get(n1.id) as Ready;
+  const r2 = results.get(n2.id) as Ready;
+  assert.equal(hitOn(r1.log, 'Rillaboom', 'Close Combat')[0]?.actualPct, 65);
+  assert.equal(r1.end.find((x) => x.name === 'Incineroar')?.pct, 65);
+  const kingambit = r1.end.find((x) => x.name === 'Kingambit');
+  assert.equal(kingambit?.pct, 40);
+  assert.equal(kingambit?.actual, 40);
+  assert.deepEqual(movers(r1.log).filter((m) => m !== 'Garchomp'), ['Kingambit', 'Rillaboom', 'Incineroar']);
+  assert.ok(r2.log.some((l) => l.type === 'protect' && l.mon === 'Garchomp'), 'the second Protect worked');
 });

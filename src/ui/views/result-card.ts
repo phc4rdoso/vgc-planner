@@ -2,7 +2,7 @@ import { STAT_LABEL } from '../../domain/stats.ts';
 import type { EndMon, HitResult, LogEntry, StatChange, StatusTarget } from '../../domain/simulation/log.ts';
 import { fieldEffects } from '../../domain/simulation/state.ts';
 import type { StatusId } from '../../domain/simulation/tables.ts';
-import { STATUS_LABEL, STATUS_SHORT } from '../../domain/simulation/tables.ts';
+import { CHANCE_LABEL, STATUS_LABEL, STATUS_SHORT } from '../../domain/simulation/tables.ts';
 import type { BattleState } from '../../domain/simulation/state.ts';
 import type { FlowNode, Side } from '../../domain/types.ts';
 import type { SimView } from '../../state/sim-service.ts';
@@ -39,6 +39,7 @@ const inflictedText = (s: StatusId | undefined, cured: string | undefined): stri
 function hitText(r: HitResult, n: Names): string {
   if (r.protected) return '<span class="muted">protected</span>';
   if (r.substitute) return `<span class="muted">${r.substitute === 'broken' ? 'breaks the Substitute' : 'hits the Substitute'}</span>`;
+  if (r.missed) return '<span class="chance">missed</span>';
   if (r.blockedBy) return `<span class="muted">blocked by ${esc(n.text(r.blockedBy))}</span>`;
   if (r.immune || r.minPct === undefined || r.maxPct === undefined) return '<span class="muted">no effect</span>';
   const range = r.minPct === r.maxPct ? `${fmtPct(r.minPct)}%` : `${fmtPct(r.minPct)}–${fmtPct(r.maxPct)}%`;
@@ -48,7 +49,20 @@ function hitText(r: HitResult, n: Names): string {
   const endured = r.endured ? ` <span class="muted">holds on with ${esc(r.endured)}</span>` : '';
   const power = r.power ? ` <span class="bchip up" title="Power this turn, from the battle so far">${r.power} BP</span>` : '';
   const hits = r.hits ? ` <span class="muted">${r.hits} hit${r.hits === 1 ? '' : 's'}</span>` : '';
-  return `<span class="dmg">${range}</span>${power}${hits}${ko}${endured}${changes}${status}`;
+  const crit = r.crit ? ' <span class="chance">critical hit</span>' : '';
+  const chance = (r.effects ?? []).map((fx) => ` <span class="chance">${esc(chanceLabel(fx))}</span>`).join('');
+  // HP the turn recorded (a replay): compared with what the calculator expected.
+  const actual = r.actualPct !== undefined
+    ? ` <span class="actual" title="HP afterwards as recorded; the calculator's estimate is the range before it">→ ${fmtPct(r.actualPct)}% left (actual)</span>` : '';
+  return `<span class="dmg">${range}</span>${power}${hits}${crit}${ko}${actual}${endured}${changes}${status}${chance}`;
+}
+
+/** "spd-1" → "−1 Sp. Def"; conditions and flinch by name. */
+function chanceLabel(fx: string): string {
+  const stat = /^(atk|def|spa|spd|spe)([+-])(\d)$/.exec(fx);
+  if (stat) return `${stat[2] === '+' ? '+' : '−'}${stat[3]} ${STAT_LABEL[stat[1] as keyof typeof STAT_LABEL]}`;
+  const [base, rest] = fx.split(' (');
+  return (CHANCE_LABEL[base ?? ''] ?? fx) + (rest ? ` (${rest}` : '');
 }
 
 function statusTargetText(t: StatusTarget, n: Names): string {
@@ -107,7 +121,7 @@ function hpRow(x: EndMon): string {
   return `<div class="hp-row ${x.fainted ? 'ko' : ''}" title="${esc(tip)}">${monIcon(x.species, 'xs')}<span class="hp-name">${esc(x.species)}</span>${statusChip(x.condition)}${lost}
     <span class="hp-bar"><i class="${tone}" data-w="${x.pct}"></i></span>
     <span class="hp-pct">${x.fainted ? 'KO' : `${x.pct}%`}</span>${range}${x.mayFaint ? '<span class="ko-tag">may KO</span>' : ''}
-    ${charging}${statChips(x.boosts)}</div>`;
+    ${x.actual !== undefined ? '<span class="actual" title="HP at the end of the turn as recorded">actual</span>' : ''}${charging}${statChips(x.boosts)}</div>`;
 }
 
 /**

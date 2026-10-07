@@ -47,7 +47,7 @@ export const DEFAULT_ABILITY: Record<string, string> = {
   Charizard: 'Blaze', 'Charizard-Mega-Y': 'Drought', Tyranitar: 'Sand Stream', 'Tyranitar-Mega': 'Sand Stream',
 };
 
-interface MoveData { name: string; bp: number; category: string; target: string; priority: number; type: string; contact?: boolean; sound?: boolean; recoil?: [number, number]; drain?: [number, number] }
+interface MoveData { name: string; bp: number; category: string; target: string; priority: number; type: string; contact?: boolean; sound?: boolean; recoil?: [number, number]; drain?: [number, number]; multihit?: boolean }
 const mv = (name: string, bp: number, category: string, target: string, priority = 0, type = 'Normal', extra: Partial<MoveData> = {}): MoveData =>
   ({ name, bp, category, target, priority, type, ...extra });
 const contact = { contact: true };
@@ -128,9 +128,12 @@ export const MOVES: Record<string, MoveData> = {
   clearsmog: mv('Clear Smog', 50, 'Special', 'normal', 0, 'Poison'),
   rapidspin: mv('Rapid Spin', 50, 'Physical', 'normal', 0, 'Normal', contact),
   hypervoice: mv('Hyper Voice', 90, 'Special', 'allAdjacentFoes', 0, 'Normal', { sound: true }),
+  swagger: mv('Swagger', 0, 'Status', 'normal'),
+  icebeam: mv('Ice Beam', 90, 'Special', 'normal', 0, 'Ice'),
+  bulletseed: mv('Bullet Seed', 25, 'Physical', 'normal', 0, 'Grass', { multihit: true }),
 };
 
-export interface CalcCall { attacker: string; defender: string; move: string; field: FieldOptions; attackerBoostAtk: number; defenderHP: number; attackerStatus: string; attackerAbility: string; bp: number }
+export interface CalcCall { attacker: string; defender: string; move: string; field: FieldOptions; attackerBoostAtk: number; defenderHP: number; attackerStatus: string; attackerAbility: string; bp: number; crit: boolean; hits: number }
 
 const idOf = (s: string): string => s.toLowerCase().replace(/[^a-z0-9]/g, '');
 const mult = (b: number): number => (b >= 0 ? (2 + b) / 2 : 2 / (2 - b));
@@ -166,10 +169,13 @@ export function makeStubCalc(options: { champions?: boolean } = {}): { lib: Calc
   }
   class Move implements CalcMove {
     name: string; priority: number; category: string; target: string; bp: number; type: string; flags: { contact?: number; sound?: number }; recoil?: [number, number]; drain?: [number, number];
-    constructor(_gen: CalcGeneration, name: string, options: { overrides?: { basePower?: number } } = {}) {
+    isCrit: boolean; hits: number;
+    constructor(_gen: CalcGeneration, name: string, options: { overrides?: { basePower?: number }; isCrit?: boolean; hits?: number } = {}) {
       const d = MOVES[idOf(name)] ?? mv(name, 0, 'Status', 'normal');
       this.name = d.name; this.priority = d.priority; this.category = d.category; this.target = d.target; this.type = d.type;
       this.bp = options.overrides?.basePower ?? d.bp;
+      this.isCrit = options.isCrit === true;
+      this.hits = options.hits ?? (d.multihit ? 3 : 1);
       this.flags = { ...(d.contact ? { contact: 1 } : {}), ...(d.sound ? { sound: 1 } : {}) };
       if (d.recoil) this.recoil = d.recoil;
       if (d.drain) this.drain = d.drain;
@@ -190,13 +196,15 @@ export function makeStubCalc(options: { champions?: boolean } = {}): { lib: Calc
     },
     calculate(_gen, attacker, defender, move, field) {
       const att = attacker as StubPokemon; const def = defender as StubPokemon; const f = field as unknown as FieldOptions;
-      calls.push({ attacker: att.name, defender: def.name, move: move.name ?? '', field: f, attackerBoostAtk: att.boosts.atk, defenderHP: def.originalCurHP, attackerStatus: att.status, attackerAbility: att.ability ?? '', bp: (move as Move).bp });
+      calls.push({ attacker: att.name, defender: def.name, move: move.name ?? '', field: f, attackerBoostAtk: att.boosts.atk, defenderHP: def.originalCurHP, attackerStatus: att.status, attackerAbility: att.ability ?? '', bp: (move as Move).bp, crit: (move as Move).isCrit, hits: (move as Move).hits });
       if (move.name === 'Earthquake' && def.name === 'Aerodactyl') return { damage: 0 };
       const bp = (move as Move).bp;
       let base = Math.floor((bp * att.stats.atk * mult(att.boosts.atk)) / def.stats.def / 3);
       if (att.status === 'brn' && move.category === 'Physical') base = Math.floor(base / 2);
       if (f.gameType === 'Doubles' && /allAdjacent/.test(move.target ?? '')) base = Math.floor(base * 0.75);
       if (f.attackerSide.isHelpingHand) base = Math.floor(base * 1.5);
+      if ((move as Move).isCrit) base = Math.floor(base * 1.5);
+      base *= (move as Move).hits;
       const rawDesc: { attackerItem?: string } = {};
       if (att.item === 'Life Orb' && base > 0) { base = Math.floor(base * 1.3); rawDesc.attackerItem = 'Life Orb'; }
       const damage = Array.from({ length: 16 }, (_, i) => Math.floor((base * (85 + i)) / 100));

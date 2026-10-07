@@ -1,6 +1,6 @@
 import { turnResultsGate } from '../domain/simulation/gate.ts';
 import { createEngine } from '../domain/simulation/engine.ts';
-import type { CalcEngine } from '../domain/simulation/engine.ts';
+import type { CalcEngine, MoveInfo } from '../domain/simulation/engine.ts';
 import type { CalcLoader } from '../domain/simulation/calc-types.ts';
 import type { TurnResult } from '../domain/simulation/log.ts';
 import { simulateSheet } from '../domain/simulation/plan.ts';
@@ -43,6 +43,11 @@ export class SimService {
       catch (e) { return { enabled: true, status: 'error', message: e instanceof Error ? e.message : String(e) }; }
     }
     return { enabled: true, status: 'ready', results: this.memo.results, start: this.memo.start, native: this.engine.native };
+  }
+
+  /** A move's data from the calculator (category, target, flags), or null until the calculator has loaded. */
+  moveInfo(name: string): MoveInfo | null {
+    return this.engine && name ? this.engine.moveInfo(name) : null;
   }
 
   private ensureEngine(): void {

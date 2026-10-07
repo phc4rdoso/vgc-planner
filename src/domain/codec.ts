@@ -8,7 +8,7 @@ import { newId } from './ids.ts';
 import { emptySelection, newNode, newTab } from './model.ts';
 import { REGULATION } from './regulation.ts';
 import { parseShowdown } from './showdown.ts';
-import type { ActionKind, FlowNode, Library, Plan, PlanTab, Side, SideSelection, Team, TurnAction } from './types.ts';
+import type { ActionKind, ActionOutcome, ChanceEffect, FlowNode, Library, Plan, PlanTab, Side, SideSelection, TargetOutcome, Team, TurnAction } from './types.ts';
 import { SIDES, SLOT_KINDS } from './types.ts';
 
 export const EXPORT_FORMAT = 'vgc-gameplan-planner';
@@ -57,7 +57,60 @@ function readAction(raw: unknown, path: string): TurnAction {
   };
   const pivot = asStr(o.pivot, `${path}.pivot`, LIMITS.nameLength);
   if (pivot) action.pivot = pivot;
+  const outcome = readOutcome(o.outcome, `${path}.outcome`);
+  if (outcome) action.outcome = outcome;
   return action;
+}
+
+const CANT: readonly NonNullable<ActionOutcome['cant']>[] = ['par', 'slp', 'frz', 'confusion', 'flinch'];
+/** A chance effect: a condition, flinch, confusion, or a stat change like "spd-1" / "atk+1". */
+const EFFECT = /^(brn|par|psn|tox|slp|frz|flinch|confusion|(atk|def|spa|spd|spe)[+-][1-6])$/;
+const readEffects = (v: unknown, path: string): ChanceEffect[] =>
+  asArr(v, path, 8).map((e, i) => asStr(e, `${path}[${i}]`, 20)).filter((e) => EFFECT.test(e));
+const percent = (v: unknown): number | undefined => (typeof v === 'number' && Number.isFinite(v) ? Math.max(0, Math.min(100, v)) : undefined);
+
+/** Chance results on an action; anything unknown is dropped, and an empty outcome is no outcome. */
+function readOutcome(raw: unknown, path: string): ActionOutcome | undefined {
+  if (!isObj(raw)) return undefined;
+  const out: ActionOutcome = {};
+  const cant = CANT.find((c) => c === raw.cant);
+  if (cant) out.cant = cant;
+  if (raw.wake === true) out.wake = true;
+  if (raw.protectWorks === true) out.protectWorks = true;
+  if (typeof raw.hits === 'number' && Number.isInteger(raw.hits) && raw.hits >= 1 && raw.hits <= 10) out.hits = raw.hits;
+  const self = readEffects(raw.self, `${path}.self`);
+  if (self.length) out.self = self;
+  if (isObj(raw.targets)) {
+    const targets: Record<string, TargetOutcome> = {};
+    for (const [name, t] of Object.entries(raw.targets).slice(0, 6)) {
+      if (!isObj(t) || name.length > LIMITS.nameLength) continue;
+      const one: TargetOutcome = {};
+      if (t.miss === true) one.miss = true;
+      if (t.crit === true) one.crit = true;
+      const effects = readEffects(t.effects, `${path}.targets.${name}.effects`);
+      if (effects.length) one.effects = effects;
+      const hp = percent(t.hp);
+      if (hp !== undefined) one.hp = hp;
+      if (Object.keys(one).length) targets[name] = one;
+    }
+    if (Object.keys(targets).length) out.targets = targets;
+  }
+  return Object.keys(out).length ? out : undefined;
+}
+
+/** Turn-level facts from a replay: the real order, end-of-turn HP, and the replay's address. */
+function readNodeFacts(o: Obj, node: FlowNode): void {
+  const order = asArr(o.order, 'order', LIMITS.actionsPerNode).map((k, i) => asStr(k, `order[${i}]`, LIMITS.nameLength)).filter(Boolean);
+  if (order.length) node.order = order;
+  if (isObj(o.hpEnd)) {
+    const hpEnd: Record<string, number> = {};
+    for (const [k, v] of Object.entries(o.hpEnd).slice(0, 12)) { const hp = percent(v); if (hp !== undefined && k.length <= LIMITS.nameLength) hpEnd[k] = hp; }
+    if (Object.keys(hpEnd).length) node.hpEnd = hpEnd;
+  }
+  if (isObj(o.source)) {
+    const replay = asStr(o.source.replay, 'source.replay', 500);
+    if (/^https:\/\/replay\.pokemonshowdown\.com\//.test(replay)) node.source = { replay };
+  }
 }
 
 interface NodeBudget { remaining: number }
@@ -74,6 +127,7 @@ function readNode(raw: unknown, path: string, keepIds: boolean, depth: number, b
     children: asArr(o.children, `${path}.children`, LIMITS.nodesPerPlan).map((c, i) => readNode(c, `${path}.children[${i}]`, keepIds, depth + 1, budget)),
   });
   if (keepIds && typeof o.id === 'string' && o.id) node.id = o.id;
+  readNodeFacts(o, node);
   return node;
 }
 
@@ -161,7 +215,10 @@ export const writeLibrary = (library: Library): StoredLibrary => ({ schemaVersio
 
 /* ----------------------------- export file ------------------------------ */
 
-export interface ExportedNode { title: string; condition: string; note: string; actions: TurnAction[]; children: ExportedNode[] }
+export interface ExportedNode {
+  title: string; condition: string; note: string; actions: TurnAction[]; children: ExportedNode[];
+  order?: string[]; hpEnd?: Record<string, number>; source?: { replay: string };
+}
 export interface ExportedTab { name: string; selection: Record<Side, SideSelection>; flow: ExportedNode[] }
 export interface ExportedPlan { name: string; opponent: { name: string; paste: string }; tabs: ExportedTab[] }
 export interface ExportedTeam {
@@ -182,7 +239,8 @@ export interface ExportFile {
 export type ExportScope = { type: 'all' } | { type: 'team'; teamId: string } | { type: 'plan'; teamId: string; planId: string };
 
 const exportNode = (n: FlowNode): ExportedNode => ({
-  title: n.title, condition: n.condition, note: n.note, actions: n.actions.map((a) => ({ ...a })), children: n.children.map(exportNode),
+  title: n.title, condition: n.condition, note: n.note, actions: n.actions.map((a) => structuredClone(a)), children: n.children.map(exportNode),
+  ...(n.order ? { order: [...n.order] } : {}), ...(n.hpEnd ? { hpEnd: { ...n.hpEnd } } : {}), ...(n.source ? { source: { ...n.source } } : {}),
 });
 
 function exportTeam(team: Team, onlyPlanId?: string): ExportedTeam {
