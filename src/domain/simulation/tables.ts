@@ -290,6 +290,9 @@ export const NOT_REPEATABLE: ReadonlySet<string> = new Set([
 
 /* ---------- chance ---------- */
 
+/** Pokémon Champions: a frozen Pokémon always thaws on its third turn frozen (25% chance on each turn before). */
+export const FREEZE_MAX_TURNS = 3;
+
 /** Moves that thaw their frozen user before it moves, and thaw a frozen target they hit. */
 export const THAW_MOVES: ReadonlySet<string> = new Set([
   'scald', 'scorchingsands', 'steameruption', 'flamewheel', 'flareblitz', 'fusionflare', 'pyroball', 'sacredfire', 'burnup', 'matchagotcha',

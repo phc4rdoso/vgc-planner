@@ -225,6 +225,7 @@ export class Effects {
     target.status = status;
     target.toxic = status === 'tox' ? 1 : 0;
     target.slept = 0;
+    target.frozen = 0;
     const berry = this.item(target);
     if (CURE_BERRIES[toID(berry)]?.includes(status)) {
       target.status = null;

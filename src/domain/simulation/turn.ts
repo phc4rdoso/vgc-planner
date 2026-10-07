@@ -13,7 +13,7 @@ import type { BoostChange, StatusId } from './tables.ts';
 import {
   ABILITY_SETTERS, CLEARS_STATS, EJECT_ITEMS, EXIT_ABILITIES, FIXED_ABILITIES, GRAVITY_BANNED, HAZARD_ATTACKS, HAZARD_MOVES, HEAL_MOVES,
   MOLD_BREAKERS, NOT_REPEATABLE, ON_HIT_ABILITIES, ON_HIT_ITEMS, ON_KO_ABILITIES, ROOM_MOVES, SCREEN_BREAKERS, TEAM_HEAL_MOVES,
-  ABSORB_ABILITIES, ALWAYS_FLINCH, CONFUSE_MOVES, THAW_MOVES, BREAKS_PROTECT, CHARGE_MOVES, CONTACT_ABILITIES, CONTACT_ITEMS, CONTACT_PROTECT, 
+  ABSORB_ABILITIES, ALWAYS_FLINCH, CONFUSE_MOVES, FREEZE_MAX_TURNS, THAW_MOVES, BREAKS_PROTECT, CHARGE_MOVES, CONTACT_ABILITIES, CONTACT_ITEMS, CONTACT_PROTECT, 
   DEBUFF_MOVES, FIELD_MOVES, FIRST_TURN_ONLY, HITS_SEMI_INVULNERABLE, IGNORES_REDIRECT, ITEM_REMOVAL, ITEM_SWAP, NEEDS_TARGET_MOVE, PIVOT_MOVES,
   POWDER_MOVES, PRIORITY_BLOCKERS, PROTECT_FAMILY, PROTECT_MOVES, RECHARGE_MOVES, REDIRECT_MOVES, SECONDARY_DROPS, SECONDARY_STATUS, SELF_DROPS, SETUP_MOVES,
   STATUS_LABEL, STATUS_MOVES,
@@ -390,11 +390,21 @@ class TurnRunner {
       actor.status = null; actor.slept = 0;
       this.log.push({ type: 'cure', side, mon: a.mon, text: 'wakes up' });
     }
+    // Freeze (Champions): a 25% chance to thaw on each of its first two turns frozen, and it always thaws on the
+    // third. Without an outcome it's assumed to stay frozen (the likelier result) until then. Moves like Scald and
+    // Flare Blitz thaw their user first.
     if (actor.status === 'frz') {
-      if (o?.wake || THAW_MOVES.has(toID(info.name))) {
+      actor.frozen++;
+      const thawMove = THAW_MOVES.has(toID(info.name));
+      if (o?.wake || thawMove || actor.frozen >= FREEZE_MAX_TURNS) {
         actor.status = null;
-        this.log.push({ type: 'cure', side, mon: a.mon, text: 'thaws out' });
-      } else return skip('is frozen solid');
+        actor.frozen = 0;
+        const why = o?.wake ? '' : thawMove ? ` (${info.name} thaws it)` : ' (third turn frozen: it always thaws)';
+        this.log.push({ type: 'cure', side, mon: a.mon, text: `thaws out${why}` });
+      } else {
+        const left = FREEZE_MAX_TURNS - actor.frozen;
+        return skip(`is frozen solid (25% chance to thaw each turn; thaws for sure ${left === 1 ? 'next turn' : `in ${left} turns`})`);
+      }
     }
     if (this.st.turn.flinched[monKey(side, a.mon)] || o?.cant === 'flinch') return skip('flinched');
     if (actor.confused > 0) {

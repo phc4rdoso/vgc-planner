@@ -697,7 +697,7 @@ test('a freeze stops the target until it thaws', () => {
     [told(act('me', 'Garchomp', 'move', 'Ice Beam', 'Kingambit'), { targets: { Kingambit: { effects: ['frz'] } } }), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
     [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
     [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Swords Dance'), told(act('opp', 'Kingambit', 'move', 'Swords Dance'), { wake: true })]);
-  assert.ok(f2!.log.some((l) => l.type === 'skip' && l.mon === 'Kingambit' && l.why === 'is frozen solid'));
+  assert.ok(f2!.log.some((l) => l.type === 'skip' && l.mon === 'Kingambit' && l.why.startsWith('is frozen solid')));
   assert.ok(f3!.log.some((l) => l.type === 'cure' && l.mon === 'Kingambit' && l.text === 'thaws out'));
 });
 
@@ -729,4 +729,19 @@ test('recorded HP replaces the average roll, recorded order wins over Speed, and
   assert.equal(kingambit?.actual, 40);
   assert.deepEqual(movers(r1.log).filter((m) => m !== 'Garchomp'), ['Kingambit', 'Rillaboom', 'Incineroar']);
   assert.ok(r2.log.some((l) => l.type === 'protect' && l.mon === 'Garchomp'), 'the second Protect worked');
+});
+
+test('Champions freeze: frozen on its first two turns unless it thaws by chance, always thawed on the third', () => {
+  const calm = [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)];
+  const [f1, f2, f3] = play({ me: ME, opp: OPP, leads: ME_LEADS },
+    [told(act('me', 'Garchomp', 'move', 'Ice Beam', 'Kingambit'), { targets: { Kingambit: { effects: ['frz'] } } }), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+    calm, calm);
+  const frozen = (r: Ready): string | undefined => r.log.find((l) => l.type === 'skip' && l.mon === 'Kingambit')?.type === 'skip'
+    ? (r.log.find((l) => l.type === 'skip' && l.mon === 'Kingambit') as { why: string }).why : undefined;
+  // Frozen by the faster Garchomp, it fails to move that same turn: its first turn frozen.
+  assert.match(frozen(f1!) ?? '', /^is frozen solid \(25% chance to thaw each turn; thaws for sure in 2 turns\)$/);
+  assert.match(frozen(f2!) ?? '', /thaws for sure next turn/);
+  assert.ok(f3!.log.some((l) => l.type === 'cure' && l.mon === 'Kingambit' && l.text === 'thaws out (third turn frozen: it always thaws)'));
+  assert.ok(boostsFrom(f3!.log, 'Kingambit', 'Swords Dance'), 'it moves on the turn it thaws');
+  assert.equal(f3!.end.find((x) => x.name === 'Kingambit')?.condition, null);
 });
