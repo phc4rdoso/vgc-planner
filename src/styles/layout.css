@@ -34,7 +34,7 @@
 
 .btn { border: 1px solid var(--line); background: var(--panel); border-radius: 9px; padding: 7px 12px; font-weight: 600; font-size: 13px; display: inline-flex; align-items: center; gap: 6px; }
 .btn:hover { border-color: var(--ink-3); }
-.btn.primary { background: var(--me); border-color: var(--me); color: #fff; }
+.btn.primary { background: var(--me); border-color: var(--me); color: var(--on-me); }
 .btn.primary:hover { filter: brightness(1.08); }
 .btn.danger { color: var(--danger); }
 .btn.primary.danger-fill { background: var(--danger); border-color: var(--danger); }

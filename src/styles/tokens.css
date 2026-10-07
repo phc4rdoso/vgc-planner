@@ -8,6 +8,8 @@
   --line-soft: #e9ebf3;
   --me: #3d5afe;
   --me-soft: #eaeeff;
+  /* Text on a solid --me fill (primary buttons). */
+  --on-me: #ffffff;
   --opp: #e0457b;
   --opp-soft: #fdecf2;
   --warn: #b7791f;
