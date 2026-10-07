@@ -89,15 +89,22 @@ function nodeHTML(n: FlowNode, depth: number, sim: SimView, start: BattleState |
     ${open ? resultHTML(n, sim, start, picks) : ''}</div>`;
 }
 
-/** `canAdd` is false below a turn where the battle ended: no "+" box, so no further turns. */
+/**
+ * `canAdd` is false below a turn where the battle ended: no "+" box, so no further turns. With no turns yet the "+"
+ * stands on its own below the parent; once there are some, it sits right beside the last one (adding another
+ * branch), so it stays next to the cards however wide their own branches grow.
+ */
 function listHTML(nodes: FlowNode[], parentId: string | null, depth: number, sim: SimView, start: BattleState | null, picks: Record<Side, string[]>, canAdd = true): string {
   const first = parentId === null && nodes.length === 0;
-  return nodes.map((n) => {
+  const addbox = (extra: string): string =>
+    `<button class="addbox ${extra}" data-act="add-node" data-parent="${esc(parentId ?? '')}" aria-label="${parentId === null ? 'Add first turn' : nodes.length ? 'Add a branch' : 'Add next turn'}" title="${nodes.length ? 'Add a branch' : 'Add a turn'}">${PLUS_ICON}</button>`;
+  if (!nodes.length) return canAdd ? `<li class="tree-item">${addbox(first ? 'first' : '')}</li>` : '';
+  return nodes.map((n, i) => {
     const r = sim.enabled && sim.status === 'ready' ? sim.results.get(n.id) : undefined;
     const children = listHTML(n.children, n.id, depth + 1, sim, r?.status === 'ready' ? r.state : null, picks, outcomeOf(n, sim) === null);
-    return `<li class="tree-item">${nodeHTML(n, depth, sim, start, picks)}${children ? `<ul class="tree-children">${children}</ul>` : ''}</li>`;
-  }).join('')
-    + (canAdd ? `<li class="tree-item"><button class="addbox ${first ? 'first' : ''}" data-act="add-node" data-parent="${esc(parentId ?? '')}" aria-label="${parentId === null ? 'Add first turn' : 'Add turn or branch'}" title="Add a turn">${PLUS_ICON}</button></li>` : '');
+    const beside = canAdd && i === nodes.length - 1;
+    return `<li class="tree-item${beside ? ' with-add' : ''}">${nodeHTML(n, depth, sim, start, picks)}${beside ? addbox('beside') : ''}${children ? `<ul class="tree-children">${children}</ul>` : ''}</li>`;
+  }).join('');
 }
 
 /** Everyone brought by each side (lead and back picks). */
