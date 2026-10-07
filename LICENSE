@@ -19,20 +19,3 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-
---------------------------------------------------------------------------------
-
-Third-party material (not covered by the MIT License above)
-
-- public/avatars/: profile portraits from the PMD Sprite Repository
-  (https://github.com/PMDCollab/SpriteCollab), licensed under CC BY-NC 4.0
-  (https://creativecommons.org/licenses/by-nc/4.0/). Non-commercial use only,
-  with credit to the artists listed in public/avatars/CREDITS.md.
-
-- Pokémon sprites are not part of this repository: `npm run sprites` downloads
-  them from robsonbittencourt/vgc-multicalc. The artwork belongs to Nintendo /
-  The Pokémon Company.
-
-- Pokémon and all related names are trademarks of Nintendo, Creatures Inc. and
-  GAME FREAK inc. This is an unofficial fan project, not affiliated with or
-  endorsed by them.

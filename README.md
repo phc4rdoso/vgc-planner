@@ -149,4 +149,4 @@ Checked in the environment where this was written: strict type-check of the app,
 
 ## License
 
-The code is under the [MIT License](LICENSE). Third-party material keeps its own terms: the profile portraits in `public/avatars` are CC BY-NC 4.0 (non-commercial, credited in [`public/avatars/CREDITS.md`](public/avatars/CREDITS.md)), and Pokémon names and artwork belong to Nintendo / The Pokémon Company. This is an unofficial fan project, not affiliated with or endorsed by them.
+The code is under the [MIT License](LICENSE). Third-party material keeps its own terms (see [NOTICE](NOTICE)): the profile portraits in `public/avatars` are CC BY-NC 4.0 (non-commercial, credited in [`public/avatars/CREDITS.md`](public/avatars/CREDITS.md)), and Pokémon names and artwork belong to Nintendo / The Pokémon Company. This is an unofficial fan project, not affiliated with or endorsed by them.
