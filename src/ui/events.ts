@@ -1,6 +1,6 @@
 import { config } from '../config.ts';
 import { DataError } from '../domain/codec.ts';
-import type { ActionKind, Side, SlotKind } from '../domain/types.ts';
+import type { ActionKind, Side, SlotKind, LineColor } from '../domain/types.ts';
 import { simService, store } from '../state/instance.ts';
 import { addNode, addTab, selectTab, startRenameTab, tabMenu, createPlan, createTeam, deleteNode, deletePlan, deleteTeam, duplicatePlan, editPaste, loadImportFile, pickSlot, renameTeam, showExport, showImport } from './actions.ts';
 import { accountMenu, openSignIn, signInWith } from './account.ts';
@@ -15,6 +15,7 @@ import { openMenu, toast } from './overlays.ts';
 import { isPivotMove, renderDrawer } from './views/drawer.ts';
 import { rerenderCanvas, setZoom } from './views/plan-view.ts';
 import { applyNavCollapsed, renderNav } from './views/sidebar.ts';
+import { LINE_COLORS } from '../domain/types.ts';
 
 const asSide = (v: string | undefined): Side => (v === 'opp' ? 'opp' : 'me');
 const asSlot = (v: string | undefined): SlotKind => (v === 'back' ? 'back' : 'lead');
@@ -104,6 +105,22 @@ async function handleClick(el: HTMLElement, e: MouseEvent): Promise<void> {
       rerenderCanvas();
       return;
     }
+    case 'line-color': {
+      const found = store.currentNode();
+      if (!found) return;
+      const color = (LINE_COLORS as readonly string[]).includes(d.color ?? '') ? (d.color as LineColor) : undefined;
+      const name = found.node.line?.name ?? '';
+      if (name || color) found.node.line = { name, ...(color ? { color } : {}) };
+      else delete found.node.line;
+      store.persist();
+      rerenderCanvas();
+      renderDrawer();
+      return;
+    }
+    case 'focus-line':
+      store.ui.focusLine = d.node && d.node !== store.ui.focusLine ? d.node : null;
+      rerenderCanvas();
+      return;
     case 'select-node':
       store.ui.selectedNode = d.node ?? null;
       rerenderCanvas();
@@ -137,7 +154,13 @@ function onInput(e: Event): void {
   if (!found) return;
   const f = t.dataset.f;
   const a = t.dataset.a;
-  if (f === 'title' || f === 'condition' || f === 'note') {
+  if (f === 'line') {
+    // A line needs a name or a colour; clearing both removes it.
+    const name = t.value.trim();
+    const color = found.node.line?.color;
+    if (name || color) found.node.line = { name, ...(color ? { color } : {}) };
+    else delete found.node.line;
+  } else if (f === 'title' || f === 'condition' || f === 'note') {
     found.node[f] = t.value;
     if (f === 'title') { const h = qs('#drawer h3'); if (h) h.textContent = t.value || `Turn ${found.depth}`; }
   } else if (a) {

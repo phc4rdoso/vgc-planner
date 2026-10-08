@@ -8,8 +8,8 @@ import { newId } from './ids.ts';
 import { emptySelection, newNode, newTab } from './model.ts';
 import { REGULATION } from './regulation.ts';
 import { parseShowdown } from './showdown.ts';
-import type { ActionKind, ActionOutcome, ChanceEffect, FlowNode, Library, Plan, PlanTab, Side, SideSelection, TargetOutcome, Team, TurnAction } from './types.ts';
-import { SIDES, SLOT_KINDS } from './types.ts';
+import type { ActionKind, ActionOutcome, ChanceEffect, FlowNode, Library, Plan, PlanTab, Side, SideSelection, TargetOutcome, Team, TurnAction, LineColor, PlanLine } from './types.ts';
+import { SIDES, SLOT_KINDS, LINE_COLORS } from './types.ts';
 
 export const EXPORT_FORMAT = 'vgc-gameplan-planner';
 /** 2: gameplans hold `tabs` (version 1 files, with one selection and flow per gameplan, are still read). */
@@ -113,6 +113,11 @@ function readNodeFacts(o: Obj, node: FlowNode): void {
   if (isObj(o.source)) {
     const replay = asStr(o.source.replay, 'source.replay', 500);
     if (/^https:\/\/replay\.pokemonshowdown\.com\//.test(replay)) node.source = { replay };
+  }
+  if (isObj(o.line)) {
+    const name = asStr(o.line.name, 'line.name', LIMITS.nameLength).trim();
+    const color = (LINE_COLORS as readonly unknown[]).includes(o.line.color) ? (o.line.color as LineColor) : undefined;
+    if (name || color) node.line = { name, ...(color ? { color } : {}) };
   }
 }
 
@@ -236,7 +241,7 @@ export const writeLibrary = (library: Library): StoredLibrary => ({ schemaVersio
 
 export interface ExportedNode {
   title: string; condition: string; note: string; actions: TurnAction[]; children: ExportedNode[];
-  order?: string[]; tieOrder?: string[]; hpEnd?: Record<string, number>; source?: { replay: string };
+  order?: string[]; tieOrder?: string[]; hpEnd?: Record<string, number>; source?: { replay: string }; line?: PlanLine;
 }
 export interface ExportedTab { name: string; selection: Record<Side, SideSelection>; flow: ExportedNode[] }
 export interface ExportedPlan { name: string; opponent: { name: string; paste: string }; tabs: ExportedTab[] }
@@ -260,6 +265,7 @@ export type ExportScope = { type: 'all' } | { type: 'team'; teamId: string } | {
 const exportNode = (n: FlowNode): ExportedNode => ({
   title: n.title, condition: n.condition, note: n.note, actions: n.actions.map((a) => structuredClone(a)), children: n.children.map(exportNode),
   ...(n.order ? { order: [...n.order] } : {}), ...(n.tieOrder ? { tieOrder: [...n.tieOrder] } : {}), ...(n.hpEnd ? { hpEnd: { ...n.hpEnd } } : {}), ...(n.source ? { source: { ...n.source } } : {}),
+  ...(n.line ? { line: { ...n.line } } : {}),
 });
 
 function exportTeam(team: Team, onlyPlanId?: string): ExportedTeam {
