@@ -830,3 +830,18 @@ test('replacements come in fastest first, and a tie between their entry abilitie
   assert.equal(tie.first, 'me:Garchomp');
   assert.equal(r2!.field.weather, 'Sun');
 });
+
+test('Fake Out works on the first action after every switch-in, not only the first turn of the battle', () => {
+  const battle: Battle = { me: [mon('Garchomp', 'Rough Skin'), mon('Kingambit', 'Defiant'), mon('Rillaboom', 'Overgrow')], opp: OPP,
+    leads: { me: ['Garchomp', 'Kingambit'], opp: OPP_LEADS }, backs: { me: ['Rillaboom'] } };
+  const fakeOut = [act('me', 'Garchomp', 'move', 'Swords Dance'), act('me', 'Rillaboom', 'move', 'Fake Out', 'Incineroar'), ...idle('opp', ...OPP_LEADS)];
+  const [, r2, r3, , , r6] = play(battle,
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), sw('me', 'Kingambit', 'Rillaboom'), ...idle('opp', ...OPP_LEADS)],
+    fakeOut, fakeOut,
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), sw('me', 'Rillaboom', 'Kingambit'), ...idle('opp', ...OPP_LEADS)],
+    [act('me', 'Garchomp', 'move', 'Swords Dance'), sw('me', 'Kingambit', 'Rillaboom'), ...idle('opp', ...OPP_LEADS)],
+    fakeOut);
+  assert.ok(hits(r2!.log, 'Rillaboom', 'Fake Out'), 'first action after switching in');
+  assert.equal(failNote(r3!.log, 'Rillaboom', 'Fake Out'), 'fails (only works on its first turn out)');
+  assert.ok(hits(r6!.log, 'Rillaboom', 'Fake Out'), 'works again after switching out and back in');
+});

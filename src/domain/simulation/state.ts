@@ -58,6 +58,8 @@ export interface MonState {
   recharging: string | null;
   /** Full turns spent on the field since it last came in (Fake Out only works when 0). */
   activeTurns: number;
+  /** Move actions it has taken since it last came in, the current one included (Fake Out only works on the first). */
+  moveActions: number;
   /** Times it has been hit by an attack this battle (Rage Fist), kept through switching. */
   timesHit: number;
   /** Its last action failed or was blocked (Stomping Tantrum, Temper Flare double their power). */
@@ -410,7 +412,7 @@ export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection'>, 
         mega: false, megaForm, megaAbility,
         sp: (statPoints(set) ?? { sp: emptyStatTable() }).sp, stats: null, boosts: zeroBoosts(), hp: 0, hpLo: 0, hpHi: 0, fainted: false,
         status: null, toxic: 0, slept: 0, frozen: 0, item: set.item, unburden: false, entryBoosted: false,
-        charging: null, recharging: null, activeTurns: 0, timesHit: 0, lastFailed: false, protectStreak: false,
+        charging: null, recharging: null, activeTurns: 0, moveActions: 0, timesHit: 0, lastFailed: false, protectStreak: false,
         lastMove: '', lastTarget: '', choiceLock: null, encore: null, disable: null, taunt: 0, imprison: false, sub: 0, yawn: 0, perish: null,
         seeded: null, saltCure: false, destinyBond: false, boosted: null, flashFire: false, charge: false, disguiseBroken: false, transformedFrom: null, confused: 0,
       };

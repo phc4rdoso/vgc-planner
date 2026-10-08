@@ -362,6 +362,8 @@ class TurnRunner {
     // e.g. it was pivoted out earlier this turn, or the action was planned for a Pokémon on the bench.
     if (!this.st.active[side].includes(a.mon)) { this.log.push({ type: 'skip', side, mon: a.mon, why: "isn't on the field" }); return; }
     if (!instructed) this.acted.push({ side, slot: this.st.active[side].indexOf(a.mon) });
+    // Every move action counts (even one lost to sleep or a flinch), as in the games: Fake Out needs the first.
+    if (!instructed && a.kind !== 'switch') actor.moveActions++;
     actor.destinyBond = false;
     if (actor.recharging) {
       this.log.push({ type: 'skip', side, mon: a.mon, why: `must recharge after ${actor.recharging}` });
@@ -476,7 +478,7 @@ class TurnRunner {
    * being hit, Steel Roller with no terrain... Null when nothing stops it.
    */
   private failReason(side: Side, a: TurnAction, actor: MonState, info: MoveInfo, id: string): string | null {
-    if (FIRST_TURN_ONLY.has(id) && actor.activeTurns > 0) return 'only works on its first turn out';
+    if (FIRST_TURN_ONLY.has(id) && actor.moveActions > 1) return 'only works on its first turn out';
     if (actor.taunt > 0 && info.category === 'Status') return "it's taunted (attacks only)";
     if (info.category === 'Status' && toID(heldItem(this.st, actor)) === 'assaultvest') return 'Assault Vest allows attacks only';
     if (actor.disable && toID(actor.disable.move) === id) return 'the move is disabled';
@@ -593,6 +595,7 @@ class TurnRunner {
       outgoing.species = back.species; outgoing.ability = back.ability; outgoing.stats = back.stats; outgoing.transformedFrom = null;
     }
     incoming.activeTurns = 0;
+    incoming.moveActions = 0;
     if (outgoing.status === 'tox') outgoing.toxic = 1;
     if (!outgoing.fainted && outgoing.status && toID(outgoing.ability) === 'naturalcure') {
       outgoing.status = null;
