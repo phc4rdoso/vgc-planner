@@ -92,8 +92,9 @@ export interface FlowNode {
   /** The order the Pokémon really acted in (`side:name`), e.g. from a replay; it wins over Speed. */
   order?: string[];
   /**
-   * Who wins speed ties this turn: keys (`side:name`) in the order they move when their Speed is equal (picked by
-   * hand; otherwise the game's 50/50 is assumed to go to the first action listed).
+   * Who wins speed ties this turn: keys (`side:name`) in the order they go when their Speed is equal (picked by
+   * hand; otherwise the game's 50/50 is assumed to go to the first one listed). On a first turn this includes the
+   * leads' entry abilities at the start of the battle.
    */
   tieOrder?: string[];
   /** Each Pokémon's HP at the end of the turn, in percent (`side:name` → %), e.g. from a replay. */
@@ -118,11 +119,6 @@ export interface PlanTab {
   selection: Record<Side, SideSelection>;
   /** First-level turns (alternatives for turn 1). */
   children: FlowNode[];
-  /**
-   * Who wins speed ties between the leads' entry abilities at the start of the battle (keys `side:name`, first
-   * wins). Unset: the first one listed is assumed to win.
-   */
-  entryTieOrder?: string[];
 }
 
 /** A gameplan against one opponent team. It always has at least one tab. */

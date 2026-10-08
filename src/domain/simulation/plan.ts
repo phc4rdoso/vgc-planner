@@ -18,6 +18,11 @@ export function simulatePlan(engine: CalcEngine, team: Team, plan: Sheet): Map<s
 export function simulateSheet(engine: CalcEngine, team: Team, plan: Sheet): { results: Map<string, TurnResult>; start: BattleState } {
   const results = new Map<string, TurnResult>();
   const init = initState(engine, plan, teamMons(team), oppMons(plan));
+  // A first turn that picks who wins a speed tie between the leads' entry abilities starts its own battle.
+  const startFor = (node: FlowNode): typeof init => {
+    const decides = init.entryTies.some((t) => t.keys.every((k) => node.tieOrder?.includes(k)));
+    return decides ? initState(engine, plan, teamMons(team), oppMons(plan), node.tieOrder) : init;
+  };
   const walk = (nodes: FlowNode[], start: BattleState | null, depth: number, over: boolean): void => {
     for (const node of nodes) {
       if (!start) {
@@ -25,7 +30,8 @@ export function simulateSheet(engine: CalcEngine, team: Team, plan: Sheet): { re
         walk(node.children, null, depth + 1, over);
         continue;
       }
-      const result = simulateTurn(engine, structuredClone(start), node, depth === 1 ? init.entry : [], depth === 1 ? init.entryTies : []);
+      const first = depth === 1 ? startFor(node) : null;
+      const result = simulateTurn(engine, structuredClone(first ? first.st : start), node, first ? first.entry : [], first ? first.entryTies : []);
       results.set(node.id, result);
       const ended = result.status === 'ready' && result.outcome !== null;
       walk(node.children, result.status === 'ready' && !ended ? result.state : null, depth + 1, over || ended);

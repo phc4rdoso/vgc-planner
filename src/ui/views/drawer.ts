@@ -133,7 +133,7 @@ let editingTies: readonly SpeedTie[] = [];
 
 /**
  * Speed ties this Pokémon is part of, as rows for its "Chance results": who goes first when their Speed is equal
- * (the game's 50/50). Ties at the start of the battle are saved on the tab, the rest on the turn.
+ * (the game's 50/50). Every pick is saved on the turn being edited.
  */
 function tieRows(a: TurnAction, st: BattleState | null): string {
   const me = `${a.side}:${a.mon}`;
@@ -146,9 +146,9 @@ function tieRows(a: TurnAction, st: BattleState | null): string {
     const verb = t.entry ? 'enters first' : 'moves first';
     const option = (key: string): string => `<option value="${esc(key)}" ${t.first === key ? 'selected' : ''}>${esc(label(key))} ${verb}${t.picked || t.first !== key ? '' : ' (assumed)'}</option>`;
     const when = t.start ? ' at the start of the battle' : t.entry ? ' coming in' : '';
-    const tip = `Equal Speed (${t.speed})${when}: the game decides with a 50/50.${t.start ? ' This pick applies to every first turn of this tab.' : ''}`;
+    const tip = `Equal Speed (${t.speed})${when}: the game decides with a 50/50. The pick applies to this turn only.`;
     return `<div class="oc-row" title="${esc(tip)}"><span class="oc-name">Speed tie</span><span class="oc-check">with ${esc(label(other))}${when}</span>
-      <select class="field sm" data-tie="${esc(t.keys.join('|'))}"${t.start ? ' data-tie-scope="start"' : ''} aria-label="${esc(`Who wins the speed tie between ${label(t.keys[0])} and ${label(t.keys[1])}`)}">${option(me)}${option(other)}</select></div>`;
+      <select class="field sm" data-tie="${esc(t.keys.join('|'))}" aria-label="${esc(`Who wins the speed tie between ${label(t.keys[0])} and ${label(t.keys[1])}`)}">${option(me)}${option(other)}</select></div>`;
   }).join('');
 }
 

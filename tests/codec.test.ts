@@ -160,6 +160,16 @@ test('reads data saved by the earlier single-file version ({ teams, ui })', () =
   assert.equal(readLibrary(JSON.parse(JSON.stringify(legacy))).teams.length, 1);
 });
 
+test('an old tab-level battle-start tie pick is copied into each first turn', () => {
+  const parsed = readExport({ format: 'vgc-gameplan-planner', version: 2, teams: [{ name: 'T', paste: '', plans: [{ name: 'p', opponent: { name: '', paste: '' }, tabs: [{
+    name: 'Plan 1', selection: {}, entryTieOrder: ['opp:A', 'me:A'],
+    flow: [{ title: '', condition: '', note: '', children: [], actions: [] }, { title: '', condition: '', note: '', children: [], actions: [], tieOrder: ['me:B', 'opp:B'] }],
+  }] }] }] });
+  const tab = parsed.teams[0]!.plans[0]!.tabs[0]!;
+  assert.deepEqual(tab.children.map((n) => n.tieOrder), [['opp:A', 'me:A'], ['opp:A', 'me:A', 'me:B', 'opp:B']]);
+  assert.equal('entryTieOrder' in tab, false);
+});
+
 test('chance results survive export and import, combined stat changes included; junk is dropped', () => {
   const lib = { teams: [{ name: 'T', paste: '', plans: [{ name: 'p', opponent: { name: '', paste: '' }, tabs: [{ name: 'Plan 1', selection: {}, flow: [{
     title: '', condition: '', note: '', children: [], order: ['me:A', 'opp:B'], hpEnd: { 'opp:B': 42.5 }, source: { replay: 'https://replay.pokemonshowdown.com/x-1' },

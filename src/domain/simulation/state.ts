@@ -386,7 +386,8 @@ export function entryOrder<T extends { side: Side; name: string }>(st: BattleSta
 export interface InitialState { st: BattleState; entry: LogEntry[]; entryTies: SpeedTie[] }
 
 /** Battle start: everyone at full HP, leads on the field, entry abilities resolved (fastest first, so the slowest weather wins). */
-export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection' | 'entryTieOrder'>, myMons: readonly PokemonSet[], oppMons: readonly PokemonSet[]): InitialState {
+/** `tieOrder`: the first turn's picks for speed ties between the leads' entry abilities. */
+export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection'>, myMons: readonly PokemonSet[], oppMons: readonly PokemonSet[], tieOrder: readonly string[] = []): InitialState {
   const st: BattleState = {
     mons: { me: {}, opp: {} }, active: { me: [], opp: [] }, party: { me: [], opp: [] }, megaUsed: { me: null, opp: null },
     field: newField(), turn: newScratch(),
@@ -428,7 +429,7 @@ export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection' | 
 
   const entry: LogEntry[] = [];
   const leads = SIDES.flatMap((side) => st.active[side].filter((name) => st.mons[side][name]?.stats).map((name) => ({ side, name })));
-  const { order, ties } = entryOrder(st, leads, plan.entryTieOrder);
+  const { order, ties } = entryOrder(st, leads, tieOrder);
   const fx = new Effects(engine, st, entry);
   order.forEach((l) => fx.enter(l.side, l.name));
   return { st, entry, entryTies: ties.map((t) => ({ ...t, start: true as const })) };

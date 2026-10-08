@@ -793,17 +793,20 @@ test('a speed tie between the leads\' entry abilities is flagged on first turns 
   assert.deepEqual({ keys: tie?.keys, first: tie?.first, picked: tie?.picked, entry: tie?.entry }, { keys: ['me:Garchomp', 'opp:Garchomp'], first: 'me:Garchomp', picked: false, entry: true });
   assert.equal(r1!.field.weather, 'Sun', 'yours enters first (assumed), so the opponent\'s Drought is the one that stays');
 
-  // Picked on the tab: the opponent's Garchomp enters first, so your rain stays.
+  // Picked on one first turn: the opponent's Garchomp enters first there, so your rain stays; another first turn
+  // without a pick keeps the assumption.
   const team = newTeam('T', weatherWar.me.join('\n\n'));
   const gameplan = newPlan('p', weatherWar.opp.join('\n\n'));
   const tab = gameplan.tabs[0]!;
   tab.selection.me.lead = weatherWar.leads.me; tab.selection.opp.lead = weatherWar.leads.opp;
-  tab.entryTieOrder = ['opp:Garchomp', 'me:Garchomp'];
-  const n = newNode({ actions: calm });
-  tab.children.push(n);
-  const picked = simulatePlan(createEngine(makeStubCalc().lib), team, sheetOf(gameplan, tab)).get(n.id) as Ready;
+  const n = newNode({ actions: calm, tieOrder: ['opp:Garchomp', 'me:Garchomp'] });
+  const other = newNode({ actions: calm });
+  tab.children.push(n, other);
+  const results = simulatePlan(createEngine(makeStubCalc().lib), team, sheetOf(gameplan, tab));
+  const picked = results.get(n.id) as Ready;
   assert.equal(picked.field.weather, 'Rain');
   assert.equal(picked.ties.find((t) => t.start)?.picked, true);
+  assert.equal((results.get(other.id) as Ready).field.weather, 'Sun', 'the pick belongs to that turn only');
 
   // Same Speed without entry abilities: nothing to flag.
   const [plain] = play({ me: ME, opp: [mon('Garchomp', 'Rough Skin'), mon('Incineroar', 'Blaze')], leads: { me: ['Garchomp', 'Rillaboom'], opp: ['Garchomp', 'Incineroar'] } },
