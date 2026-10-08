@@ -35,9 +35,14 @@
 
 /* Flowchart connectors. Scoped by class so lists inside turn cards are unaffected. */
 ul.tree, ul.tree-children { list-style: none; margin: 0; padding: 0; display: flex; justify-content: center; position: relative; }
-ul.tree-children { padding-top: var(--gap); }
-.tree-item { position: relative; padding: var(--gap) 8px 0; display: flex; flex-direction: column; align-items: center; }
-.tree-item::before, .tree-item::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: var(--gap); border-top: 2px solid var(--line); }
+/* --stem: the line from a turn down to the fork bar; --drop: from the bar down into each turn. A row where a branch
+   starts with a name gets a longer drop for every turn in it (so the name has room and the row stays aligned); a
+   lone turn has no bar, so its whole connector is the stem. */
+ul.tree-children { --stem: var(--gap); --drop: var(--gap); padding-top: var(--stem); }
+ul.tree-children:has(> .tree-item > .branch-tag) { --drop: calc(var(--gap) * 2.4); }
+ul.tree-children:has(> .tree-item:only-child) { --stem: var(--drop); }
+.tree-item { position: relative; padding: var(--drop, var(--gap)) 8px 0; display: flex; flex-direction: column; align-items: center; }
+.tree-item::before, .tree-item::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: var(--drop, var(--gap)); border-top: 2px solid var(--line); }
 .tree-item::after { right: auto; left: 50%; border-left: 2px solid var(--lc, var(--line)); }
 /* A lone turn has no neighbours to keep apart from: no side padding, so long lines of turns don't widen the tree. */
 .tree-item:only-child { padding: 0; }
@@ -45,8 +50,13 @@ ul.tree-children { padding-top: var(--gap); }
 .tree-item:first-child::before, .tree-item:last-child::after { border: 0 none; }
 .tree-item:last-child::before { border-right: 2px solid var(--lc, var(--line)); border-radius: 0 8px 0 0; }
 .tree-item:first-child::after { border-radius: 8px 0 0 0; }
-ul.tree-children::before { content: ""; position: absolute; top: 0; left: 50%; height: var(--gap); border-left: 2px solid var(--lc, var(--line)); }
-ul.tree.rootlist { padding-top: 0; }
+ul.tree-children::before { content: ""; position: absolute; top: 0; left: 50%; height: var(--stem); border-left: 2px solid var(--lc, var(--line)); }
+/* Nothing below a turn but the "+": a dashed default line, like the "+" beside a turn, so a branch's colour ends at its last turn. */
+ul.tree-children:has(> .tree-item:only-child > .addbox)::before { border-left: 2px dashed var(--line); }
+ul.tree.rootlist { --drop: var(--gap); padding-top: 0; }
+/* A first turn that starts a named branch: room above it for the name, on a line from the leads. */
+ul.tree.rootlist:has(> .tree-item:only-child > .branch-tag) { padding-top: calc(var(--gap) * 1.4); }
+ul.tree.rootlist:has(> .tree-item:only-child > .branch-tag)::before { content: ""; position: absolute; top: 0; left: 50%; height: calc(var(--gap) * 1.4); border-left: 2px solid var(--line); }
 .workspace { position: relative; flex: 1; min-height: 0; display: flex; }
 
 /* Turn cards: a compact summary; the battle log opens below on demand. */
@@ -164,8 +174,9 @@ ul.tree.rootlist { padding-top: 0; }
 .lc-pink { --lc: #d6468f; } .lc-lime { --lc: #5f9e14; } .lc-orange { --lc: #e0702b; }
 .lc-none { --lc: initial; } /* a line with no colour: back to the default borders */
 /* The branch name, on the connector just above the turn where the branch starts (long names end in "…"; full name on hover). */
-.branch-tag { position: absolute; top: calc(var(--gap) / 2); left: 50%; transform: translate(-50%, -50%); z-index: 2; display: inline-flex; align-items: center; gap: 5px; max-width: 280px; padding: 0 9px; height: 18px; border-radius: 9px; background: var(--panel); border: 1.5px solid var(--lc, var(--line)); color: var(--ink); font-size: 10.5px; font-weight: 700; white-space: nowrap; }
-.tree-item:only-child > .branch-tag { top: calc(var(--gap) / -2); }
+.branch-tag { position: absolute; top: calc(var(--drop, var(--gap)) / 2); left: 50%; transform: translate(-50%, -50%); z-index: 2; display: inline-flex; align-items: center; gap: 5px; max-width: 280px; padding: 0 9px; height: 18px; border-radius: 9px; background: var(--panel); border: 1.5px solid var(--lc, var(--line)); color: var(--ink); font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.tree-item:only-child > .branch-tag { top: calc(var(--stem, var(--gap)) / -2); }
+ul.tree.rootlist > .tree-item:only-child > .branch-tag { top: calc(var(--gap) * -0.7); }
 .branch-tag { overflow: hidden; text-overflow: ellipsis; }
 .branch-tag .dot, .line-chip .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--lc, var(--ink-3)); }
 .turn.dim { opacity: .35; }
@@ -183,7 +194,7 @@ ul.tree.rootlist { padding-top: 0; }
 .line-swatch.on { box-shadow: 0 0 0 2px var(--ink); }
 
 /* A branch's stretch of a fork bar, laid by drawForkColors() from the fork to the turn. */
-.fork-seg { position: absolute; top: 0; height: var(--gap); border-top: 2px solid var(--lc); pointer-events: none; z-index: 1; }
+.fork-seg { position: absolute; top: 0; height: var(--drop, var(--gap)); border-top: 2px solid var(--lc); pointer-events: none; z-index: 1; }
 .fork-seg.left { border-left: 2px solid var(--lc); }
 .fork-seg.right { border-right: 2px solid var(--lc); }
 .fork-seg.left.end { border-top-left-radius: 8px; }
