@@ -121,6 +121,23 @@ function readNodeFacts(o: Obj, node: FlowNode): void {
   }
 }
 
+/** A turn's tags: trimmed, no duplicates, at most TAG_LIMITS.count of TAG_LIMITS.length characters. Older data had one branch condition instead. */
+export const TAG_LIMITS = { count: 12, length: 60 } as const;
+export function cleanTags(list: readonly unknown[]): string[] {
+  const out: string[] = [];
+  for (const raw of list) {
+    const tag = typeof raw === 'string' ? Array.from(raw.trim().replace(/\s+/g, ' ')).slice(0, TAG_LIMITS.length).join('') : '';
+    if (tag && !out.some((t) => t.toLowerCase() === tag.toLowerCase())) out.push(tag);
+    if (out.length >= TAG_LIMITS.count) break;
+  }
+  return out;
+}
+function readTags(o: Obj, path: string): string[] {
+  if (Array.isArray(o.tags)) return cleanTags(o.tags);
+  const condition = asStr(o.condition, `${path}.condition`, LIMITS.nameLength);
+  return cleanTags([condition]);
+}
+
 interface NodeBudget { remaining: number }
 
 function readNode(raw: unknown, path: string, keepIds: boolean, depth: number, budget: NodeBudget): FlowNode {
@@ -129,7 +146,7 @@ function readNode(raw: unknown, path: string, keepIds: boolean, depth: number, b
   const o = asObj(raw, path);
   const node = newNode({
     title: asStr(o.title, `${path}.title`, LIMITS.nameLength),
-    condition: asStr(o.condition, `${path}.condition`, LIMITS.nameLength),
+    tags: readTags(o, path),
     note: asStr(o.note, `${path}.note`),
     actions: asArr(o.actions, `${path}.actions`, LIMITS.actionsPerNode).map((a, i) => readAction(a, `${path}.actions[${i}]`)),
     children: asArr(o.children, `${path}.children`, LIMITS.nodesPerPlan).map((c, i) => readNode(c, `${path}.children[${i}]`, keepIds, depth + 1, budget)),
@@ -240,7 +257,7 @@ export const writeLibrary = (library: Library): StoredLibrary => ({ schemaVersio
 /* ----------------------------- export file ------------------------------ */
 
 export interface ExportedNode {
-  title: string; condition: string; note: string; actions: TurnAction[]; children: ExportedNode[];
+  title: string; tags: string[]; note: string; actions: TurnAction[]; children: ExportedNode[];
   order?: string[]; tieOrder?: string[]; hpEnd?: Record<string, number>; source?: { replay: string }; line?: PlanLine;
 }
 export interface ExportedTab { name: string; selection: Record<Side, SideSelection>; flow: ExportedNode[] }
@@ -263,7 +280,7 @@ export interface ExportFile {
 export type ExportScope = { type: 'all' } | { type: 'team'; teamId: string } | { type: 'plan'; teamId: string; planId: string };
 
 const exportNode = (n: FlowNode): ExportedNode => ({
-  title: n.title, condition: n.condition, note: n.note, actions: n.actions.map((a) => structuredClone(a)), children: n.children.map(exportNode),
+  title: n.title, tags: [...n.tags], note: n.note, actions: n.actions.map((a) => structuredClone(a)), children: n.children.map(exportNode),
   ...(n.order ? { order: [...n.order] } : {}), ...(n.tieOrder ? { tieOrder: [...n.tieOrder] } : {}), ...(n.hpEnd ? { hpEnd: { ...n.hpEnd } } : {}), ...(n.source ? { source: { ...n.source } } : {}),
   ...(n.line ? { line: { ...n.line } } : {}),
 });

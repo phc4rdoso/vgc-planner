@@ -84,7 +84,8 @@ try {
 
   // branch
   await page.click('[data-act="add-branch-child"]');
-  await page.fill('[data-f="condition"]', 'If Incineroar Protects');
+  await page.fill('#d-tag', 'If Incineroar Protects');
+  await page.press('#d-tag', 'Enter');
   assert.equal(await page.locator('.turn').count(), 2);
 
   // export, reload, import

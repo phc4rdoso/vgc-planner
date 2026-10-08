@@ -51,15 +51,45 @@ export function lineAt(nodes: readonly FlowNode[], id: string): { line: PlanLine
   return walk(nodes, null) ?? null;
 }
 
+/**
+ * Colours the fork bars. A branch's colour must run from the fork (under the parent turn) to its own turn, which CSS
+ * alone can't know, so after each redraw this measures each fork and lays a coloured segment over that stretch of
+ * the default bar. Branches without a colour, and the "+" boxes, keep the default bar.
+ */
+export function drawForkColors(root: HTMLElement): void {
+  root.querySelectorAll<HTMLElement>('ul.tree-children, ul.tree.rootlist').forEach((ul) => {
+    const items = [...ul.children].filter((c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains('tree-item'));
+    if (items.length < 2) return;
+    const stem = ul.clientWidth / 2;
+    items.forEach((li, i) => {
+      if (!li.querySelector(':scope > .turn, :scope > .card-row > .turn')) return;
+      if (!getComputedStyle(li).getPropertyValue('--lc').trim()) return;
+      const center = li.offsetLeft + li.offsetWidth / 2;
+      if (Math.abs(center - stem) < 1) return;
+      const seg = document.createElement('span');
+      const left = center < stem;
+      const end = i === 0 || i === items.length - 1;
+      seg.className = `fork-seg ${left ? 'left' : 'right'}${end ? ' end' : ''}`;
+      seg.setAttribute('aria-hidden', 'true');
+      // Same pixels as the connector drawn by CSS: the drop into the turn is 2px wide starting at its centre (left
+      // side) or ending at it (right side); the stem under the parent is 2px wide starting at the fork.
+      const off = li.offsetLeft;
+      seg.style.left = `${(left ? center : stem) - off}px`;
+      seg.style.width = `${left ? stem - center + 2 : center - stem}px`;
+      li.prepend(seg);
+    });
+  });
+}
+
 /** Chips for the tab's lines; clicking one highlights it. Empty when the tab has none. */
 export function legendHTML(nodes: readonly FlowNode[], focus: string | null | undefined): string {
   const lines = linesOf(nodes);
   if (!lines.length) return '';
   const chips = lines.map((l) => {
     const on = focus === l.id;
-    return `<button class="line-chip ${lineClass(l.line)} ${on ? 'on' : ''}" data-act="focus-line" data-node="${esc(l.id)}" aria-pressed="${on}" title="${esc(on ? 'Show every line' : `Highlight this line (starts at ${l.title})`)}"><span class="dot" aria-hidden="true"></span>${esc(lineLabel(l.line, l.title))}</button>`;
+    return `<button class="line-chip ${lineClass(l.line)} ${on ? 'on' : ''}" data-act="focus-line" data-node="${esc(l.id)}" aria-pressed="${on}" title="${esc(on ? 'Show every branch' : `Highlight this branch (starts at ${l.title})`)}"><span class="dot" aria-hidden="true"></span>${esc(lineLabel(l.line, l.title))}</button>`;
   }).join('');
-  return `<span class="lbl-inline">Lines</span>${chips}${focus ? '<button class="line-chip clear" data-act="focus-line" data-node="">Show all</button>' : ''}`;
+  return `<span class="lbl-inline">Branches</span>${chips}${focus ? '<button class="line-chip clear" data-act="focus-line" data-node="">Show all</button>' : ''}`;
 }
 
 export { LINE_COLORS };

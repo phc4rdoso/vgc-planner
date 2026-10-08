@@ -16,6 +16,7 @@ import { isPivotMove, renderDrawer } from './views/drawer.ts';
 import { rerenderCanvas, setZoom } from './views/plan-view.ts';
 import { applyNavCollapsed, renderNav } from './views/sidebar.ts';
 import { LINE_COLORS } from '../domain/types.ts';
+import { cleanTags } from '../domain/codec.ts';
 
 const asSide = (v: string | undefined): Side => (v === 'opp' ? 'opp' : 'me');
 const asSlot = (v: string | undefined): SlotKind => (v === 'back' ? 'back' : 'lead');
@@ -117,6 +118,16 @@ async function handleClick(el: HTMLElement, e: MouseEvent): Promise<void> {
       renderDrawer();
       return;
     }
+    case 'remove-tag': {
+      const found = store.currentNode();
+      if (!found) return;
+      found.node.tags = found.node.tags.filter((t) => t !== d.tag);
+      store.persist();
+      rerenderCanvas();
+      renderDrawer();
+      qs<HTMLInputElement>('#d-tag')?.focus();
+      return;
+    }
     case 'focus-line':
       store.ui.focusLine = d.node && d.node !== store.ui.focusLine ? d.node : null;
       rerenderCanvas();
@@ -160,7 +171,7 @@ function onInput(e: Event): void {
     const color = found.node.line?.color;
     if (name || color) found.node.line = { name, ...(color ? { color } : {}) };
     else delete found.node.line;
-  } else if (f === 'title' || f === 'condition' || f === 'note') {
+  } else if (f === 'title' || f === 'note') {
     found.node[f] = t.value;
     if (f === 'title') { const h = qs('#drawer h3'); if (h) h.textContent = t.value || `Turn ${found.depth}`; }
   } else if (a) {
@@ -222,8 +233,29 @@ function onChange(e: Event): void {
   rerenderCanvas();
 }
 
+/** Adds what's typed in the tag box as a tag of the open turn. */
+function addTypedTag(box: HTMLInputElement): void {
+  const found = store.currentNode();
+  const value = box.value.replace(/,/g, ' ').trim();
+  if (!found || !value) return;
+  found.node.tags = cleanTags([...found.node.tags, value]);
+  store.persist();
+  rerenderCanvas();
+  renderDrawer();
+  qs<HTMLInputElement>('#d-tag')?.focus();
+}
+
 function onKeydown(e: KeyboardEvent): void {
   const t = e.target;
+  if (t instanceof HTMLInputElement && t.id === 'd-tag') {
+    if (e.key === 'Enter' || e.key === ',') { e.preventDefault(); addTypedTag(t); return; }
+    // Backspace in an empty box takes off the last tag, as in most tag inputs.
+    if (e.key === 'Backspace' && !t.value) {
+      const found = store.currentNode();
+      if (found?.node.tags.length) { found.node.tags = found.node.tags.slice(0, -1); store.persist(); rerenderCanvas(); renderDrawer(); qs<HTMLInputElement>('#d-tag')?.focus(); }
+      return;
+    }
+  }
   if ((e.key === 'Enter' || e.key === ' ') && t instanceof HTMLElement && t.matches('[role="button"][data-act], [role="tab"][data-act]')) {
     e.preventDefault();
     t.click();
@@ -252,5 +284,10 @@ export function installEvents(): void {
   });
   document.addEventListener('input', onInput);
   document.addEventListener('change', onChange);
+  // A suggestion picked from the tag list arrives as a plain input event with the whole tag: add it.
+  document.addEventListener('input', (e) => {
+    const t = e.target;
+    if (t instanceof HTMLInputElement && t.id === 'd-tag' && (e as InputEvent).inputType === 'insertReplacementText') addTypedTag(t);
+  });
   simService.onChange = () => rerenderCanvas();
 }
