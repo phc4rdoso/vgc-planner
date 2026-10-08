@@ -14,6 +14,7 @@ import { rerenderCanvas } from './plan-view.ts';
 import { lockedAction, mayBeForcedOut, moveLock } from '../../domain/simulation/turn.ts';
 import type { SpeedTie } from '../../domain/simulation/log.ts';
 import { LINE_COLOR_LABEL, LINE_COLORS, lineAt } from '../lines.ts';
+import { TAG_LIMITS } from '../../domain/codec.ts';
 
 /** `label` turns a stored value (a paste name) into what is shown (its current form). */
 const options = (list: readonly string[], current: string, blank?: string, label: (v: string) => string = (v) => v): string =>
@@ -246,8 +247,25 @@ function actionEditor(a: TurnAction, i: number, st: BattleState | null, depth: n
   </div>`;
 }
 
+/** Every tag used in the open gameplan (all tabs), most used first: suggestions for the tag box. */
+function knownTags(): string[] {
+  const counts = new Map<string, number>();
+  const walk = (nodes: readonly FlowNode[]): void => { for (const x of nodes) { x.tags.forEach((t) => counts.set(t, (counts.get(t) ?? 0) + 1)); walk(x.children); } };
+  for (const tab of store.plan?.tabs ?? []) walk(tab.children);
+  return [...counts.entries()].sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0])).map(([t]) => t);
+}
+
+/** The "Tags" field: the turn's own labels as removable chips, and a box to add one (Enter or comma). */
+function tagsEditorHTML(n: FlowNode): string {
+  const chips = n.tags.map((t) => `<span class="tag-chip">${esc(t)}<button type="button" class="tag-x" data-act="remove-tag" data-tag="${esc(t)}" aria-label="${esc(`Remove tag ${t}`)}">×</button></span>`).join('');
+  const suggestions = knownTags().filter((t) => !n.tags.includes(t)).slice(0, 30).map((t) => `<option value="${esc(t)}">`).join('');
+  return `<div class="tags-edit"><label class="lbl" for="d-tag">Tags</label>
+    <div class="tags-box">${chips}<input class="tag-input" id="d-tag" list="d-tag-list" placeholder="${n.tags.length ? 'Add a tag' : 'e.g. If they Protect'}" maxlength="${TAG_LIMITS.length}" autocomplete="off"></div>
+    <datalist id="d-tag-list">${suggestions}</datalist></div>`;
+}
+
 /**
- * The "Line" field: a name and a colour that start a named line at this turn (no colour keeps the default borders).
+ * The "Branch name" field: a name and a colour that start a named line at this turn (no colour keeps the default borders).
  * Below it, which line the turn already belongs to when it doesn't start its own.
  */
 function lineEditorHTML(n: FlowNode): string {
@@ -258,10 +276,10 @@ function lineEditorHTML(n: FlowNode): string {
     const on = (color ?? '') === value;
     return `<button type="button" class="line-swatch ${value ? `lc lc-${value}` : 'default'} ${on ? 'on' : ''}" data-act="line-color" data-color="${value}" role="radio" aria-checked="${on}" aria-label="${esc(label)}" title="${esc(label)}"></button>`;
   };
-  const note = inherited ? `Part of “${esc(inherited.line.name || 'an unnamed line')}”. Name it to start a new line here.` : 'Starts a line here: later turns in this branch follow it until another turn starts a new one.';
+  const note = inherited ? `Part of the branch “${esc(inherited.line.name || 'unnamed')}”. Name this turn to start a new branch here.` : 'Names the branch from this turn on: later turns follow it until another turn starts a new one.';
   return `<div class="line-edit">
-    <label class="lbl" for="d-line">Line</label>
-    <div class="line-row"><input class="field" id="d-line" data-f="line" placeholder="e.g. Plan A: Sun" maxlength="80" value="${esc(n.line?.name ?? '')}">
+    <label class="lbl" for="d-line">Branch name</label>
+    <div class="line-row"><input class="field" id="d-line" data-f="line" placeholder="e.g. Plan A: Sun, Trick Room denial" maxlength="120" value="${esc(n.line?.name ?? '')}">
       <div class="line-swatches" role="radiogroup" aria-label="Line colour">${swatch('', 'Default colour')}${LINE_COLORS.map((c) => swatch(c, LINE_COLOR_LABEL[c])).join('')}</div></div>
     <div class="hint">${note}</div>
   </div>`;
@@ -317,7 +335,7 @@ export function renderDrawer(): void {
   <div class="drawer-body">
     <div class="row2">
       <div><label class="lbl" for="d-title">Title</label><input class="field" id="d-title" data-f="title" placeholder="Turn ${found.depth}" value="${esc(n.title)}"></div>
-      <div><label class="lbl" for="d-cond">Branch condition</label><input class="field" id="d-cond" data-f="condition" placeholder="e.g. If they Protect" value="${esc(n.condition)}"></div>
+      ${tagsEditorHTML(n)}
     </div>
     ${lineEditorHTML(n)}
     <div id="acts">${n.actions.map((a, i) => actionEditor(a, i, st, found.depth, n.actions)).join('') || '<p class="hint">Pick the leads at the top of the plan: each Pokémon on the field gets an action here.</p>'}</div>

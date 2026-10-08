@@ -14,7 +14,7 @@ import { ICON_LINK } from '../share.ts';
 import { renderNav } from './sidebar.ts';
 import { extLinksHTML } from '../ext-links.ts';
 import { REPLAY_BUTTON } from '../replay-import.ts';
-import { legendHTML, lineClass, lineFocus } from '../lines.ts';
+import { drawForkColors, legendHTML, lineClass, lineFocus } from '../lines.ts';
 
 const PLUS_ICON = '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 3v12M3 9h12"/></svg>';
 
@@ -78,11 +78,13 @@ function nodeHTML(n: FlowNode, depth: number, sim: SimView, start: BattleState |
   const toggle = hasDetails(n, sim)
     ? `<button class="card-btn expand ${open ? 'open' : ''}" data-act="toggle-result" data-node="${esc(n.id)}" aria-expanded="${open}" aria-label="${open ? 'Hide' : 'Show'} the battle log" title="${open ? 'Hide' : 'Show'} the battle log">${ICON_CHEVRON}</button>`
     : '';
-  const lineTag = n.line?.name ? `<span class="line-tag" title="${esc(`Line: ${n.line.name}`)}"><span class="dot" aria-hidden="true"></span>${esc(n.line.name)}</span>` : '';
+  const shown = n.tags.slice(0, 2);
+  const tags = shown.map((t) => `<span class="cond" title="${esc(t)}">${esc(t)}</span>`).join('')
+    + (n.tags.length > shown.length ? `<span class="cond more" title="${esc(n.tags.slice(shown.length).join(', '))}">+${n.tags.length - shown.length}</span>` : '');
   const dim = focus && !focus.has(n.id) ? 'dim' : '';
-  return `<div class="turn ${selected ? 'selected' : ''} ${open ? 'open' : ''} ${outcome ?? ''} ${dim}" data-act="select-node" data-node="${esc(n.id)}" tabindex="0" role="button" aria-label="Edit ${esc(title)}${outcome ? ` (${OUTCOME_LABEL[outcome]})` : ''}${n.line?.name ? `, line ${esc(n.line.name)}` : ''}">
-    ${lineTag}<div class="turn-head">
-      ${n.condition ? `<span class="cond" title="${esc(n.condition)}">${esc(n.condition)}</span>` : ''}
+  return `<div class="turn ${selected ? 'selected' : ''} ${open ? 'open' : ''} ${outcome ?? ''} ${dim}" data-act="select-node" data-node="${esc(n.id)}" tabindex="0" role="button" aria-label="Edit ${esc(title)}${outcome ? ` (${OUTCOME_LABEL[outcome]})` : ''}${n.line?.name ? `, branch ${esc(n.line.name)}` : ''}">
+    <div class="turn-head">
+      ${tags}
       <span class="ttl">${esc(title)}${tag}</span><span class="spacer"></span>
       ${toggle}
     </div>
@@ -111,7 +113,9 @@ function listHTML(nodes: FlowNode[], parentId: string | null, depth: number, sim
     const card = nodeHTML(n, depth, sim, start, picks, focus);
     const row = beside ? `<div class="card-row"><span class="add-spacer" aria-hidden="true"></span>${card}${addbox('beside')}</div>` : card;
     // A line starting here colours this turn's connector, its card border and everything below it (see .lc in canvas.css).
-    return `<li class="tree-item ${n.line ? lineClass(n.line) : ''}">${row}${children ? `<ul class="tree-children">${children}</ul>` : ''}</li>`;
+    // The branch's name sits on the connector above the turn where it starts.
+    const name = n.line?.name ? `<span class="branch-tag" title="${esc(n.line.name)}"><span class="dot" aria-hidden="true"></span>${esc(n.line.name)}</span>` : '';
+    return `<li class="tree-item ${n.line ? lineClass(n.line) : ''}">${name}${row}${children ? `<ul class="tree-children">${children}</ul>` : ''}</li>`;
   }).join('');
 }
 
@@ -183,6 +187,7 @@ export function renderPlanView(main: HTMLElement, team: Team, plan: Plan): void 
   const inner = must('#cinner');
   inner.style.setProperty('--zoom', String(store.ui.zoom));
   applyDynamicStyles(inner);
+  drawForkColors(inner);
   must<HTMLInputElement>('#plan-name').addEventListener('input', (e) => {
     plan.name = (e.target as HTMLInputElement).value;
     store.persist();
@@ -203,6 +208,7 @@ export function rerenderCanvas(force = false): void {
   const sim = simService.compute(team, plan, force);
   host.innerHTML = canvasInner(team, plan, sim);
   applyDynamicStyles(host);
+  drawForkColors(host);
   const notice = qs('#notice');
   if (notice) notice.innerHTML = noticeHTML(sim);
   const legend = qs('#line-legend');

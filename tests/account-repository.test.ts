@@ -35,7 +35,7 @@ function sampleLibrary(): Library {
   const team = newTeam('Rain', 'Pelipper\nEVs: 32 HP');
   const plan = newPlan('vs Sun', 'Torkoal\nEVs: 32 HP');
   plan.tabs[0]!.selection.me.lead = ['Pelipper', null];
-  plan.tabs[0]!.children.push(newNode({ title: 'T1', children: [newNode({ condition: 'If Protect' })] }));
+  plan.tabs[0]!.children.push(newNode({ title: 'T1', children: [newNode({ tags: ['If Protect'] })] }));
   team.plans.push(plan, newPlan('vs Room'));
   return { teams: [team, newTeam('Sand')] };
 }

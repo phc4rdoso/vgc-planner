@@ -10,7 +10,7 @@ function sampleLibrary(): Library {
   const plan = newPlan('vs Sun', 'Incineroar\nEVs: 32 HP');
   plan.tabs[0]!.selection.me.lead = ['Rillaboom', null];
   const turn = newNode({ title: 'T1', actions: [{ side: 'me', mon: 'Rillaboom', kind: 'move', move: 'Fake Out', target: 'Incineroar' }] });
-  turn.children.push(newNode({ condition: 'If Protect', note: 'hello' }));
+  turn.children.push(newNode({ tags: ['If Protect'], note: 'hello' }));
   plan.tabs[0]!.children.push(turn);
   team.plans.push(plan);
   return { teams: [team] };
@@ -25,7 +25,7 @@ test('export then import round-trips teams, plans and turns with fresh ids', () 
   assert.equal(summary.plans, 1);
   const plan = target.teams[0]!.plans[0]!;
   assert.equal(countNodes(plan.tabs[0]!.children), 2);
-  assert.equal(plan.tabs[0]!.children[0]!.children[0]!.condition, 'If Protect');
+  assert.deepEqual(plan.tabs[0]!.children[0]!.children[0]!.tags, ['If Protect']);
   assert.equal(plan.tabs[0]!.selection.me.lead[0], 'Rillaboom');
   assert.notEqual(plan.id, lib.teams[0]!.plans[0]!.id);
   assert.notEqual(plan.tabs[0]!.children[0]!.id, lib.teams[0]!.plans[0]!.tabs[0]!.children[0]!.id);
@@ -200,4 +200,22 @@ test('a named line (name and optional colour) survives export, import and storag
   assert.deepEqual(readLibrary(raw).teams[0]!.plans[0]!.tabs[0]!.children[0]!.line, { name: 'X' });
   raw.teams[0]!.plans[0]!.tabs[0]!.children[0]!.line = { name: '  ', color: 'nope' };
   assert.equal(readLibrary(raw).teams[0]!.plans[0]!.tabs[0]!.children[0]!.line, undefined, 'nothing valid: no line');
+});
+
+test('tags: an old branch condition becomes a tag; tags are trimmed, de-duplicated and capped', () => {
+  const lib = sampleLibrary();
+  const raw = JSON.parse(JSON.stringify(writeLibrary(lib))) as { teams: { plans: { tabs: { children: Record<string, unknown>[] }[] }[] }[] };
+  const turn = raw.teams[0]!.plans[0]!.tabs[0]!.children[0]!;
+  delete turn.tags;
+  turn.condition = 'If they Protect';
+  assert.deepEqual(readLibrary(raw).teams[0]!.plans[0]!.tabs[0]!.children[0]!.tags, ['If they Protect']);
+  turn.condition = '';
+  assert.deepEqual(readLibrary(raw).teams[0]!.plans[0]!.tabs[0]!.children[0]!.tags, []);
+  turn.tags = ['  Risky  ', 'risky', 'Plan   B', 42, '', ...Array.from({ length: 20 }, (_, i) => `t${i}`)];
+  const tags = readLibrary(raw).teams[0]!.plans[0]!.tabs[0]!.children[0]!.tags;
+  assert.deepEqual(tags.slice(0, 3), ['Risky', 'Plan B', 't0']);
+  assert.equal(tags.length, 12);
+  const back: Library = { teams: [] };
+  mergeImport(back, readExport(JSON.parse(JSON.stringify(buildExport(readLibrary(raw), { type: 'all' })))));
+  assert.deepEqual(back.teams[0]!.plans[0]!.tabs[0]!.children[0]!.tags, tags, 'tags survive export and import');
 });

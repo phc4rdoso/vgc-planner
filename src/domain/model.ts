@@ -47,7 +47,7 @@ const reidNodes = (list: FlowNode[]): void => list.forEach((n) => { n.id = newId
 export const countPlanTurns = (plan: Plan): number => plan.tabs.reduce((n, t) => n + countNodes(t.children), 0);
 
 export function newNode(init: Partial<Omit<FlowNode, 'id'>> = {}): FlowNode {
-  return { id: newId(), title: '', condition: '', note: '', actions: [], children: [], ...init };
+  return { id: newId(), title: '', tags: [], note: '', actions: [], children: [], ...init };
 }
 
 export const teamMons = (team: Pick<Team, 'paste'> | null | undefined): PokemonSet[] => parseShowdown(team?.paste);

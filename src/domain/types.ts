@@ -90,8 +90,8 @@ export interface PlanLine { name: string; color?: LineColor }
 export interface FlowNode {
   id: string;
   title: string;
-  /** Label for the branch leading into this turn, e.g. "If they Protect". */
-  condition: string;
+  /** The user's own labels for this turn, e.g. "If they Protect", "Risky" (older data: the branch condition). */
+  tags: string[];
   note: string;
   actions: TurnAction[];
   children: FlowNode[];

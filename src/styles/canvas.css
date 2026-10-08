@@ -37,7 +37,7 @@
 ul.tree, ul.tree-children { list-style: none; margin: 0; padding: 0; display: flex; justify-content: center; position: relative; }
 ul.tree-children { padding-top: var(--gap); }
 .tree-item { position: relative; padding: var(--gap) 8px 0; display: flex; flex-direction: column; align-items: center; }
-.tree-item::before, .tree-item::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: var(--gap); border-top: 2px solid var(--lc, var(--line)); }
+.tree-item::before, .tree-item::after { content: ""; position: absolute; top: 0; right: 50%; width: 50%; height: var(--gap); border-top: 2px solid var(--line); }
 .tree-item::after { right: auto; left: 50%; border-left: 2px solid var(--lc, var(--line)); }
 /* A lone turn has no neighbours to keep apart from: no side padding, so long lines of turns don't widen the tree. */
 .tree-item:only-child { padding: 0; }
@@ -50,7 +50,7 @@ ul.tree.rootlist { padding-top: 0; }
 .workspace { position: relative; flex: 1; min-height: 0; display: flex; }
 
 /* Turn cards: a compact summary; the battle log opens below on demand. */
-.turn { position: relative; width: 300px; background: var(--panel); border: 1.5px solid var(--lc, var(--line)); border-radius: var(--radius); box-shadow: var(--shadow); padding: 8px 10px 9px; text-align: left; display: block; cursor: pointer; font-size: 12px; }
+.turn { --bc: var(--lc, var(--line)); position: relative; width: 300px; background: var(--panel); border: 1.5px solid var(--bc); transition: box-shadow .15s ease, border-color .15s ease; border-radius: var(--radius); box-shadow: var(--shadow); padding: 8px 10px 9px; text-align: left; display: block; cursor: pointer; font-size: 12px; }
 .turn.open { width: 380px; }
 .turn-head { display: flex; align-items: center; gap: 6px; min-height: 24px; margin-bottom: 6px; }
 .card-btn { flex: none; width: 24px; height: 24px; border-radius: 50%; border: 1px solid transparent; background: transparent; color: var(--ink-3); display: inline-flex; align-items: center; justify-content: center; padding: 0; }
@@ -70,13 +70,15 @@ ul.tree.rootlist { padding-top: 0; }
 .mini-hp.ko .mon-icon, .mini-hp.ko .mon-fallback { filter: grayscale(1); opacity: .4; }
 .sum-msg { margin-top: 7px; padding-top: 6px; border-top: 1px solid var(--line-soft); color: var(--ink-2); font-size: 11.5px; line-height: 1.35; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .sum-msg.bad { color: var(--danger); }
-.turn:hover { border-color: var(--lc, var(--ink-3)); }
+/* Hover: the border thickens (a ring in the border's own colour, so nothing moves). */
+.turn:hover { --bc: var(--lc, var(--ink-3)); border-color: var(--bc); box-shadow: 0 0 0 1.5px var(--bc), var(--shadow); }
 /* In a coloured line the border keeps the line's colour; the glow alone shows the selection. */
-.turn.selected { border-color: var(--lc, var(--me)); box-shadow: 0 0 0 3px var(--me-soft), var(--shadow); }
+.turn.selected { --bc: var(--lc, var(--me)); border-color: var(--bc); box-shadow: 0 0 0 3px var(--me-soft), var(--shadow); }
+.turn.selected:hover { box-shadow: 0 0 0 1.5px var(--bc), 0 0 0 4.5px var(--me-soft), var(--shadow); }
 /* Battle decided in this turn: every PokÃ©mon on one side has fainted. */
-.turn.win, .turn.win:hover { border-color: var(--ok); border-width: 2px; }
-.turn.loss, .turn.loss:hover { border-color: var(--opp); border-width: 2px; }
-.turn.draw, .turn.draw:hover { border-color: var(--ink-3); border-width: 2px; }
+.turn.win, .turn.win:hover { --bc: var(--ok); border-color: var(--ok); border-width: 2px; }
+.turn.loss, .turn.loss:hover { --bc: var(--opp); border-color: var(--opp); border-width: 2px; }
+.turn.draw, .turn.draw:hover { --bc: var(--ink-3); border-color: var(--ink-3); border-width: 2px; }
 .otag { display: inline-block; margin-left: 6px; font-size: 10.5px; font-weight: 800; letter-spacing: .03em; padding: 1px 8px; border-radius: 999px; vertical-align: 1px; }
 .otag.win { background: var(--ok-soft); color: var(--ok); }
 .otag.loss { background: var(--opp-soft); color: var(--opp); }
@@ -119,6 +121,7 @@ ul.tree.rootlist { padding-top: 0; }
 .notice { padding: 7px 20px; font-size: 12.5px; background: var(--warn-soft); color: var(--warn); border-bottom: 1px solid var(--line-soft); font-weight: 500; }
 .notice.info { background: var(--me-soft); color: var(--me); }
 .notice:empty { display: none; }
+.turn .cond.more { flex: none; }
 .turn .cond { font-size: 11px; font-weight: 600; background: var(--warn-soft); color: var(--warn); border-radius: 6px; padding: 1px 7px; max-width: 130px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .turn .ttl { font-weight: 700; font-size: 13px; white-space: nowrap; }
 .turn .act { display: flex; align-items: center; gap: 5px; padding: 3px 5px; border-radius: 7px; font-size: 12px; min-width: 0; }
@@ -160,8 +163,11 @@ ul.tree.rootlist { padding-top: 0; }
 .lc-teal { --lc: #14a594; } .lc-sky { --lc: #2b8fd6; } .lc-amber { --lc: #d4920b; }
 .lc-pink { --lc: #d6468f; } .lc-lime { --lc: #5f9e14; } .lc-orange { --lc: #e0702b; }
 .lc-none { --lc: initial; } /* a line with no colour: back to the default borders */
-.turn .line-tag { position: absolute; top: -10px; left: 12px; display: inline-flex; align-items: center; gap: 5px; max-width: 200px; padding: 0 8px; height: 18px; border-radius: 9px; background: var(--panel); border: 1.5px solid var(--lc, var(--line)); color: var(--ink); font-size: 10.5px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.turn .line-tag .dot, .line-chip .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--lc, var(--ink-3)); }
+/* The branch name, on the connector just above the turn where the branch starts (long names end in "…"; full name on hover). */
+.branch-tag { position: absolute; top: calc(var(--gap) / 2); left: 50%; transform: translate(-50%, -50%); z-index: 2; display: inline-flex; align-items: center; gap: 5px; max-width: 280px; padding: 0 9px; height: 18px; border-radius: 9px; background: var(--panel); border: 1.5px solid var(--lc, var(--line)); color: var(--ink); font-size: 10.5px; font-weight: 700; white-space: nowrap; }
+.tree-item:only-child > .branch-tag { top: calc(var(--gap) / -2); }
+.branch-tag { overflow: hidden; text-overflow: ellipsis; }
+.branch-tag .dot, .line-chip .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--lc, var(--ink-3)); }
 .turn.dim { opacity: .35; }
 .line-legend { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 0 20px; }
 .line-legend:not(:empty) { padding: 6px 20px; background: var(--panel); border-bottom: 1px solid var(--line-soft); }
@@ -175,3 +181,19 @@ ul.tree.rootlist { padding-top: 0; }
 .line-swatch { width: 20px; height: 20px; border-radius: 50%; border: 2px solid var(--panel); background: var(--lc, var(--panel)); box-shadow: 0 0 0 1px var(--line); cursor: pointer; padding: 0; }
 .line-swatch.default { background: var(--panel); box-shadow: 0 0 0 1px var(--ink-3); }
 .line-swatch.on { box-shadow: 0 0 0 2px var(--ink); }
+
+/* A branch's stretch of a fork bar, laid by drawForkColors() from the fork to the turn. */
+.fork-seg { position: absolute; top: 0; height: var(--gap); border-top: 2px solid var(--lc); pointer-events: none; z-index: 1; }
+.fork-seg.left { border-left: 2px solid var(--lc); }
+.fork-seg.right { border-right: 2px solid var(--lc); }
+.fork-seg.left.end { border-top-left-radius: 8px; }
+.fork-seg.right.end { border-top-right-radius: 8px; }
+/* The "+" boxes keep the default connectors whatever branch they hang from. */
+.tree-item:has(> .addbox) { --lc: initial; }
+/* Tags in the turn editor. */
+.tags-box { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; min-height: 34px; padding: 4px 6px; border: 1px solid var(--line); border-radius: 8px; background: var(--panel); }
+.tags-box:focus-within { border-color: var(--me); }
+.tag-chip { display: inline-flex; align-items: center; gap: 3px; padding: 1px 4px 1px 8px; border-radius: 6px; background: var(--warn-soft); color: var(--warn); font-size: 11.5px; font-weight: 600; max-width: 100%; }
+.tag-x { border: 0; background: none; color: inherit; font-size: 13px; line-height: 1; padding: 0 3px; cursor: pointer; opacity: .75; }
+.tag-x:hover { opacity: 1; }
+.tag-input { flex: 1; min-width: 120px; border: 0; outline: none; background: transparent; color: var(--ink); font: inherit; font-size: 12.5px; padding: 3px 2px; }
