@@ -81,6 +81,12 @@ export interface ActionOutcome {
 
 export const TARGET_KEYWORDS = ['Both foes', 'Ally', 'Self', 'All'] as const;
 
+/** Colours a named line can take (see .lc-* in canvas.css). Without one, the line keeps the default borders. */
+export const LINE_COLORS = ['teal', 'sky', 'amber', 'pink', 'lime', 'orange'] as const;
+export type LineColor = (typeof LINE_COLORS)[number];
+/** A named line ("Plan A: Sun") starting at a turn; every later turn in that branch belongs to it until another starts. */
+export interface PlanLine { name: string; color?: LineColor }
+
 export interface FlowNode {
   id: string;
   title: string;
@@ -101,6 +107,8 @@ export interface FlowNode {
   hpEnd?: Record<string, number>;
   /** Where the turn came from, when it was imported from a replay. */
   source?: { replay: string };
+  /** A named line that starts at this turn. */
+  line?: PlanLine;
 }
 
 export type SlotKind = 'lead' | 'back';

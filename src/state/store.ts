@@ -18,6 +18,8 @@ export interface UiState {
   expanded: Record<string, boolean>;
   /** Sidebar folded down to a thin rail. */
   navCollapsed: boolean;
+  /** The turn whose named line is highlighted from the legend (others are dimmed); null for none. */
+  focusLine?: string | null;
   scrollX: number;
   scrollY: number;
 }

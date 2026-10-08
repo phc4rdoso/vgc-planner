@@ -3,7 +3,7 @@ import type { BattleState } from '../../domain/simulation/state.ts';
 import { bench, canMegaEvolve, fieldAfterReplacements, syncTurnActions } from '../../domain/simulation/state.ts';
 import { CHANCE_EFFECTS, chanceEffects, hasMoveData, PIVOT_MOVES, PROTECT_FAMILY } from '../../domain/simulation/tables.ts';
 import { toID } from '../../domain/strings.ts';
-import type { FlowNode, Side, TurnAction } from '../../domain/types.ts';
+import type { FlowNode, Side, TurnAction, LineColor } from '../../domain/types.ts';
 import { TARGET_KEYWORDS } from '../../domain/types.ts';
 import { simService, store } from '../../state/instance.ts';
 import { esc, must } from '../dom.ts';
@@ -13,6 +13,7 @@ import { startStateOf, turnResult } from '../turn-results.ts';
 import { rerenderCanvas } from './plan-view.ts';
 import { lockedAction, mayBeForcedOut, moveLock } from '../../domain/simulation/turn.ts';
 import type { SpeedTie } from '../../domain/simulation/log.ts';
+import { LINE_COLOR_LABEL, LINE_COLORS, lineAt } from '../lines.ts';
 
 /** `label` turns a stored value (a paste name) into what is shown (its current form). */
 const options = (list: readonly string[], current: string, blank?: string, label: (v: string) => string = (v) => v): string =>
@@ -245,6 +246,27 @@ function actionEditor(a: TurnAction, i: number, st: BattleState | null, depth: n
   </div>`;
 }
 
+/**
+ * The "Line" field: a name and a colour that start a named line at this turn (no colour keeps the default borders).
+ * Below it, which line the turn already belongs to when it doesn't start its own.
+ */
+function lineEditorHTML(n: FlowNode): string {
+  const tab = store.tab;
+  const inherited = tab && !n.line ? lineAt(tab.children, n.id) : null;
+  const color = n.line?.color;
+  const swatch = (value: LineColor | '', label: string): string => {
+    const on = (color ?? '') === value;
+    return `<button type="button" class="line-swatch ${value ? `lc lc-${value}` : 'default'} ${on ? 'on' : ''}" data-act="line-color" data-color="${value}" role="radio" aria-checked="${on}" aria-label="${esc(label)}" title="${esc(label)}"></button>`;
+  };
+  const note = inherited ? `Part of “${esc(inherited.line.name || 'an unnamed line')}”. Name it to start a new line here.` : 'Starts a line here: later turns in this branch follow it until another turn starts a new one.';
+  return `<div class="line-edit">
+    <label class="lbl" for="d-line">Line</label>
+    <div class="line-row"><input class="field" id="d-line" data-f="line" placeholder="e.g. Plan A: Sun" maxlength="80" value="${esc(n.line?.name ?? '')}">
+      <div class="line-swatches" role="radiogroup" aria-label="Line colour">${swatch('', 'Default colour')}${LINE_COLORS.map((c) => swatch(c, LINE_COLOR_LABEL[c])).join('')}</div></div>
+    <div class="hint">${note}</div>
+  </div>`;
+}
+
 /** Footer buttons; "Add next turn" becomes a disabled "Battle over" once one side has no Pokémon left. */
 function footHTML(n: FlowNode): string {
   const result = turnResult(n.id);
@@ -297,6 +319,7 @@ export function renderDrawer(): void {
       <div><label class="lbl" for="d-title">Title</label><input class="field" id="d-title" data-f="title" placeholder="Turn ${found.depth}" value="${esc(n.title)}"></div>
       <div><label class="lbl" for="d-cond">Branch condition</label><input class="field" id="d-cond" data-f="condition" placeholder="e.g. If they Protect" value="${esc(n.condition)}"></div>
     </div>
+    ${lineEditorHTML(n)}
     <div id="acts">${n.actions.map((a, i) => actionEditor(a, i, st, found.depth, n.actions)).join('') || '<p class="hint">Pick the leads at the top of the plan: each Pokémon on the field gets an action here.</p>'}</div>
     <div><label class="lbl" for="d-note">Notes</label><textarea class="field" id="d-note" data-f="note" rows="4" placeholder="Reasoning, speed tiers, what to watch for…">${esc(n.note)}</textarea></div>
   </div>

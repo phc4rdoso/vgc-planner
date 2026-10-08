@@ -184,3 +184,20 @@ test('chance results survive export and import, combined stat changes included; 
   assert.deepEqual(node.hpEnd, { 'opp:B': 42.5 });
   assert.equal(node.source?.replay, 'https://replay.pokemonshowdown.com/x-1');
 });
+
+test('a named line (name and optional colour) survives export, import and storage; bad colours are dropped', () => {
+  const lib = sampleLibrary();
+  const turn = lib.teams[0]!.plans[0]!.tabs[0]!.children[0]!;
+  turn.line = { name: 'Plan A: Sun', color: 'teal' };
+  const target: Library = { teams: [] };
+  mergeImport(target, readExport(JSON.parse(JSON.stringify(buildExport(lib, { type: 'all' })))));
+  assert.deepEqual(target.teams[0]!.plans[0]!.tabs[0]!.children[0]!.line, { name: 'Plan A: Sun', color: 'teal' });
+  turn.line = { name: 'Plan B' };
+  const stored = readLibrary(JSON.parse(JSON.stringify(writeLibrary(lib))));
+  assert.deepEqual(stored.teams[0]!.plans[0]!.tabs[0]!.children[0]!.line, { name: 'Plan B' }, 'no colour keeps the default');
+  const raw = JSON.parse(JSON.stringify(writeLibrary(lib))) as { teams: { plans: { tabs: { children: { line?: unknown }[] }[] }[] }[] };
+  raw.teams[0]!.plans[0]!.tabs[0]!.children[0]!.line = { name: 'X', color: 'url(javascript:alert(1))' };
+  assert.deepEqual(readLibrary(raw).teams[0]!.plans[0]!.tabs[0]!.children[0]!.line, { name: 'X' });
+  raw.teams[0]!.plans[0]!.tabs[0]!.children[0]!.line = { name: '  ', color: 'nope' };
+  assert.equal(readLibrary(raw).teams[0]!.plans[0]!.tabs[0]!.children[0]!.line, undefined, 'nothing valid: no line');
+});

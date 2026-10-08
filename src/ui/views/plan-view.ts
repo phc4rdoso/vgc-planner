@@ -14,6 +14,7 @@ import { ICON_LINK } from '../share.ts';
 import { renderNav } from './sidebar.ts';
 import { extLinksHTML } from '../ext-links.ts';
 import { REPLAY_BUTTON } from '../replay-import.ts';
+import { legendHTML, lineClass, lineFocus } from '../lines.ts';
 
 const PLUS_ICON = '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 3v12M3 9h12"/></svg>';
 
@@ -58,7 +59,7 @@ function nameAt(start: BattleState | null, side: Side, key: string): string {
 }
 
 /** `start`: the battle state this turn begins from (null when not known yet). */
-function nodeHTML(n: FlowNode, depth: number, sim: SimView, start: BattleState | null, picks: Record<Side, string[]>): string {
+function nodeHTML(n: FlowNode, depth: number, sim: SimView, start: BattleState | null, picks: Record<Side, string[]>, focus: Set<string> | null): string {
   const selected = store.ui.selectedNode === n.id;
   const action = (a: TurnAction): string => {
     const foe: Side = a.side === 'me' ? 'opp' : 'me';
@@ -77,8 +78,10 @@ function nodeHTML(n: FlowNode, depth: number, sim: SimView, start: BattleState |
   const toggle = hasDetails(n, sim)
     ? `<button class="card-btn expand ${open ? 'open' : ''}" data-act="toggle-result" data-node="${esc(n.id)}" aria-expanded="${open}" aria-label="${open ? 'Hide' : 'Show'} the battle log" title="${open ? 'Hide' : 'Show'} the battle log">${ICON_CHEVRON}</button>`
     : '';
-  return `<div class="turn ${selected ? 'selected' : ''} ${open ? 'open' : ''} ${outcome ?? ''}" data-act="select-node" data-node="${esc(n.id)}" tabindex="0" role="button" aria-label="Edit ${esc(title)}${outcome ? ` (${OUTCOME_LABEL[outcome]})` : ''}">
-    <div class="turn-head">
+  const lineTag = n.line?.name ? `<span class="line-tag" title="${esc(`Line: ${n.line.name}`)}"><span class="dot" aria-hidden="true"></span>${esc(n.line.name)}</span>` : '';
+  const dim = focus && !focus.has(n.id) ? 'dim' : '';
+  return `<div class="turn ${selected ? 'selected' : ''} ${open ? 'open' : ''} ${outcome ?? ''} ${dim}" data-act="select-node" data-node="${esc(n.id)}" tabindex="0" role="button" aria-label="Edit ${esc(title)}${outcome ? ` (${OUTCOME_LABEL[outcome]})` : ''}${n.line?.name ? `, line ${esc(n.line.name)}` : ''}">
+    ${lineTag}<div class="turn-head">
       ${n.condition ? `<span class="cond" title="${esc(n.condition)}">${esc(n.condition)}</span>` : ''}
       <span class="ttl">${esc(title)}${tag}</span><span class="spacer"></span>
       ${toggle}
@@ -94,20 +97,21 @@ function nodeHTML(n: FlowNode, depth: number, sim: SimView, start: BattleState |
  * stands on its own below the parent; once there are some, it sits right beside the last one (adding another
  * branch), so it stays next to the cards however wide their own branches grow.
  */
-function listHTML(nodes: FlowNode[], parentId: string | null, depth: number, sim: SimView, start: BattleState | null, picks: Record<Side, string[]>, canAdd = true): string {
+function listHTML(nodes: FlowNode[], parentId: string | null, depth: number, sim: SimView, start: BattleState | null, picks: Record<Side, string[]>, focus: Set<string> | null, canAdd = true): string {
   const first = parentId === null && nodes.length === 0;
   const addbox = (extra: string): string =>
     `<button class="addbox ${extra}" data-act="add-node" data-parent="${esc(parentId ?? '')}" aria-label="${parentId === null ? 'Add first turn' : nodes.length ? 'Add a branch' : 'Add next turn'}" title="${nodes.length ? 'Add a branch' : 'Add a turn'}">${PLUS_ICON}</button>`;
   if (!nodes.length) return canAdd ? `<li class="tree-item">${addbox(first ? 'first' : '')}</li>` : '';
   return nodes.map((n, i) => {
     const r = sim.enabled && sim.status === 'ready' ? sim.results.get(n.id) : undefined;
-    const children = listHTML(n.children, n.id, depth + 1, sim, r?.status === 'ready' ? r.state : null, picks, outcomeOf(n, sim) === null);
+    const children = listHTML(n.children, n.id, depth + 1, sim, r?.status === 'ready' ? r.state : null, picks, focus, outcomeOf(n, sim) === null);
     const beside = canAdd && i === nodes.length - 1;
     // The card shares a row with its "+" (and a matching spacer on the left, so the card stays centred): a branch
     // is only as wide as its widest row, so the "+" adds width only where it would otherwise stick out.
-    const card = nodeHTML(n, depth, sim, start, picks);
+    const card = nodeHTML(n, depth, sim, start, picks, focus);
     const row = beside ? `<div class="card-row"><span class="add-spacer" aria-hidden="true"></span>${card}${addbox('beside')}</div>` : card;
-    return `<li class="tree-item">${row}${children ? `<ul class="tree-children">${children}</ul>` : ''}</li>`;
+    // A line starting here colours this turn's connector, its card border and everything below it (see .lc in canvas.css).
+    return `<li class="tree-item ${n.line ? lineClass(n.line) : ''}">${row}${children ? `<ul class="tree-children">${children}</ul>` : ''}</li>`;
   }).join('');
 }
 
@@ -117,13 +121,21 @@ const picksOf = (plan: Sheet): Record<Side, string[]> => ({
   opp: [...plan.selection.opp.lead, ...plan.selection.opp.back].filter((x): x is string => !!x),
 });
 
+/** The turns lit up by the highlighted line, or null when no line is highlighted (or it no longer exists). */
+function focusOf(plan: Sheet): Set<string> | null {
+  const id = store.ui.focusLine;
+  if (!id) return null;
+  const set = lineFocus(plan.children, id);
+  return set.size ? set : null;
+}
+
 function canvasInner(team: Team, plan: Sheet, sim: SimView): string {
   return `<div class="top">
       <div class="col">${teamBox('me', team.name, monsFor('me', team, plan))}<div class="link"></div>${selectionBox('me', plan)}<div class="bracket"></div></div>
       <div class="col">${teamBox('opp', plan.opponent.name || 'Opponent team', monsFor('opp', team, plan))}<div class="link"></div>${selectionBox('opp', plan)}<div class="bracket"></div></div>
     </div>
     <div class="stem"></div>
-    <ul class="tree rootlist">${listHTML(plan.children, null, 1, sim, sim.enabled && sim.status === 'ready' ? sim.start : null, picksOf(plan))}</ul>`;
+    <ul class="tree rootlist">${listHTML(plan.children, null, 1, sim, sim.enabled && sim.status === 'ready' ? sim.start : null, picksOf(plan), focusOf(plan))}</ul>`;
 }
 
 /** Tabs along the bottom, like spreadsheet sheets: one per set of leads/backs. Double-click (or ▾ → Rename) renames. */
@@ -162,6 +174,7 @@ export function renderPlanView(main: HTMLElement, team: Team, plan: Plan): void 
     ${extLinksHTML()}
   </div>
   <div id="notice">${noticeHTML(sim)}</div>
+  <div class="line-legend" id="line-legend">${legendHTML(sheet.children, store.ui.focusLine)}</div>
   <div class="workspace">
     <div class="canvas" id="canvas"><div class="canvas-inner" id="cinner">${canvasInner(team, sheet, sim)}</div></div>
     <aside class="drawer hidden" id="drawer" aria-label="Turn editor"></aside>
@@ -192,6 +205,8 @@ export function rerenderCanvas(force = false): void {
   applyDynamicStyles(host);
   const notice = qs('#notice');
   if (notice) notice.innerHTML = noticeHTML(sim);
+  const legend = qs('#line-legend');
+  if (legend) legend.innerHTML = legendHTML(plan.children, store.ui.focusLine);
   refreshDrawerFoot();
   canvas.scrollLeft = scrollLeft;
   canvas.scrollTop = scrollTop;
