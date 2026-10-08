@@ -172,7 +172,6 @@ export function buildReplayBranch(parsed: ParsedReplay, ctx: ImportContext, url:
   }
   const title = `${parsed.players.p1 || 'Player 1'} vs ${parsed.players.p2 || 'Player 2'}`;
   const first = turns[0]!;
-  first.tags = [`Replay: ${title}`];
   first.source = { replay: url };
   const last = turns[turns.length - 1]!;
   if (parsed.forfeit) last.note = `${parsed.players[parsed.forfeit]} forfeited after this turn.`;
@@ -276,7 +275,12 @@ export function placeReplayBranch(plan: Plan, branch: ReplayBranch, forceNew: bo
     siblings = match.children;
   }
   const rest = branch.turns[i];
-  if (rest) siblings.push(rest);
+  // The replay's branch is named where it starts: its first turn that isn't already in the plan (no colour, so it
+  // keeps the default look). Turns shared with an earlier import keep whatever they had.
+  if (rest) {
+    rest.line ??= { name: `Replay: ${branch.title}` };
+    siblings.push(rest);
+  }
   if (!rest && !merged) throw new ReplayError('The replay has no turns to add.');
   return { tab, created, merged, added: branch.turns.length - i };
 }

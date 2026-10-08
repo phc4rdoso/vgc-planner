@@ -112,3 +112,22 @@ test('replay links are recognised in their usual forms, and nothing else is', as
   await assert.rejects(fetchReplayLog(link, respond(404, {})), /no replay at that link/);
   await assert.rejects(fetchReplayLog(link, (async () => { throw new TypeError('offline'); }) as typeof fetch), /Couldn’t reach Pokémon Showdown/);
 });
+
+test('an imported replay is named as a branch (not a tag) where it starts: its first turn not already in the plan', () => {
+  const plan = newPlan('vs Bob', BOB);
+  const first = placeReplayBranch(plan, buildReplayBranch(parsed(), ctx(), URL), false);
+  const start = first.tab.children[0]!;
+  assert.deepEqual(start.line, { name: 'Replay: Alice vs Bob' });
+  assert.deepEqual(start.tags, []);
+  // A second import of a game that only differs from turn 4 on: the new branch hangs off turn 3 and carries the name.
+  const again = buildReplayBranch(parsed(), ctx(), URL);
+  again.turns[3]!.actions = again.turns[3]!.actions.map((a) => ({ ...a, move: a.kind === 'switch' ? a.move : 'Protect' }));
+  const placed = placeReplayBranch(plan, again, false);
+  assert.equal(placed.merged, 3);
+  let node = placed.tab.children[0]!;
+  for (let k = 0; k < 2; k++) node = node.children[0]!;
+  const fork = node.children;
+  assert.equal(fork.length, 2);
+  assert.deepEqual(fork[1]!.line, { name: 'Replay: Alice vs Bob' });
+  assert.equal(fork[0]!.line, undefined, 'turns from the first import keep what they had');
+});
