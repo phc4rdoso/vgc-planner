@@ -4,6 +4,8 @@
  * confusion...), HP after each hit and at the end of each turn, and the order things happened in. Turning that into
  * a gameplan branch is in replay-import.ts. Pure functions: no fetching here (see infra/replay.ts).
  */
+import { baseSpecies } from './showdown.ts';
+
 export type Player = 'p1' | 'p2';
 export const PLAYERS: readonly Player[] = ['p1', 'p2'];
 
@@ -136,9 +138,11 @@ export function parseReplayLog(log: string, known: KnownEffects = { always: () =
   const enter = (pos: Position & { name: string }, species: string): void => {
     active[`${pos.player}${pos.slot}`] = species;
     nick[`${pos.player}:${pos.name}`] = species;
-    if (!seen[pos.player].has(species)) {
-      seen[pos.player].add(species);
-      if (started && !out.leads[pos.player].includes(species)) out.backs[pos.player].push(species);
+    // By base species: a Mega that switches out comes back in as "Garchomp-Mega-Z", still the same Pokémon.
+    const base = baseSpecies(species);
+    if (!seen[pos.player].has(base)) {
+      seen[pos.player].add(base);
+      if (started && !out.leads[pos.player].some((s) => baseSpecies(s) === base)) out.backs[pos.player].push(species);
     }
   };
   /** This turn's action of the Pokémon now standing at `pos`. */

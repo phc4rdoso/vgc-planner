@@ -131,3 +131,27 @@ test('an imported replay is named as a branch (not a tag) where it starts: its f
   assert.deepEqual(fork[1]!.line, { name: 'Replay: Alice vs Bob' });
   assert.equal(fork[0]!.line, undefined, 'turns from the first import keep what they had');
 });
+
+test('a Mega that switches out and back in is still the same Pokémon, not another back', () => {
+  const log = [
+    '|gametype|doubles', '|player|p1|A||', '|player|p2|B||', '|gen|9',
+    '|poke|p1|Garchomp, L50|', '|poke|p1|Whimsicott, L50|', '|poke|p1|Sneasler, L50|', '|poke|p1|Kingambit, L50|',
+    '|poke|p2|Incineroar, L50|', '|poke|p2|Rillaboom, L50|', '|poke|p2|Gholdengo, L50|', '|poke|p2|Volcarona, L50|',
+    '|start',
+    '|switch|p1a: Garchomp|Garchomp, L50|100/100', '|switch|p1b: Whimsicott|Whimsicott, L50|100/100',
+    '|switch|p2a: Incineroar|Incineroar, L50|100/100', '|switch|p2b: Rillaboom|Rillaboom, L50|100/100',
+    '|turn|1',
+    '|detailschange|p1a: Garchomp|Garchomp-Mega-Z, L50', '|-mega|p1a: Garchomp|Garchomp|Garchompite Z',
+    '|move|p1a: Garchomp|Protect|p1a: Garchomp',
+    '|turn|2',
+    '|switch|p1a: Sneasler|Sneasler, L50|100/100',
+    '|turn|3',
+    '|switch|p1a: Garchomp|Garchomp-Mega-Z, L50|100/100',
+    '|turn|4',
+    '|switch|p1a: Kingambit|Kingambit, L50|100/100',
+    '|turn|5',
+    '|win|A',
+  ].join('\n');
+  const parsed = parseReplayLog(log);
+  assert.deepEqual(parsed.backs.p1, ['Sneasler', 'Kingambit']);
+});
