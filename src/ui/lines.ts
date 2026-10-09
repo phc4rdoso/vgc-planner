@@ -57,15 +57,16 @@ export function lineAt(nodes: readonly FlowNode[], id: string): { line: PlanLine
  * the default bar. Branches without a colour, and the "+" boxes, keep the default bar.
  */
 export function drawForkColors(root: HTMLElement): void {
+  const focusing = root.querySelector('ul.tree.focusing') !== null;
   root.querySelectorAll<HTMLElement>('ul.tree-children, ul.tree.rootlist').forEach((ul) => {
     const items = [...ul.children].filter((c): c is HTMLElement => c instanceof HTMLElement && c.classList.contains('tree-item'));
     if (items.length < 2) return;
     const stem = ul.clientWidth / 2;
     items.forEach((li, i) => {
       if (!li.querySelector(':scope > .turn, :scope > .card-row > .turn')) return;
-      // Coloured branches get their stretch; so does the highlighted path, so it stays solid where it crosses a faded branch.
-      const onPath = li.classList.contains('on-path');
-      if (!onPath && !getComputedStyle(li).getPropertyValue('--lc').trim()) return;
+      // Coloured branches get their stretch. While a branch is highlighted every branch does (the default bar is
+      // hidden then), so each stretch fades, or stays solid, with its own branch and nothing shows through.
+      if (!focusing && !getComputedStyle(li).getPropertyValue('--lc').trim()) return;
       const center = li.offsetLeft + li.offsetWidth / 2;
       if (Math.abs(center - stem) < 1) return;
       const seg = document.createElement('span');
@@ -79,6 +80,11 @@ export function drawForkColors(root: HTMLElement): void {
       seg.style.left = `${(left ? center : stem) - off}px`;
       seg.style.width = `${left ? stem - center + 2 : center - stem}px`;
       li.prepend(seg);
+      // Stretches on the same side of a fork overlap (the way to a farther branch passes the nearer ones' junctions).
+      // Draw the highlighted path on top, then farther branches above nearer ones, so a line keeps one colour all the
+      // way to its turn and the nearer branches just drop off it. Set on the branch itself: a faded branch is its own
+      // layer, so only its stacking order among its siblings counts.
+      li.style.zIndex = String(li.classList.contains('on-path') ? 100000 : Math.round(Math.abs(stem - center)) + 1);
     });
   });
 }

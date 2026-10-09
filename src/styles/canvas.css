@@ -181,6 +181,9 @@ ul.tree.rootlist > .tree-item:only-child > .branch-tag { top: calc(var(--gap) * 
 .branch-tag .dot, .line-chip .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--lc, var(--ink-3)); }
 /* A highlighted branch fades the others from where they leave its path: card, connectors, name and all below. */
 .tree-item.dim { opacity: .3; transition: opacity .15s ease; }
+/* While highlighting, fork bars are drawn only as each branch's own stretch (see drawForkColors), so a faded branch's
+   stretch isn't covered by a solid neighbour's half of the default bar. The drops into each turn stay. */
+ul.tree.focusing .tree-item::before, ul.tree.focusing .tree-item::after { border-top-color: transparent; }
 .line-legend { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 0 20px; }
 .line-legend:not(:empty) { padding: 6px 20px; background: var(--panel); border-bottom: 1px solid var(--line-soft); }
 .line-legend .lbl-inline { font-size: 11px; font-weight: 600; color: var(--ink-3); margin-right: 2px; }
