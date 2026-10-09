@@ -2,6 +2,28 @@
 
 Plan VGC matchups as flowchart gameplans for Pokémon Champions (Regulation M-C). Teams are folders; each folder holds one gameplan per opponent. A gameplan starts from both teams' leads and branches turn by turn. When both teams have Stat Points (the `EVs:` lines of a Showdown paste), every turn shows the resulting damage, order, stat changes and remaining HP, calculated with the official Smogon damage calculator.
 
+**Try it at [vgcplanner.app](https://vgcplanner.app).** It's free, and works without an account.
+
+![A gameplan branching turn by turn, with results on every turn](docs/media/overview.webp)
+
+## What it does
+
+**Turn results.** Pick each Pokémon's action and the turn plays out: speed order, damage, KOs, and the HP carried into the next turn, with a battle log for every step.
+
+![Filling in a turn and reading its result](docs/media/turn-results.webp)
+
+**Branches.** Every turn can branch on what the opponent might do. Name a line and give it a colour, then focus it to fade the rest.
+
+![Naming, colouring and focusing two lines](docs/media/branches.webp)
+
+**Replays.** Paste a Pokémon Showdown replay link and the game becomes a branch of the gameplan, turn by turn.
+
+![Adding a branch from a Showdown replay](docs/media/replay-import.webp)
+
+**Sharing.** Share a gameplan with a link. Anyone who opens it sees the whole plan and can add a copy to their own gameplans, with or without an account.
+
+![Sharing a gameplan and opening the link as a teammate](docs/media/share.webp)
+
 ## Quick start
 
 Requires Node 22.12 or newer.
