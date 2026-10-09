@@ -59,7 +59,7 @@ function nameAt(start: BattleState | null, side: Side, key: string): string {
 }
 
 /** `start`: the battle state this turn begins from (null when not known yet). */
-function nodeHTML(n: FlowNode, depth: number, sim: SimView, start: BattleState | null, picks: Record<Side, string[]>, focus: Set<string> | null): string {
+function nodeHTML(n: FlowNode, depth: number, sim: SimView, start: BattleState | null, picks: Record<Side, string[]>): string {
   const selected = store.ui.selectedNode === n.id;
   const action = (a: TurnAction): string => {
     const foe: Side = a.side === 'me' ? 'opp' : 'me';
@@ -81,8 +81,7 @@ function nodeHTML(n: FlowNode, depth: number, sim: SimView, start: BattleState |
   const shown = n.tags.slice(0, 2);
   const tags = shown.map((t) => `<span class="cond" title="${esc(t)}">${esc(t)}</span>`).join('')
     + (n.tags.length > shown.length ? `<span class="cond more" title="${esc(n.tags.slice(shown.length).join(', '))}">+${n.tags.length - shown.length}</span>` : '');
-  const dim = focus && !focus.has(n.id) ? 'dim' : '';
-  return `<div class="turn ${selected ? 'selected' : ''} ${open ? 'open' : ''} ${outcome ?? ''} ${dim}" data-act="select-node" data-node="${esc(n.id)}" tabindex="0" role="button" aria-label="Edit ${esc(title)}${outcome ? ` (${OUTCOME_LABEL[outcome]})` : ''}${n.line?.name ? `, branch ${esc(n.line.name)}` : ''}">
+  return `<div class="turn ${selected ? 'selected' : ''} ${open ? 'open' : ''} ${outcome ?? ''}" data-act="select-node" data-node="${esc(n.id)}" tabindex="0" role="button" aria-label="Edit ${esc(title)}${outcome ? ` (${OUTCOME_LABEL[outcome]})` : ''}${n.line?.name ? `, branch ${esc(n.line.name)}` : ''}">
     <div class="turn-head">
       ${tags}
       <span class="ttl">${esc(title)}${tag}</span><span class="spacer"></span>
@@ -110,12 +109,15 @@ function listHTML(nodes: FlowNode[], parentId: string | null, depth: number, sim
     const beside = canAdd && i === nodes.length - 1;
     // The card shares a row with its "+" (and a matching spacer on the left, so the card stays centred): a branch
     // is only as wide as its widest row, so the "+" adds width only where it would otherwise stick out.
-    const card = nodeHTML(n, depth, sim, start, picks, focus);
+    const card = nodeHTML(n, depth, sim, start, picks);
     const row = beside ? `<div class="card-row"><span class="add-spacer" aria-hidden="true"></span>${card}${addbox('beside')}</div>` : card;
     // A line starting here colours this turn's connector, its card border and everything below it (see .lc in canvas.css).
     // The branch's name sits on the connector above the turn where it starts.
     const name = n.line?.name ? `<span class="branch-tag" title="${esc(n.line.name)}"><span class="dot" aria-hidden="true"></span>${esc(n.line.name)}</span>` : '';
-    return `<li class="tree-item ${n.line ? lineClass(n.line) : ''}">${name}${row}${children ? `<ul class="tree-children">${children}</ul>` : ''}</li>`;
+    // With a branch highlighted: turns on its path are marked, and every other branch is faded from where it leaves
+    // the path (its card, connectors, name and everything below it; the fade is set once, at the top, so it doesn't stack).
+    const focusClass = !focus ? '' : focus.has(n.id) ? 'on-path' : parentId === null || focus.has(parentId) ? 'dim' : '';
+    return `<li class="tree-item ${n.line ? lineClass(n.line) : ''} ${focusClass}">${name}${row}${children ? `<ul class="tree-children">${children}</ul>` : ''}</li>`;
   }).join('');
 }
 

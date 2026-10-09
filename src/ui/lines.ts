@@ -63,7 +63,9 @@ export function drawForkColors(root: HTMLElement): void {
     const stem = ul.clientWidth / 2;
     items.forEach((li, i) => {
       if (!li.querySelector(':scope > .turn, :scope > .card-row > .turn')) return;
-      if (!getComputedStyle(li).getPropertyValue('--lc').trim()) return;
+      // Coloured branches get their stretch; so does the highlighted path, so it stays solid where it crosses a faded branch.
+      const onPath = li.classList.contains('on-path');
+      if (!onPath && !getComputedStyle(li).getPropertyValue('--lc').trim()) return;
       const center = li.offsetLeft + li.offsetWidth / 2;
       if (Math.abs(center - stem) < 1) return;
       const seg = document.createElement('span');
