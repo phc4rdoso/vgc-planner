@@ -179,7 +179,8 @@ ul.tree.rootlist:has(> .tree-item:only-child > .branch-tag)::before { content: "
 ul.tree.rootlist > .tree-item:only-child > .branch-tag { top: calc(var(--gap) * -0.7); }
 .branch-tag { overflow: hidden; text-overflow: ellipsis; }
 .branch-tag .dot, .line-chip .dot { flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--lc, var(--ink-3)); }
-.turn.dim { opacity: .35; }
+/* A highlighted branch fades the others from where they leave its path: card, connectors, name and all below. */
+.tree-item.dim { opacity: .3; transition: opacity .15s ease; }
 .line-legend { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; padding: 0 20px; }
 .line-legend:not(:empty) { padding: 6px 20px; background: var(--panel); border-bottom: 1px solid var(--line-soft); }
 .line-legend .lbl-inline { font-size: 11px; font-weight: 600; color: var(--ink-3); margin-right: 2px; }
@@ -194,9 +195,9 @@ ul.tree.rootlist > .tree-item:only-child > .branch-tag { top: calc(var(--gap) * 
 .line-swatch.on { box-shadow: 0 0 0 2px var(--ink); }
 
 /* A branch's stretch of a fork bar, laid by drawForkColors() from the fork to the turn. */
-.fork-seg { position: absolute; top: 0; height: var(--drop, var(--gap)); border-top: 2px solid var(--lc); pointer-events: none; z-index: 1; }
-.fork-seg.left { border-left: 2px solid var(--lc); }
-.fork-seg.right { border-right: 2px solid var(--lc); }
+.fork-seg { position: absolute; top: 0; height: var(--drop, var(--gap)); border-top: 2px solid var(--lc, var(--line)); pointer-events: none; z-index: 1; }
+.fork-seg.left { border-left: 2px solid var(--lc, var(--line)); }
+.fork-seg.right { border-right: 2px solid var(--lc, var(--line)); }
 .fork-seg.left.end { border-top-left-radius: 8px; }
 .fork-seg.right.end { border-top-right-radius: 8px; }
 /* The "+" boxes keep the default connectors whatever branch they hang from. */
