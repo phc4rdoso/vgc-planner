@@ -141,7 +141,7 @@ function canvasInner(team: Team, plan: Sheet, sim: SimView): string {
       <div class="col">${teamBox('opp', plan.opponent.name || 'Opponent team', monsFor('opp', team, plan))}<div class="link"></div>${selectionBox('opp', plan)}<div class="bracket"></div></div>
     </div>
     <div class="stem"></div>
-    <ul class="tree rootlist">${listHTML(plan.children, null, 1, sim, sim.enabled && sim.status === 'ready' ? sim.start : null, picksOf(plan), focusOf(plan))}</ul>`;
+    <ul class="tree rootlist ${store.ui.focusLine && focusOf(plan) ? 'focusing' : ''}">${listHTML(plan.children, null, 1, sim, sim.enabled && sim.status === 'ready' ? sim.start : null, picksOf(plan), focusOf(plan))}</ul>`;
 }
 
 /** Tabs along the bottom, like spreadsheet sheets: one per set of leads/backs. Double-click (or ▾ → Rename) renames. */
