@@ -58,6 +58,8 @@ function nameAt(start: BattleState | null, side: Side, key: string): string {
   return formOf(start, side, key);
 }
 
+const ICON_COPY = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg>';
+
 /** `start`: the battle state this turn begins from (null when not known yet). */
 function nodeHTML(n: FlowNode, depth: number, sim: SimView, start: BattleState | null, picks: Record<Side, string[]>): string {
   const selected = store.ui.selectedNode === n.id;
@@ -85,6 +87,7 @@ function nodeHTML(n: FlowNode, depth: number, sim: SimView, start: BattleState |
     <div class="turn-head">
       ${tags}
       <span class="ttl">${esc(title)}${tag}</span><span class="spacer"></span>
+      <button class="card-btn" data-act="copy-node" data-node="${esc(n.id)}" aria-label="Copy ${esc(title)}" title="Copy this turn (the copy goes right beside it)">${ICON_COPY}</button>
       ${toggle}
     </div>
     ${n.actions.length ? `<div class="acts"><div class="col">${column('me')}</div><div class="col">${column('opp')}</div></div>` : '<div class="none">No actions yet</div>'}

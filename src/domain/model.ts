@@ -41,6 +41,13 @@ export function cloneTab(tab: PlanTab, name: string): PlanTab {
   return copy;
 }
 
+/** A copy of one turn (its actions, chance results, title, tags, notes...) with a fresh id and none of its follow-up turns. */
+export function copyTurn(turn: FlowNode): FlowNode {
+  const { children, ...rest } = turn;
+  void children;
+  return { ...structuredClone(rest), id: newId(), children: [] };
+}
+
 const reidNodes = (list: FlowNode[]): void => list.forEach((n) => { n.id = newId(); reidNodes(n.children); });
 
 /** Every turn in every tab of a gameplan. */

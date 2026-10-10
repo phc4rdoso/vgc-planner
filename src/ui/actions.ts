@@ -1,6 +1,6 @@
 import { buildExport, DataError, LIMITS, mergeImport, readExport } from '../domain/codec.ts';
 import type { ExportScope } from '../domain/codec.ts';
-import { cleanSelections, clonePlan, cloneTab, countNodes, findNode, findPlan, findTeam, monsFor, newNode, newPlan, newTab, newTeam, nextTabName, seedActions } from '../domain/model.ts';
+import { cleanSelections, clonePlan, cloneTab, copyTurn, countNodes, findNode, findPlan, findTeam, monsFor, newNode, newPlan, newTab, newTeam, nextTabName, seedActions } from '../domain/model.ts';
 import { parseShowdown, teamWarnings } from '../domain/showdown.ts';
 import { slug } from '../domain/strings.ts';
 import { nextActions } from '../domain/simulation/state.ts';
@@ -337,6 +337,19 @@ export function addNode(parentId: string | null): void {
   const node = newNode({ actions });
   (parent ? parent.node.children : plan.children).push(node);
   store.ui.selectedNode = node.id;
+  store.persist();
+  rerenderCanvas();
+  renderDrawer();
+}
+
+/** "Copy": a copy of the turn right beside it (another branch from the same parent), opened in the editor. */
+export function copyNode(nodeId: string): void {
+  const plan = store.sheet;
+  const found = plan ? findNode(plan.children, nodeId) : null;
+  if (!found) return;
+  const copy = copyTurn(found.node);
+  found.siblings.splice(found.siblings.indexOf(found.node) + 1, 0, copy);
+  store.ui.selectedNode = copy.id;
   store.persist();
   rerenderCanvas();
   renderDrawer();

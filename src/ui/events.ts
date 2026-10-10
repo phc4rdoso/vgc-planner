@@ -2,7 +2,7 @@ import { config } from '../config.ts';
 import { DataError } from '../domain/codec.ts';
 import type { ActionKind, Side, SlotKind, LineColor } from '../domain/types.ts';
 import { simService, store } from '../state/instance.ts';
-import { addNode, addTab, selectTab, startRenameTab, tabMenu, createPlan, createTeam, deleteNode, deletePlan, deleteTeam, duplicatePlan, editPaste, loadImportFile, pickSlot, renameTeam, showExport, showImport } from './actions.ts';
+import { addNode, copyNode, addTab, selectTab, startRenameTab, tabMenu, createPlan, createTeam, deleteNode, deletePlan, deleteTeam, duplicatePlan, editPaste, loadImportFile, pickSlot, renameTeam, showExport, showImport } from './actions.ts';
 import { accountMenu, openSignIn, signInWith } from './account.ts';
 import { openPalettePicker } from './theme.ts';
 import { requestRender } from './bus.ts';
@@ -149,6 +149,7 @@ async function handleClick(el: HTMLElement, e: MouseEvent): Promise<void> {
     case 'add-tab': addTab(); return;
     case 'tab-menu': e.stopPropagation(); tabMenu(el, d.tab ?? ''); return;
     case 'add-node': addNode(d.parent || null); return;
+    case 'copy-node': e.stopPropagation(); copyNode(d.node ?? ''); return;
     case 'add-branch-child': addNode(store.ui.selectedNode); return;
     case 'delete-node': return deleteNode();
   }
