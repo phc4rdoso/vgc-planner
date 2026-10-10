@@ -106,16 +106,21 @@ export async function connectAccount(): Promise<void> {
   renderAccount();
 }
 
-/** After the screen is drawn: the welcome tour on a first sign-in, then the offer to bring this device's gameplans. */
-export async function greetAccount(): Promise<void> {
+/**
+ * After the screen is drawn: the welcome tour on a first sign-in, then the offer to bring this device's gameplans.
+ * Resolves with who this is: signed out, signed in, or just welcomed (a first sign-in).
+ */
+export async function greetAccount(): Promise<'signed-out' | 'signed-in' | 'welcomed'> {
   const state = session.state;
-  if (state?.status !== 'signed-in') return;
-  if (!state.account.onboarded) {
+  if (state?.status !== 'signed-in') return 'signed-out';
+  const welcomed = !state.account.onboarded;
+  if (welcomed) {
     await showWelcome(state.account.name);
     state.account.onboarded = true;
     await markOnboarded().catch(() => undefined);
   }
   await offerDeviceUpload(state.account.id);
+  return welcomed ? 'welcomed' : 'signed-in';
 }
 
 /**

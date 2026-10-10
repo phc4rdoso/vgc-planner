@@ -1,8 +1,11 @@
 import { applyDynamicStyles, esc, must } from './dom.ts';
 import { PREVIEWS } from './welcome-previews.ts';
 
-/** `preview`: a small picture of that part of the app (see welcome-previews.ts). */
-interface Step { title: string; text: string; icon: string; preview: string }
+/** `preview`: a small picture of that part of the app (see welcome-previews.ts). `badge`: a small tag above the title. */
+export interface Step { title: string; text: string; icon: string; preview: string; badge?: string }
+
+/** Button labels of a tour: the first step's "next", the last step's, and the one that closes it early. */
+export interface TourLabels { start: string; finish: string; skip: string }
 
 const svg = (path: string): string =>
   `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
@@ -35,12 +38,16 @@ function fitPreview(root: HTMLElement): void {
   stage.style.zoom = String(Math.max(0.4, Math.round(scale * 100) / 100));
 }
 
-/**
- * The first-sign-in welcome: a small centered box that walks through the main features. Resolves when it is
- * finished or skipped (Escape or clicking outside also skip).
- */
+/** The first-sign-in welcome: walks through the main features. */
 export function showWelcome(name: string): Promise<void> {
-  const list = steps(name);
+  return showTour(steps(name), { start: 'Show me around', finish: 'Get started', skip: 'Skip tour' });
+}
+
+/**
+ * A small centered box that walks through some steps, each with its picture (the welcome, the news). Resolves when
+ * it is finished or skipped (Escape or clicking outside also skip).
+ */
+export function showTour(list: readonly Step[], labels: TourLabels): Promise<void> {
   return new Promise((resolve) => {
     const previouslyFocused = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const overlay = document.createElement('div');
@@ -69,13 +76,14 @@ export function showWelcome(name: string): Promise<void> {
       const last = index === list.length - 1;
       overlay.innerHTML = `<div class="modal welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-title" aria-describedby="welcome-text">
         <div class="welcome-preview" aria-hidden="true" inert><div class="pv-stage">${step.preview}</div></div>
+        ${step.badge ? `<span class="welcome-badge">${esc(step.badge)}</span>` : ''}
         <h2 id="welcome-title"><span class="welcome-icon">${step.icon}</span>${esc(step.title)}</h2>
         <p id="welcome-text">${esc(step.text)}</p>
-        <div class="welcome-dots" aria-label="Step ${index + 1} of ${list.length}">${list.map((_, i) => `<span class="${i === index ? 'on' : ''}"></span>`).join('')}</div>
+        ${list.length > 1 ? `<div class="welcome-dots" aria-label="Step ${index + 1} of ${list.length}">${list.map((_, i) => `<span class="${i === index ? 'on' : ''}"></span>`).join('')}</div>` : '<div class="welcome-dots"></div>'}
         <div class="modal-foot">
-          ${last ? '' : '<button class="btn ghost" data-step="skip">Skip tour</button>'}<span class="spacer"></span>
+          ${last ? '' : `<button class="btn ghost" data-step="skip">${esc(labels.skip)}</button>`}<span class="spacer"></span>
           ${index > 0 ? '<button class="btn" data-step="back">Back</button>' : ''}
-          <button class="btn primary" data-step="next">${index === 0 ? 'Show me around' : last ? 'Get started' : 'Next'}</button>
+          <button class="btn primary" data-step="next">${esc(last ? labels.finish : index === 0 ? labels.start : 'Next')}</button>
         </div></div>`;
       applyDynamicStyles(overlay);
       fitPreview(overlay);

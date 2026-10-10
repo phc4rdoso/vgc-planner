@@ -101,7 +101,6 @@ textarea.paste.short { min-height: 160px; }
 /* The step's picture: real app components on the canvas background, scaled down and inert. */
 .welcome-preview { width: 100%; height: 200px; border-radius: 12px; border: 1px solid var(--line-soft); overflow: hidden; display: flex; align-items: center; justify-content: center; pointer-events: none; user-select: none;
   background: radial-gradient(circle, var(--line) 1px, transparent 1px) 0 0 / 18px 18px, var(--bg); }
-/* Scaled to fit by welcome.ts (fitPreview); this zoom is only the starting point. */
 /* welcome.ts (fitPreview) scales each picture to fit its frame; this zoom is only the starting point. */
 .pv-stage { zoom: .72; text-align: left; padding: 12px; }
 .pv-row { display: flex; align-items: center; gap: 14px; }
@@ -115,6 +114,35 @@ textarea.paste.short { min-height: 160px; }
 .pv-side { width: 210px; background: var(--panel); border: 1.5px solid var(--line); border-radius: var(--radius); padding: 8px; font-size: 14px; }
 .pv-tabs { width: 300px; border: 1.5px solid var(--line); border-radius: 10px; }
 .pv-tabs .tab-add { font-size: 18px; font-weight: 600; }
+
+/* ---------- "What's new" (news.ts): same box as the welcome, each picture loops a short animation ---------- */
+.welcome-badge { margin-top: 14px; font-size: 11px; font-weight: 700; letter-spacing: .02em; padding: 2px 9px; border-radius: 999px; background: var(--me-soft); color: var(--me); }
+.welcome-badge + h2 { margin-top: 8px; }
+/* Copy a turn: the pointer goes to the copy button and presses it, then the copy slides in beside the card. */
+.pv-copy .pv-copy-btn { position: relative; animation: pv-copy-press 5s ease infinite; }
+.pv-cursor { position: absolute; left: 55%; top: 55%; line-height: 0; animation: pv-copy-cursor 5s ease infinite; }
+.pv-copy-new { animation: pv-copy-appear 5s ease infinite; }
+.pv-cursor svg { width: 28px; height: 28px; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, .35)); }
+@keyframes pv-copy-cursor {
+  0% { transform: translate(-150px, 150px); opacity: 0; }
+  8% { opacity: 1; }
+  30% { transform: translate(0, 0) scale(1); }
+  34% { transform: translate(0, 0) scale(.82); }
+  38% { transform: translate(0, 0) scale(1); }
+  85% { transform: translate(0, 0); opacity: 1; }
+  95%, 100% { transform: translate(0, 0); opacity: 0; }
+}
+@keyframes pv-copy-press { 0%, 32% { background: transparent; } 35% { background: var(--me-soft); color: var(--me); } 46%, 100% { background: transparent; } }
+@keyframes pv-copy-appear {
+  0%, 36% { opacity: 0; transform: translateX(-60px) scale(.96); }
+  48% { opacity: 1; transform: none; }
+  88% { opacity: 1; transform: none; }
+  98%, 100% { opacity: 0; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .pv-copy .pv-copy-btn, .pv-copy-new { animation: none; }
+  .pv-cursor { display: none; }
+}
 
 /* ---------- share links ---------- */
 .share-link .field { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 12.5px; }

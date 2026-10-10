@@ -5,7 +5,7 @@
  */
 import { esc } from './dom.ts';
 import { itemIcon, monIcon } from './icons.ts';
-import { ICON_CHEVRON } from './views/result-card.ts';
+import { ICON_CHEVRON, ICON_COPY } from './views/result-card.ts';
 
 const MY_TEAM = [
   ['Rillaboom', 'Miracle Seed'], ['Aerodactyl-Mega', 'Aerodactylite'], ['Sneasler', 'Grassy Seed'],
@@ -70,4 +70,15 @@ export const PREVIEWS = {
     <div class="turn-result"><ol class="res-log">
       <li class="me">${monIcon('Rillaboom', 'xs')}<div class="txt"><b>Wood Hammer</b><div class="tgt">→ ${monIcon('Raichu-Mega-Y', 'xs')} Raichu-Mega-Y <span class="dmg">147.9–174.9%</span> <span class="ko-tag">KO</span></div></div></li>
     </ol></div>`, 'open', `<span class="card-btn expand open">${ICON_CHEVRON}</span>`),
+} as const;
+
+const ICON_CURSOR = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 8-6 1.5L10 19Z" fill="#fff" stroke="#181b2b" stroke-width="1.6" stroke-linejoin="round"/></svg>';
+
+/** Pictures for the "What's new" box (news.ts); each one loops a short animation of the feature. */
+export const NEWS_PREVIEWS = {
+  /** The pointer presses a turn card's copy button and the copy slides in right beside it. */
+  copyTurn: `<div class="pv-row pv-top pv-copy">
+    ${turnCard('Turn 1', TURN_1_ME, TURN_1_OPP, '', '', `<span class="card-btn pv-copy-btn">${ICON_COPY}<span class="pv-cursor">${ICON_CURSOR}</span></span><span class="card-btn">${ICON_CHEVRON}</span>`)}
+    ${turnCard('Turn 1', TURN_1_ME, TURN_1_OPP, '', 'selected pv-copy-new', `<span class="card-btn">${ICON_COPY}</span><span class="card-btn">${ICON_CHEVRON}</span>`)}
+  </div>`,
 } as const;

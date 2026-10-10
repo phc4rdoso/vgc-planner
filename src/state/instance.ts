@@ -29,4 +29,6 @@ export const simService = new SimService(loadCalc);
 export const deviceFlags = {
   get(key: string): boolean { try { return storage?.getItem(`vgc-planner:${key}`) === '1'; } catch { return false; } },
   set(key: string): void { try { storage?.setItem(`vgc-planner:${key}`, '1'); } catch { /* optional */ } },
+  read(key: string): string | null { try { return storage?.getItem(`vgc-planner:${key}`) ?? null; } catch { return null; } },
+  write(key: string, value: string): void { try { storage?.setItem(`vgc-planner:${key}`, value); } catch { /* optional */ } },
 };

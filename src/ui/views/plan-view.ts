@@ -8,7 +8,7 @@ import { itemIcon, monIcon } from '../icons.ts';
 import type { BattleState, Outcome } from '../../domain/simulation/state.ts';
 import { formOf } from '../names.ts';
 import { isPivotMove, refreshDrawerFoot, renderDrawer } from './drawer.ts';
-import { fieldStripHTML, hasDetails, ICON_CHEVRON, noticeHTML, resultHTML, summaryHTML } from './result-card.ts';
+import { fieldStripHTML, hasDetails, ICON_CHEVRON, ICON_COPY, noticeHTML, resultHTML, summaryHTML } from './result-card.ts';
 import { session } from '../../state/account.ts';
 import { ICON_LINK } from '../share.ts';
 import { renderNav } from './sidebar.ts';
@@ -57,8 +57,6 @@ function nameAt(start: BattleState | null, side: Side, key: string): string {
   if (start && !start.mons[side][key] && start.mons[foe][key]) return formOf(start, foe, key);
   return formOf(start, side, key);
 }
-
-const ICON_COPY = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg>';
 
 /** `start`: the battle state this turn begins from (null when not known yet). */
 function nodeHTML(n: FlowNode, depth: number, sim: SimView, start: BattleState | null, picks: Record<Side, string[]>): string {

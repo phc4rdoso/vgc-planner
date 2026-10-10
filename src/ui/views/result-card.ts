@@ -10,6 +10,8 @@ import { esc } from '../dom.ts';
 import { monIcon } from '../icons.ts';
 import { formOf, renamedForms, showNames } from '../names.ts';
 
+/** The turn card's copy button. */
+export const ICON_COPY = '<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5.5" y="5.5" width="8" height="8" rx="1.5"/><path d="M10.5 5.5V3.5a1 1 0 0 0-1-1h-6a1 1 0 0 0-1 1v6a1 1 0 0 0 1 1h2"/></svg>';
 export const ICON_CHEVRON = `<svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m4 6 4 4 4-4"/></svg>`;
 
 /** Up to two decimals, so fixed fractions read exactly (6.25%, 12.5%). */
