@@ -4,8 +4,11 @@ import { PREVIEWS } from './welcome-previews.ts';
 /** `preview`: a small picture of that part of the app (see welcome-previews.ts). `badge`: a small tag above the title. */
 export interface Step { title: string; text: string; icon: string; preview: string; badge?: string }
 
-/** Button labels of a tour: the first step's "next", the last step's, and the one that closes it early. */
-export interface TourLabels { start: string; finish: string; skip: string }
+/**
+ * Button labels of a tour: the first step's "next", the last step's, and the one that closes it early. `heading`: a
+ * line at the top saying what the box is about (the same on every step).
+ */
+export interface TourLabels { start: string; finish: string; skip: string; heading?: string }
 
 const svg = (path: string): string =>
   `<svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${path}</svg>`;
@@ -74,7 +77,8 @@ export function showTour(list: readonly Step[], labels: TourLabels): Promise<voi
     const draw = (): void => {
       const step = list[index]!;
       const last = index === list.length - 1;
-      overlay.innerHTML = `<div class="modal welcome" role="dialog" aria-modal="true" aria-labelledby="welcome-title" aria-describedby="welcome-text">
+      overlay.innerHTML = `<div class="modal welcome" role="dialog" aria-modal="true" aria-labelledby="${labels.heading ? 'welcome-heading ' : ''}welcome-title" aria-describedby="welcome-text">
+        ${labels.heading ? `<div class="welcome-heading" id="welcome-heading">${esc(labels.heading)}</div>` : ''}
         <div class="welcome-preview" aria-hidden="true" inert><div class="pv-stage">${step.preview}</div></div>
         ${step.badge ? `<span class="welcome-badge">${esc(step.badge)}</span>` : ''}
         <h2 id="welcome-title"><span class="welcome-icon">${step.icon}</span>${esc(step.title)}</h2>
