@@ -13,7 +13,7 @@ import { setOutcome } from './outcome-edit.ts';
 import { openReplayImport } from './replay-import.ts';
 import { openMenu, toast } from './overlays.ts';
 import { isPivotMove, renderDrawer } from './views/drawer.ts';
-import { rerenderCanvas, setZoom } from './views/plan-view.ts';
+import { rerenderCanvas, revealTurn, setZoom } from './views/plan-view.ts';
 import { applyNavCollapsed, renderNav } from './views/sidebar.ts';
 import { LINE_COLORS } from '../domain/types.ts';
 import { cleanTags } from '../domain/codec.ts';
@@ -136,6 +136,8 @@ async function handleClick(el: HTMLElement, e: MouseEvent): Promise<void> {
       store.ui.selectedNode = d.node ?? null;
       rerenderCanvas();
       renderDrawer();
+      // The editor takes the canvas's right side: keep the clicked turn in view beside it.
+      if (d.node) revealTurn(d.node);
       return;
     case 'close-drawer':
       store.ui.selectedNode = null;

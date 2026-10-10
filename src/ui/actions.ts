@@ -340,6 +340,7 @@ export function addNode(parentId: string | null): void {
   store.persist();
   rerenderCanvas();
   renderDrawer();
+  revealTurn(node.id);
 }
 
 /** "Copy": a copy of the turn right beside it (another branch from the same parent), opened in the editor. */
