@@ -27,6 +27,8 @@ export interface User {
   name: string;
   createdAt: number;
   onboardedAt: number | null;
+  /** The newest "What's new" item shown to this user (null: none yet). */
+  newsSeen: number | null;
   /** Profile picture: a name from AVATARS (null only for accounts made before profile pictures). */
   avatar: string | null;
 }
@@ -44,6 +46,8 @@ export interface Store extends LibraryStore, ShareStore {
   sessionUser(tokenHash: string, now: number): Promise<User | null>;
   deleteSession(tokenHash: string): Promise<void>;
   markOnboarded(userId: string, now: number): Promise<void>;
+  /** Records that news up to `id` was shown; never goes back to an older one. */
+  markNewsSeen(userId: string, id: number): Promise<void>;
 }
 
 export interface OAuthClient { clientId: string; clientSecret: string }
@@ -158,7 +162,7 @@ function redirect(location: string, cookies: string[] = []): Response {
   return new Response(null, { status: 302, headers });
 }
 
-const publicUser = (u: User) => ({ id: u.id, name: u.name, provider: u.provider, onboarded: u.onboardedAt !== null, avatar: u.avatar });
+const publicUser = (u: User) => ({ id: u.id, name: u.name, provider: u.provider, onboarded: u.onboardedAt !== null, newsSeen: u.newsSeen, avatar: u.avatar });
 
 const ALLOWED_AVATARS: ReadonlySet<string> = new Set(AVATARS);
 
@@ -304,6 +308,16 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
     const user = await currentUser();
     if (!user) return json({ error: 'signed out' }, 401);
     await deps.store.markOnboarded(user.id, deps.now());
+    return json({ ok: true });
+  }
+
+  if (req.method === 'POST' && path === '/api/me/news') {
+    const user = await currentUser();
+    if (!user) return json({ error: 'signed out' }, 401);
+    const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
+    const seen = body.seen;
+    if (typeof seen !== 'number' || !Number.isInteger(seen) || seen < 0 || seen > 1_000_000) return json({ error: 'bad news id' }, 400);
+    await deps.store.markNewsSeen(user.id, seen);
     return json({ ok: true });
   }
 

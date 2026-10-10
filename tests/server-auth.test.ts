@@ -81,12 +81,22 @@ test('a first sign-in creates the account and a session; the welcome tour is pen
 
   const me = await (await s.call('/api/me', { cookie: `sid=${sid}` })).json() as { user: { name: string; onboarded: boolean; avatar: string } };
   const { avatar, ...rest } = me.user;
-  assert.deepEqual(rest, { id: 'u1', name: 'Ash Ketchum', provider: 'discord', onboarded: false }, 'control characters are stripped from names');
+  assert.deepEqual(rest, { id: 'u1', name: 'Ash Ketchum', provider: 'discord', onboarded: false, newsSeen: null }, 'control characters are stripped from names');
   assert.ok(AVATARS.includes(avatar), 'a profile picture from the allowed list');
 
   assert.equal((await s.call('/api/me/onboarded', { method: 'POST', cookie: `sid=${sid}`, headers: { Origin: APP } })).status, 200);
   const again = await (await s.call('/api/me', { cookie: `sid=${sid}` })).json() as { user: { onboarded: boolean } };
   assert.equal(again.user.onboarded, true);
+
+  // The news shown is kept on the account, and never goes back to an older item.
+  const news = (seen: unknown) => s.call('/api/me/news', { method: 'POST', cookie: `sid=${sid}`, headers: { Origin: APP }, body: JSON.stringify({ seen }) });
+  assert.equal((await news(2)).status, 200);
+  assert.equal((await news(1)).status, 200);
+  assert.equal((await news('2')).status, 400, 'a number is required');
+  assert.equal((await news(-1)).status, 400);
+  const seenNow = await (await s.call('/api/me', { cookie: `sid=${sid}` })).json() as { user: { newsSeen: number | null } };
+  assert.equal(seenNow.user.newsSeen, 2);
+  assert.equal((await s.call('/api/me/news', { method: 'POST', body: '{"seen":3}', headers: { Origin: APP } })).status, 401, 'signed out');
 
   await signIn(s);
   assert.equal(s.store.users.length, 1, 'signing in again reuses the account');

@@ -15,7 +15,7 @@ export class MemoryStore implements Store {
   async upsertUser(provider: User['provider'], providerId: string, name: string, now: number, avatar = 'Pikachu') {
     const found = this.users.find((u) => u.provider === provider && u.providerId === providerId);
     if (found) { if (!this.customNames.has(found.id)) found.name = name; return { user: { ...found }, created: false }; }
-    const user: User = { id: `u${this.users.length + 1}`, provider, providerId, name, createdAt: now, onboardedAt: null, avatar };
+    const user: User = { id: `u${this.users.length + 1}`, provider, providerId, name, createdAt: now, onboardedAt: null, newsSeen: null, avatar };
     this.users.push(user);
     return { user: { ...user }, created: true };
   }
@@ -29,6 +29,7 @@ export class MemoryStore implements Store {
   async setName(userId: string, name: string) { const u = this.users.find((x) => x.id === userId); if (u) { u.name = name; this.customNames.add(userId); } }
   async setAvatar(userId: string, avatar: string) { const u = this.users.find((x) => x.id === userId); if (u) u.avatar = avatar; }
   async markOnboarded(userId: string, now: number) { const u = this.users.find((x) => x.id === userId); if (u) u.onboardedAt ??= now; }
+  async markNewsSeen(userId: string, id: number) { const u = this.users.find((x) => x.id === userId); if (u) u.newsSeen = Math.max(u.newsSeen ?? 0, id); }
 
   async loadLibrary(userId: string) {
     const strip = <T extends { userId: string }>(row: T): Omit<T, 'userId'> => { const { userId, ...rest } = row; void userId; return rest; };

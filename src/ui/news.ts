@@ -3,7 +3,9 @@
  * first, each with a small animation of how it works. Who sees what: state/news.ts.
  */
 import { deviceFlags } from '../state/instance.ts';
-import { newsToShow } from '../state/news.ts';
+import { session } from '../state/account.ts';
+import { newsToShow, readSeen } from '../state/news.ts';
+import { markNewsSeen } from '../infra/auth.ts';
 import { showTour, type Step } from './welcome.ts';
 import { NEWS_PREVIEWS } from './welcome-previews.ts';
 
@@ -27,16 +29,31 @@ const NEWS: readonly NewsItem[] = [
 
 /** At most this many items at once (someone back after a long time sees only the latest). */
 const MAX_SHOWN = 5;
+/** Where a signed-out visitor's news is remembered on this device. */
 const SEEN_KEY = 'news-seen';
 
 const formatDate = (date: string): string =>
   new Date(`${date}T12:00:00`).toLocaleDateString('en-US', { day: 'numeric', month: 'short', year: 'numeric' });
 
-/** Shows what's new since this device last saw the news (see {@link newsToShow} for `visitor`), then remembers it. */
-export async function showNews(visitor: 'new' | 'returning'): Promise<void> {
-  const { show, remember } = newsToShow(NEWS.map((n) => n.id), deviceFlags.read(SEEN_KEY), visitor, MAX_SHOWN);
+/**
+ * Shows what's new since this person last saw the news, then remembers it: on the account when signed in (so each
+ * person sharing a device gets it), on this device when signed out. `who`: what greetAccount found; `hasLibrary`:
+ * whether there are gameplans here (someone signed out who used the app before).
+ */
+export async function showNews(who: 'signed-out' | 'signed-in' | 'welcomed', hasLibrary: boolean): Promise<void> {
+  const account = session.state?.status === 'signed-in' ? session.state.account : null;
+  const visitor = who === 'welcomed' ? 'new' : account || hasLibrary ? 'returning' : 'new';
+  const seen = account ? account.newsSeen : readSeen(deviceFlags.read(SEEN_KEY));
+  const { show, remember } = newsToShow(NEWS.map((n) => n.id), seen, visitor, MAX_SHOWN);
   // Remembered before showing, so leaving the page halfway through doesn't bring it back.
-  deviceFlags.write(SEEN_KEY, String(remember));
+  if (remember !== seen) {
+    if (account) {
+      account.newsSeen = remember;
+      void markNewsSeen(remember).catch(() => undefined);
+    } else {
+      deviceFlags.write(SEEN_KEY, String(remember));
+    }
+  }
   const fresh = show.flatMap((id) => NEWS.filter((n) => n.id === id));
   if (!fresh.length) return;
   const steps: Step[] = fresh.map((n) => ({ icon: n.icon, preview: n.preview, title: n.title, text: n.text, badge: `New · ${formatDate(n.date)}` }));

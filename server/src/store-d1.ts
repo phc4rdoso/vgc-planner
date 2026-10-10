@@ -2,10 +2,10 @@ import type { Store, User } from './app.ts';
 import type { PutResult, StoredPlan, StoredTeam } from './library.ts';
 import type { SharedRecord } from './shares.ts';
 
-interface UserRow { id: string; provider: User['provider']; provider_id: string; name: string; created_at: number; onboarded_at: number | null; avatar: string | null }
+interface UserRow { id: string; provider: User['provider']; provider_id: string; name: string; created_at: number; onboarded_at: number | null; news_seen: number | null; avatar: string | null }
 
 const toUser = (r: UserRow): User => ({
-  id: r.id, provider: r.provider, providerId: r.provider_id, name: r.name, createdAt: r.created_at, onboardedAt: r.onboarded_at, avatar: r.avatar ?? null,
+  id: r.id, provider: r.provider, providerId: r.provider_id, name: r.name, createdAt: r.created_at, onboardedAt: r.onboarded_at, newsSeen: r.news_seen ?? null, avatar: r.avatar ?? null,
 });
 
 /** {@link Store} on Cloudflare D1 (SQLite). Every query is parameterised. */
@@ -56,6 +56,10 @@ export class D1Store implements Store {
 
   async markOnboarded(userId: string, now: number): Promise<void> {
     await this.db.prepare('UPDATE users SET onboarded_at = COALESCE(onboarded_at, ?) WHERE id = ?').bind(now, userId).run();
+  }
+
+  async markNewsSeen(userId: string, id: number): Promise<void> {
+    await this.db.prepare('UPDATE users SET news_seen = MAX(COALESCE(news_seen, 0), ?) WHERE id = ?').bind(id, userId).run();
   }
 
   /* ------------------------------- library ------------------------------- */

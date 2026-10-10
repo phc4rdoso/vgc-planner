@@ -28,7 +28,7 @@ async function main(): Promise<void> {
   render();
   // First the welcome (first sign-in) or what's new since the last visit, then any share link the page was opened with.
   void greetAccount()
-    .then((who) => showNews(who === 'welcomed' ? 'new' : who === 'signed-in' || store.library.teams.length > 0 ? 'returning' : 'new'))
+    .then((who) => showNews(who, store.library.teams.length > 0))
     .then(() => openSharedLink());
 
   // Make sure the last edits are written when the tab is hidden or closed.

@@ -7,7 +7,7 @@
 export type ProviderId = 'discord' | 'google';
 
 /** `avatar`: the profile picture, a name from AVATARS (file public/avatars/<avatar>.png). */
-export interface Account { id: string; name: string; provider: ProviderId | 'dev'; onboarded: boolean; avatar: string | null }
+export interface Account { id: string; name: string; provider: ProviderId | 'dev'; onboarded: boolean; newsSeen: number | null; avatar: string | null }
 
 export type AccountState =
   | { status: 'unavailable' }
@@ -63,6 +63,11 @@ export async function setDisplayName(name: string): Promise<Account> {
   const body = (await res.json().catch(() => ({}))) as { user?: Account; error?: string };
   if (!res.ok || !body.user) throw new Error(body.error ?? 'Couldn’t change the name. Try again.');
   return body.user;
+}
+
+/** Remembers on the account the newest "What's new" item it was shown. */
+export async function markNewsSeen(seen: number): Promise<void> {
+  await send('/api/me/news', { method: 'POST', body: JSON.stringify({ seen }) });
 }
 
 /** Remembers on the account that the welcome tour was seen, so it shows only after the first sign-in. */
