@@ -15,7 +15,7 @@ import { confirmDialog, modal, openMenu, toast } from './overlays.ts';
 import { turnResult } from './turn-results.ts';
 import type { MenuItem } from './overlays.ts';
 import { renderDrawer } from './views/drawer.ts';
-import { renderTabBar, rerenderCanvas } from './views/plan-view.ts';
+import { renderTabBar, rerenderCanvas, revealTurn } from './views/plan-view.ts';
 
 /* ------------------------------ teams & plans ------------------------------ */
 
@@ -353,6 +353,8 @@ export function copyNode(nodeId: string): void {
   store.persist();
   rerenderCanvas();
   renderDrawer();
+  // The copy can land off screen or under the editor: bring it into view.
+  revealTurn(copy.id);
 }
 
 export async function deleteNode(): Promise<void> {

@@ -203,6 +203,34 @@ export function renderPlanView(main: HTMLElement, team: Team, plan: Plan): void 
   else store.ui.selectedNode = null;
 }
 
+/**
+ * Scrolls the canvas just enough for a turn card to be fully visible, keeping clear of the turn editor wherever it
+ * covers the canvas. Nothing moves when the card is already in view.
+ */
+export function revealTurn(nodeId: string): void {
+  const canvas = qs('#canvas');
+  const card = canvas?.querySelector<HTMLElement>(`.turn[data-node="${CSS.escape(nodeId)}"]`);
+  if (!canvas || !card) return;
+  const margin = 24;
+  const view = canvas.getBoundingClientRect();
+  const drawer = qs('#drawer');
+  // On wide screens the canvas already makes room for the editor; elsewhere the editor lies over it.
+  const covered = drawer && !drawer.classList.contains('hidden') ? Math.max(0, view.right - drawer.getBoundingClientRect().left) : 0;
+  const box = card.getBoundingClientRect();
+  const left = view.left + margin;
+  const right = view.right - covered - margin;
+  let dx = 0;
+  // Only when there's room for the card beside the editor (on a phone the editor covers everything).
+  if (right - left >= box.width) {
+    if (box.right > right) dx = box.right - right;
+    else if (box.left < left) dx = box.left - left;
+  }
+  let dy = 0;
+  if (box.bottom > view.bottom - margin) dy = Math.min(box.bottom - (view.bottom - margin), box.top - (view.top + margin));
+  else if (box.top < view.top + margin) dy = box.top - (view.top + margin);
+  if (dx || dy) canvas.scrollBy({ left: dx, top: dy, behavior: 'smooth' });
+}
+
 /** Redraws only the flowchart (keeps scroll position and the open editor). `force` bypasses the result cache. */
 export function rerenderCanvas(force = false): void {
   const canvas = qs('#canvas');
