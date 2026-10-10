@@ -14,10 +14,10 @@ export class D1Store implements Store {
 
   constructor(db: D1Database) { this.db = db; }
 
-  async upsertUser(provider: User['provider'], providerId: string, name: string, now: number, avatar: string): Promise<{ user: User; created: boolean }> {
+  async upsertUser(provider: User['provider'], providerId: string, name: string, now: number, avatar: string, newsSeen: number): Promise<{ user: User; created: boolean }> {
     const inserted = await this.db
-      .prepare('INSERT INTO users (id, provider, provider_id, name, created_at, avatar) VALUES (?, ?, ?, ?, ?, ?) ON CONFLICT (provider, provider_id) DO NOTHING')
-      .bind(crypto.randomUUID(), provider, providerId, name, now, avatar)
+      .prepare('INSERT INTO users (id, provider, provider_id, name, created_at, avatar, news_seen) VALUES (?, ?, ?, ?, ?, ?, ?) ON CONFLICT (provider, provider_id) DO NOTHING')
+      .bind(crypto.randomUUID(), provider, providerId, name, now, avatar, newsSeen)
       .run();
     const created = (inserted.meta.changes ?? 0) > 0;
     // Returning users keep their account; their display name follows the provider unless they picked their own.

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { newsToShow, readSeen } from '../src/state/news.ts';
+import { LATEST_NEWS_ID, NEWS, newsToShow, readSeen } from '../src/domain/news.ts';
 
 const IDS = [1, 2, 3];
 
@@ -28,4 +28,11 @@ test('the value kept in the browser: none, a number, or junk (counts as nothing 
   assert.equal(readSeen('2'), 2);
   assert.equal(readSeen('junk'), 0);
   assert.equal(readSeen('-4'), 0);
+});
+
+test('news ids only go up, and the latest is what new accounts start with', () => {
+  const ids = NEWS.map((n) => n.id);
+  assert.ok(ids.every((id, i) => i === 0 || id > ids[i - 1]!), 'each item gets a higher id than the one before');
+  assert.equal(LATEST_NEWS_ID, ids.at(-1));
+  assert.ok(NEWS.every((n) => /^\d{4}-\d{2}-\d{2}$/.test(n.date)), 'dates are YYYY-MM-DD');
 });

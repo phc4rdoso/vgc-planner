@@ -12,10 +12,10 @@ export class MemoryStore implements Store {
   teams: Scoped<StoredTeam>[] = [];
   plans: Scoped<StoredPlan>[] = [];
 
-  async upsertUser(provider: User['provider'], providerId: string, name: string, now: number, avatar = 'Pikachu') {
+  async upsertUser(provider: User['provider'], providerId: string, name: string, now: number, avatar = 'Pikachu', newsSeen = 0) {
     const found = this.users.find((u) => u.provider === provider && u.providerId === providerId);
     if (found) { if (!this.customNames.has(found.id)) found.name = name; return { user: { ...found }, created: false }; }
-    const user: User = { id: `u${this.users.length + 1}`, provider, providerId, name, createdAt: now, onboardedAt: null, newsSeen: null, avatar };
+    const user: User = { id: `u${this.users.length + 1}`, provider, providerId, name, createdAt: now, onboardedAt: null, newsSeen, avatar };
     this.users.push(user);
     return { user: { ...user }, created: true };
   }

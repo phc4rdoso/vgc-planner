@@ -11,6 +11,7 @@
  */
 
 import { AVATARS } from '../../src/domain/avatars.ts';
+import { LATEST_NEWS_ID } from '../../src/domain/news.ts';
 import type { LibraryStore } from './library.ts';
 import { handleLibrary } from './library.ts';
 import type { ShareStore } from './shares.ts';
@@ -36,8 +37,11 @@ export interface User {
 /** Persistence for users, sessions and libraries (D1 in production, in memory in tests). Times are epoch milliseconds. */
 export interface Store extends LibraryStore, ShareStore {
   /** Returns the user for this provider account, creating it on first sign-in. */
-  /** `avatar` is used only when the account is created. */
-  upsertUser(provider: User['provider'], providerId: string, name: string, now: number, avatar: string): Promise<{ user: User; created: boolean }>;
+  /**
+   * `avatar` and `newsSeen` are used only when the account is created (`newsSeen`: the newest "What's new" item, so
+   * a new account doesn't get the news from before it existed).
+   */
+  upsertUser(provider: User['provider'], providerId: string, name: string, now: number, avatar: string, newsSeen: number): Promise<{ user: User; created: boolean }>;
   setAvatar(userId: string, avatar: string): Promise<void>;
   /** Sets the display name the user chose; sign-ins keep it from then on. */
   setName(userId: string, name: string): Promise<void>;
@@ -247,7 +251,7 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
       if (!profileRes.ok) return back('error');
       const profile = spec.profile((await profileRes.json()) as Record<string, unknown>);
       if (!profile) return back('error');
-      const { user } = await deps.store.upsertUser(id, profile.id, cleanName(profile.name), deps.now(), randomAvatar());
+      const { user } = await deps.store.upsertUser(id, profile.id, cleanName(profile.name), deps.now(), randomAvatar(), LATEST_NEWS_ID);
       return redirect(`${app.origin}/`, [clearState, await startSession(user)]);
     } catch {
       return back('error');
@@ -258,7 +262,7 @@ export async function handleApi(req: Request, deps: ApiDeps): Promise<Response> 
     if (!deps.config.devLogin) return json({ error: 'not found' }, 404);
     const body = (await req.json().catch(() => ({}))) as Record<string, unknown>;
     const name = cleanName(str(body.name));
-    const { user } = await deps.store.upsertUser('dev', name.toLowerCase(), name, deps.now(), randomAvatar());
+    const { user } = await deps.store.upsertUser('dev', name.toLowerCase(), name, deps.now(), randomAvatar(), LATEST_NEWS_ID);
     return json({ user: publicUser(user) }, 200, { 'Set-Cookie': await startSession(user) });
   }
 
