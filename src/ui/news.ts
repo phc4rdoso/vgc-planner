@@ -49,7 +49,7 @@ export async function showNews(who: 'signed-out' | 'signed-in' | 'welcomed', has
   }
   const fresh = show.flatMap((id) => NEWS.filter((n) => n.id === id));
   if (!fresh.length) return;
-  const steps: Step[] = fresh.map((n) => ({ ...LOOKS[n.id], title: n.title, text: n.text, badge: `New · ${formatDate(n.date)}` }));
+  const steps: Step[] = fresh.map((n) => ({ ...LOOKS[n.id], title: n.title, text: n.text, badge: formatDate(n.date) }));
   const heading = steps.length === 1 ? 'New Feature Available' : 'New Features Available';
   await showTour(steps, { start: 'Next', finish: 'Got it', skip: 'Close', heading });
 }
