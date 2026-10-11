@@ -236,6 +236,12 @@ export function bestStat(mon: MonState): BoostKey {
   return best;
 }
 
+/**
+ * The form a species starts the battle in, when the calculator names it differently from a team paste (by id):
+ * Aegislash starts in Shield Forme (Stance Change switches it, see turn.ts).
+ */
+const START_FORMS: Readonly<Record<string, string>> = { aegislash: 'Aegislash-Shield' };
+
 /** Mon that must have stats; throws a plain Error (shown as a calculator problem) otherwise. */
 export function statsOf(mon: MonState): StatTable {
   if (!mon.stats) throw new Error(`${mon.species} isn't in the calculator's data`);
@@ -400,7 +406,7 @@ export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection'>, 
     for (const set of list) {
       // A paste may name the Mega form ("Aerodactyl-Mega", with the Mega's ability): the battle still starts in base form.
       const pastedMega = isMega(set.species);
-      const base = pastedMega ? baseSpecies(set.species) : set.species;
+      const base = START_FORMS[toID(pastedMega ? baseSpecies(set.species) : set.species)] ?? (pastedMega ? baseSpecies(set.species) : set.species);
       const megaForm = engine.megaOf(base, set.item) ?? (pastedMega ? set.species : null);
       // A Mega has a single ability, so the calculator's data decides it (Charizard-Mega-Y: Drought), whatever the
       // paste says. On a paste that names the Mega, a different ability line is the base form's (e.g. Blaze).

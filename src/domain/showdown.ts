@@ -70,5 +70,9 @@ export function teamWarnings(mons: readonly PokemonSet[]): string[] {
   return out;
 }
 
-/** The base form of a Mega ("Garchomp-Mega-Z" -> "Garchomp"); other names unchanged. */
-export const baseSpecies = (species: string): string => species.replace(/-Mega(-[XYZ])?$/i, '');
+/** Megas whose base form isn't the name without "-Mega" (by id): Floette's Mega comes from the Eternal Flower form. */
+const MEGA_BASES: Readonly<Record<string, string>> = { floettemega: 'Floette-Eternal', meowsticmmega: 'Meowstic', meowsticfmega: 'Meowstic-F' };
+
+/** The base form of a Mega ("Garchomp-Mega-Z" -> "Garchomp", "Floette-Mega" -> "Floette-Eternal"); other names unchanged. */
+export const baseSpecies = (species: string): string =>
+  MEGA_BASES[species.toLowerCase().replace(/[^a-z0-9]/g, '')] ?? species.replace(/-Mega(-[XYZ])?$/i, '');

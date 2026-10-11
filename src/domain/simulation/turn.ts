@@ -395,6 +395,7 @@ class TurnRunner {
     actor.protectStreak = PROTECT_FAMILY.has(id);
     actor.lastMove = info.name;
     actor.lastTarget = a.target;
+    this.stanceChange(side, a.mon, actor, info, id);
     if (/^choice /i.test(heldItem(this.st, actor)) && !actor.choiceLock) actor.choiceLock = info.name;
     if (PROTECT_MOVES.has(id)) { this.st.turn.protect[monKey(side, a.mon)] = id; this.log.push({ type: 'protect', side, mon: a.mon, move: info.name, text: 'protects itself' }); return; }
     if (id === 'wideguard') { this.st.turn.wide[side] = true; this.log.push({ type: 'protect', side, mon: a.mon, move: info.name, text: 'guards its side from spread moves' }); return; }
@@ -599,6 +600,8 @@ class TurnRunner {
       choiceLock: null, encore: null, disable: null, taunt: 0, imprison: false, sub: 0, yawn: 0, perish: null, seeded: null, saltCure: false,
       destinyBond: false, boosted: null, charge: false, flashFire: false, confused: 0,
     });
+    // Aegislash goes back to Shield Forme when it leaves the field.
+    if (toID(outgoing.ability) === 'stancechange' && outgoing.species === 'Aegislash-Blade') { outgoing.species = 'Aegislash-Shield'; refreshStats(this.engine, outgoing); }
     if (outgoing.transformedFrom) {
       const back = outgoing.transformedFrom;
       outgoing.species = back.species; outgoing.ability = back.ability; outgoing.stats = back.stats; outgoing.transformedFrom = null;
@@ -647,6 +650,16 @@ class TurnRunner {
     const entry: Extract<LogEntry, { type: 'boost' }> = { type: 'boost', side, mon: name, move, changes: [] };
     this.log.push(entry);
     entry.changes = this.fx.changes(side, name, table, opts);
+  }
+
+  /** Stance Change: Aegislash turns to Blade Forme to attack, and back to Shield Forme with King's Shield. */
+  private stanceChange(side: Side, name: string, actor: MonState, info: MoveInfo, id: string): void {
+    if (toID(actor.ability) !== 'stancechange' || !/^aegislash/i.test(actor.species)) return;
+    const form = info.category !== 'Status' ? 'Aegislash-Blade' : id === 'kingsshield' ? 'Aegislash-Shield' : null;
+    if (!form || actor.species === form) return;
+    actor.species = form;
+    refreshStats(this.engine, actor);
+    this.log.push({ type: 'effect', side, mon: name, source: actor.ability, text: `changes to ${form === 'Aegislash-Blade' ? 'Blade' : 'Shield'} Forme` });
   }
 
   /**

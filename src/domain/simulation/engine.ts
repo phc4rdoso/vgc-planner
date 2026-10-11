@@ -166,7 +166,14 @@ export function createEngine(lib: CalcLib): CalcEngine {
       try {
         const stone = generation.items?.get(toID(item))?.megaStone;
         if (!stone) return null;
-        return typeof stone === 'string' ? stone : (stone[species] ?? null);
+        if (typeof stone === 'string') return stone;
+        if (stone[species]) return stone[species];
+        // The data can leave a form out of its stone (Meowsticite lists only Meowstic): that form's own Mega, if any.
+        if (Object.keys(stone).some((b) => toID(species).startsWith(toID(b)))) {
+          const own = generation.species?.get(toID(`${species}-Mega`));
+          if (own?.name) return own.name;
+        }
+        return null;
       } catch { return null; }
     },
     effectiveness(moveType, species) {

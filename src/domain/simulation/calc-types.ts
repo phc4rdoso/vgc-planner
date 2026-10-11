@@ -31,6 +31,7 @@ export interface CalcGeneration {
   types?: { get(id: string): { effectiveness: Record<string, number> } | undefined };
   moves?: { get(id: string): unknown };
   items?: { get(id: string): CalcItem | undefined };
+  species?: { get(id: string): { name?: string } | undefined };
 }
 
 export interface SideOptions {
