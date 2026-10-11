@@ -59,7 +59,7 @@ export const MOVES: Record<string, MoveData> = {
   protect: mv('Protect', 0, 'Status', 'self', 4),
   swordsdance: mv('Swords Dance', 0, 'Status', 'self'),
   tailwind: mv('Tailwind', 0, 'Status', 'allySide'),
-  trickroom: mv('Trick Room', 0, 'Status', 'all', -7),
+  trickroom: mv('Trick Room', 0, 'Status', 'all'), // 0 like the real calculator: the engine's table has -7
   closecombat: mv('Close Combat', 120, 'Physical', 'normal', 0, 'Fighting', contact),
   helpinghand: mv('Helping Hand', 0, 'Status', 'adjacentAlly', 5),
   screech: mv('Screech', 0, 'Status', 'normal'),
@@ -108,6 +108,11 @@ export const MOVES: Record<string, MoveData> = {
   haze: mv('Haze', 0, 'Status', 'all', 0, 'Ice'),
   stealthrock: mv('Stealth Rock', 0, 'Status', 'foeSide', 0, 'Rock'),
   spikes: mv('Spikes', 0, 'Status', 'foeSide', 0, 'Ground'),
+  // Priority 0 like the real calculator's data, which leaves negative priorities out (the engine has its own table).
+  roar: mv('Roar', 0, 'Status', 'normal', 0, 'Normal', { sound: true }),
+  whirlwind: mv('Whirlwind', 0, 'Status', 'normal', 0, 'Normal'),
+  dragontail: mv('Dragon Tail', 60, 'Physical', 'normal', 0, 'Dragon', contact),
+  beakblast: mv('Beak Blast', 100, 'Physical', 'normal', 0, 'Flying'),
   defog: mv('Defog', 0, 'Status', 'normal', 0, 'Flying'),
   gravity: mv('Gravity', 0, 'Status', 'all', 0, 'Psychic'),
   taunt: mv('Taunt', 0, 'Status', 'normal', 0, 'Dark'),

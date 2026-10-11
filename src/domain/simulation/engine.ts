@@ -1,3 +1,4 @@
+import { MOVE_PRIORITY } from '../move-effects.ts';
 import { toID } from '../strings.ts';
 import { BOOST_KEYS } from '../stats.ts';
 import type { StatTable } from '../types.ts';
@@ -152,7 +153,8 @@ export function createEngine(lib: CalcLib): CalcEngine {
         const known = generation.moves ? data !== undefined : true;
         const m = new lib.Move(generation, name);
         return {
-          exists: known, name: m.name || name, priority: m.priority ?? 0, category: m.category ?? 'Status', type: m.type ?? '', target: m.target ?? 'normal', bp: m.bp ?? 0,
+          // The calculator's data has no negative priorities (Trick Room, Roar, Counter...): Showdown's table has them all.
+          exists: known, name: m.name || name, priority: MOVE_PRIORITY[toID(m.name || name)] ?? m.priority ?? 0, category: m.category ?? 'Status', type: m.type ?? '', target: m.target ?? 'normal', bp: m.bp ?? 0,
           contact: !!m.flags?.contact, sound: !!m.flags?.sound, wind: !!m.flags?.wind, multihit: (m.hits ?? 1) > 1 || data?.multihit !== undefined, hits: Math.max(1, m.hits ?? 1),
           secondaries: Array.isArray(m.secondaries) ? m.secondaries.length > 0 : !!m.secondaries,
         };

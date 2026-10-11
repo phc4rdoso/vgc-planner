@@ -247,6 +247,10 @@ export const ON_KO_ABILITIES: Readonly<Record<string, BoostChange | 'best'>> = {
 /** Items and abilities that force a switch: the holder leaves (Eject Button, Eject Pack, Emergency Exit) or the attacker does (Red Card). */
 export const EJECT_ITEMS: ReadonlySet<string> = new Set(['ejectbutton', 'ejectpack', 'redcard']);
 export const EXIT_ABILITIES: ReadonlySet<string> = new Set(['emergencyexit', 'wimpout']);
+/** Moves that force the target out (into a random Pokémon in the game; here the one picked on its action). */
+export const PHAZING_MOVES: ReadonlySet<string> = new Set(['roar', 'whirlwind', 'dragontail', 'circlethrow']);
+/** Abilities that keep their holder from being forced out by those moves. */
+export const ANCHOR_ABILITIES: ReadonlySet<string> = new Set(['guarddog', 'suctioncups']);
 /** Attackers' abilities that ignore the target's ability (Sturdy, Disguise...). */
 export const MOLD_BREAKERS: ReadonlySet<string> = new Set(['moldbreaker', 'teravolt', 'turboblaze']);
 

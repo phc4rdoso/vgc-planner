@@ -206,9 +206,11 @@ function actionEditor(a: TurnAction, i: number, st: BattleState | null, depth: n
   const kindOption = (value: TurnAction['kind'], label: string): string => `<option value="${value}" ${a.kind === value ? 'selected' : ''}>${label}</option>`;
   const mega = a.kind === 'mega' || canOfferMega(a, st, actions, set?.item ?? '') ? kindOption('mega', 'Mega evolve + move') : '';
   const incoming = incomingChoices(a, st, depth, actions);
-  // Who comes in after a pivot move, or if an Eject Button / Eject Pack / Red Card / Emergency Exit forces it out.
+  // Who comes in after a pivot move, or if an Eject Button / Eject Pack / Red Card / Emergency Exit or a foe's
+  // Roar, Whirlwind, Dragon Tail or Circle Throw forces it out.
   const starter = st?.mons[a.side][a.mon];
-  const forcible = !!starter && !!st && st.active[a.side].includes(a.mon) && mayBeForcedOut(st, a.side, starter);
+  const foeMoves = actions.filter((x) => x.side !== a.side && x.kind !== 'switch').map((x) => x.move);
+  const forcible = !!starter && !!st && st.active[a.side].includes(a.mon) && mayBeForcedOut(st, a.side, starter, foeMoves);
   const pivotLabel = isPivotMove(a.move) ? 'Then switch to' : 'If forced out, switch to';
   const pivot = a.kind !== 'switch' && (isPivotMove(a.move) || forcible)
     ? `<div><label class="lbl" for="a-pivot-${i}">${pivotLabel}</label><select class="field" id="a-pivot-${i}" data-a="pivot" data-i="${i}">${options(incoming, a.pivot ?? '', 'Choose…', own)}</select></div>`

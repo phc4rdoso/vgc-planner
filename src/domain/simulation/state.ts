@@ -145,6 +145,8 @@ export interface TurnScratch {
   damaged: Record<string, { amount: number; category: string; by: string }>;
   /** Switches forced by Eject Button, Eject Pack, Red Card or Emergency Exit, carried out after the current action. */
   forced: { side: Side; name: string; reason: string }[];
+  /** Pokémon heating up for Beak Blast (from the start of the turn until it fires): contact burns the attacker. */
+  beak: Record<string, true>;
   /** After You / Quash: Pokémon made to act next, or last. */
   next: Record<string, boolean>;
   last: Record<string, boolean>;
@@ -210,7 +212,7 @@ export function fieldEffects(f: FieldState): FieldEffect[] {
 
 export const newScratch = (): TurnScratch => ({
   protect: {}, redirect: { me: null, opp: null }, entered: {}, wide: { me: false, opp: false }, quick: { me: false, opp: false }, helped: {}, flinched: {}, acted: {}, hitBy: {}, charged: {},
-  damaged: {}, forced: [], next: {}, last: {},
+  damaged: {}, forced: [], beak: {}, next: {}, last: {},
 });
 
 /** The item that counts right now: none under Magic Room (the item is still held, and comes back when it ends). */

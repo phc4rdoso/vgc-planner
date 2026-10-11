@@ -11,7 +11,7 @@ import type { BattleState, FieldState, MonState } from './state.ts';
 import { aliveActive, bench, effSpeed, entryOrder, heldItem, monKey, newScratch, noHazards, otherSide, outcomeOf, refreshStats, statsOf, zeroBoosts } from './state.ts';
 import type { BoostChange, StatusId } from './tables.ts';
 import {
-  ABILITY_SETTERS, CLEARS_STATS, EJECT_ITEMS, EXIT_ABILITIES, FIXED_ABILITIES, GRAVITY_BANNED, HAZARD_ATTACKS, HAZARD_MOVES, HEAL_MOVES,
+  ABILITY_SETTERS, ANCHOR_ABILITIES, CLEARS_STATS, EJECT_ITEMS, EXIT_ABILITIES, PHAZING_MOVES, FIXED_ABILITIES, GRAVITY_BANNED, HAZARD_ATTACKS, HAZARD_MOVES, HEAL_MOVES,
   MOLD_BREAKERS, NOT_REPEATABLE, ON_HIT_ABILITIES, ON_HIT_ITEMS, ON_KO_ABILITIES, ROOM_MOVES, SCREEN_BREAKERS, TEAM_HEAL_MOVES,
   ABSORB_ABILITIES, alwaysConfuses, alwaysDrops, alwaysFlinches, alwaysSelf, alwaysStatus, CONFUSE_MOVES, FREEZE_MAX_TURNS, THAW_MOVES, BREAKS_PROTECT, CHARGE_MOVES, CONTACT_ABILITIES, CONTACT_ITEMS, CONTACT_PROTECT, 
   DEBUFF_MOVES, FIELD_MOVES, FIRST_TURN_ONLY, HITS_SEMI_INVULNERABLE, IGNORES_REDIRECT, ITEM_REMOVAL, ITEM_SWAP, NEEDS_TARGET_MOVE, PIVOT_MOVES,
@@ -42,7 +42,8 @@ export function moveLock(st: BattleState, mon: MonState): { move: string; reason
 }
 
 /** Whether something could force this Pokémon out this turn (its item or ability, or a foe's Red Card), so it needs a "comes in" pick. */
-export function mayBeForcedOut(st: BattleState, side: Side, mon: MonState): boolean {
+export function mayBeForcedOut(st: BattleState, side: Side, mon: MonState, foeMoves: readonly string[] = []): boolean {
+  if (foeMoves.some((m) => PHAZING_MOVES.has(toID(m))) && !ANCHOR_ABILITIES.has(toID(mon.ability))) return true;
   const item = toID(heldItem(st, mon));
   if (EJECT_ITEMS.has(item) && item !== 'redcard') return true;
   if (EXIT_ABILITIES.has(toID(mon.ability))) return true;
@@ -215,6 +216,12 @@ class TurnRunner {
     // Champions, so a Tailwind, Trick Room, paralysis or Speed drop changes the order of the actions still to come.
     const queue = entries.filter((e) => e.action.kind !== 'switch');
     for (const e of queue) if (e.info) e.priority = this.priorityOf(e.mon, e.info);
+    // Beak Blast heats up before anyone moves: until it fires, contact with its user burns the attacker.
+    for (const e of queue) {
+      if (!e.info || toID(e.info.name) !== 'beakblast' || e.mon.fainted || !this.st.active[e.action.side].includes(e.action.mon)) continue;
+      this.st.turn.beak[monKey(e.action.side, e.action.mon)] = true;
+      this.log.push({ type: 'effect', side: e.action.side, mon: e.action.mon, source: 'Beak Blast', text: 'starts heating up its beak' });
+    }
     while (queue.length) {
       queue.sort((x, y) => this.compare(x, y));
       const e = queue.shift()!;
@@ -404,6 +411,8 @@ class TurnRunner {
       this.log.push({ type: 'protect', side, mon: a.mon, move: info.name, text: `draws the opponents' moves${redirect.powder ? ' (not from Grass types)' : ''}` });
       return;
     }
+    // Beak Blast fires: its heat is gone (if it couldn't move, the heat lasts until the end of the turn).
+    if (id === 'beakblast') delete this.st.turn.beak[monKey(side, a.mon)];
     if (info.category === 'Status') this.statusMove(side, a, actor, info, id);
     else this.damagingMove(side, a, actor, info, id);
   }
@@ -640,6 +649,31 @@ class TurnRunner {
     entry.changes = this.fx.changes(side, name, table, opts);
   }
 
+  /**
+   * Roar and Whirlwind: the target is forced out (through Protect), unless Soundproof (Roar), Wind Rider
+   * (Whirlwind: +1 Attack instead), Guard Dog or Suction Cups stop it, or it has no one to switch to.
+   */
+  private phazingMove(side: Side, a: TurnAction, actor: MonState, info: MoveInfo, id: string): void {
+    const foe = otherSide(side);
+    if (!a.target) throw new Incomplete(`${a.mon}: pick a target for ${info.name}`);
+    const slot = this.foeInSlot(foe, a.target);
+    const name = slot ? this.redirected(actor, foe, info, slot) : null;
+    const target = name ? this.st.mons[foe][name] : undefined;
+    if (!name || !target || target.fainted) { this.log.push({ type: 'other', side, mon: a.mon, move: info.name, note: 'fails (no target)' }); return; }
+    const ability = toID(target.ability);
+    const note = (text: string): void => { this.log.push({ type: 'other', side, mon: a.mon, move: info.name, note: text }); };
+    if (id === 'roar' && ability === 'soundproof') { note(`doesn't affect ${name} (Soundproof)`); return; }
+    if (id === 'whirlwind' && ability === 'windrider') {
+      note(`doesn't affect ${name} (Wind Rider)`);
+      this.boostLog(foe, name, target.ability, { atk: 1 }, { own: true });
+      return;
+    }
+    if (ANCHOR_ABILITIES.has(ability)) { note(`doesn't move ${name} (${target.ability})`); return; }
+    if (!bench(this.st, foe).length) { note(`fails (${name} has no one to switch to)`); return; }
+    note(`forces ${name} out`);
+    this.fx.forceOut(foe, name, info.name);
+  }
+
   private statusMove(side: Side, a: TurnAction, actor: MonState, info: MoveInfo, id: string): void {
     const foe = otherSide(side);
     const stats = statsOf(actor);
@@ -655,6 +689,8 @@ class TurnRunner {
 
     const inflicts = STATUS_MOVES[id];
     if (inflicts) { this.statusInflictingMove(side, a, actor, info, id, inflicts); return; }
+
+    if (id === 'roar' || id === 'whirlwind') { this.phazingMove(side, a, actor, info, id); return; }
 
     const setup = SETUP_MOVES[id];
     if (setup) {
@@ -1108,6 +1144,12 @@ class TurnRunner {
     if (item) this.fx.hurt(side, name, share(max, item).amount, `${target.name}'s ${target.item}`, item);
   }
 
+  /** Touching a Pokémon heating up for Beak Blast burns the attacker. */
+  private beakBurn(side: Side, name: string, actor: MonState, heater: string): void {
+    const got = this.inflict(side, name, actor, actor, 'brn');
+    if (got.status) this.log.push({ type: 'effect', side, mon: name, source: `${heater}'s Beak Blast`, text: got.cured ? `${STATUS_LABEL[got.status]}, cured by ${got.cured}` : STATUS_LABEL[got.status] });
+  }
+
   /** Contact with a Protect variant that punishes it (Spiky Shield, Baneful Bunker, King's Shield...). */
   private punishContact(side: Side, name: string, actor: MonState, protectId: string, protector: string): void {
     const punish = CONTACT_PROTECT[protectId];
@@ -1336,6 +1378,9 @@ class TurnRunner {
 
       this.fx.berries(t.side, t.name);
       if (info.contact && !isSelf) this.contactDamage(side, a.mon, actor, target);
+      if (info.contact && !isSelf && this.st.turn.beak[monKey(t.side, t.name)] && !this.contactProof(actor)) this.beakBurn(side, a.mon, actor, t.name);
+      // Dragon Tail / Circle Throw: a target that's still standing is dragged out (an Eject Button or Red Card then stays put).
+      if (PHAZING_MOVES.has(id) && t.side !== side && !target.fainted && !actor.fainted && !ANCHOR_ABILITIES.has(toID(target.ability))) this.fx.forceOut(t.side, t.name, info.name);
       if (!isSelf) this.reactToHit(side, a.mon, actor, t, target, info, before);
       if (told?.crit && !target.fainted && toID(target.ability) === 'angerpoint') this.boostLog(t.side, t.name, target.ability, { atk: 12 }, { own: true });
       if (target.fainted) this.knockedOut(side, a.mon, actor, t, target);
@@ -1423,8 +1468,10 @@ class TurnRunner {
         this.boostLog(t.side, t.name, used, { atk: 2, spa: 2 }, { own: true });
       }
       this.fx.droppedBelowHalf(t.side, t.name, before, true);
-      if (item === 'ejectbutton' && t.side !== side) { this.fx.loseItem(t.side, t.name, 'sends it back'); this.fx.forceOut(t.side, t.name, 'Eject Button'); }
-      if (item === 'redcard' && t.side !== side && !actor.fainted) { this.fx.loseItem(t.side, t.name, `sends ${user} back`); this.fx.forceOut(side, user, 'Red Card'); }
+      // Being dragged out by Dragon Tail / Circle Throw keeps Eject Button and Red Card from activating.
+      const dragged = this.st.turn.forced.some((f) => f.side === t.side && f.name === t.name && PHAZING_MOVES.has(toID(f.reason)));
+      if (item === 'ejectbutton' && t.side !== side && !dragged) { this.fx.loseItem(t.side, t.name, 'sends it back'); this.fx.forceOut(t.side, t.name, 'Eject Button'); }
+      if (item === 'redcard' && t.side !== side && !actor.fainted && !dragged) { this.fx.loseItem(t.side, t.name, `sends ${user} back`); this.fx.forceOut(side, user, 'Red Card'); }
     }
     if (ability === 'cottondown') {
       for (const s2 of SIDES) for (const n of aliveActive(this.st, s2)) {

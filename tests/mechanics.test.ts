@@ -7,12 +7,15 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { newNode, newPlan, newTeam, sheetOf } from '../src/domain/model.ts';
 import { createEngine } from '../src/domain/simulation/engine.ts';
+import { mayBeForcedOut } from '../src/domain/simulation/turn.ts';
 import type { EndMon, HitResult, LogEntry, TurnResult } from '../src/domain/simulation/log.ts';
 import { simulatePlan } from '../src/domain/simulation/plan.ts';
 import type { ActionKind, ActionOutcome, FlowNode, Side, TurnAction } from '../src/domain/types.ts';
 import type { CalcCall } from './helpers/stub-calc.ts';
 import { makeStubCalc } from './helpers/stub-calc.ts';
 import { alwaysSelf, chanceEffects } from '../src/domain/simulation/tables.ts';
+import * as calc from '@smogon/calc';
+import type { CalcLib } from '../src/domain/simulation/calc-types.ts';
 
 type Ready = Extract<TurnResult, { status: 'ready' }>;
 
@@ -844,4 +847,84 @@ test('Fake Out works on the first action after every switch-in, not only the fir
   assert.ok(hits(r2!.log, 'Rillaboom', 'Fake Out'), 'first action after switching in');
   assert.equal(failNote(r3!.log, 'Rillaboom', 'Fake Out'), 'fails (only works on its first turn out)');
   assert.ok(hits(r6!.log, 'Rillaboom', 'Fake Out'), 'works again after switching out and back in');
+});
+
+/* ---------- negative priority ---------- */
+
+test('negative priorities come from the move table: the real calculator has none (Trick Room, Roar, Counter...)', () => {
+  const engine = createEngine(calc as unknown as CalcLib);
+  const priorities = Object.fromEntries(['Trick Room', 'Roar', 'Whirlwind', 'Dragon Tail', 'Circle Throw', 'Counter', 'Mirror Coat', 'Avalanche', 'Beak Blast', 'Focus Punch', 'Protect', 'Fake Out', 'Swords Dance']
+    .map((m) => [m, engine.moveInfo(m).priority]));
+  assert.deepEqual(priorities, {
+    'Trick Room': -7, Roar: -6, Whirlwind: -6, 'Dragon Tail': -6, 'Circle Throw': -6, Counter: -5, 'Mirror Coat': -5, Avalanche: -4,
+    'Beak Blast': -3, 'Focus Punch': -3, Protect: 4, 'Fake Out': 3, 'Swords Dance': 0,
+  });
+});
+
+test('Trick Room goes after everything else, even from the fastest Pokémon', () => {
+  const [r1] = play(
+    { me: [mon('Garchomp', 'Rough Skin'), mon('Rillaboom', 'Overgrow')], opp: OPP, leads: { me: ['Garchomp', 'Rillaboom'], opp: OPP_LEADS } },
+    [act('me', 'Garchomp', 'move', 'Trick Room'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+  );
+  assert.equal(movers(r1!.log).at(-1), 'Garchomp', JSON.stringify(movers(r1!.log)));
+  assert.equal(r1!.field.trick, 5);
+});
+
+const PHAZE: Battle = {
+  me: [mon('Garchomp', 'Rough Skin'), mon('Rillaboom', 'Overgrow')],
+  opp: [mon('Incineroar', 'Blaze'), mon('Kingambit', 'Defiant', 'Eject Button'), mon('Sinistcha', 'Hospitality')],
+  leads: { me: ['Garchomp', 'Rillaboom'], opp: OPP_LEADS }, backs: { opp: ['Sinistcha'] },
+};
+const dragged = (log: readonly LogEntry[], who: string): string | undefined => {
+  const s = log.find((l) => l.type === 'switch' && l.mon === who);
+  return s?.type === 'switch' ? `${s.in} via ${s.via ?? ''}` : undefined;
+};
+
+test('Roar goes through Protect and forces the target out into the Pokémon picked on its action', () => {
+  const [r1] = play(PHAZE, [act('me', 'Garchomp', 'move', 'Roar', 'Incineroar'), act('me', 'Rillaboom', 'move', 'Swords Dance'),
+    swap(act('opp', 'Incineroar', 'move', 'Protect'), 'Sinistcha'), act('opp', 'Kingambit', 'move', 'Swords Dance')]);
+  assert.equal(dragged(r1!.log, 'Incineroar'), 'Sinistcha via Roar');
+  assert.ok(r1!.state.active.opp.includes('Sinistcha'));
+});
+
+test('Soundproof stops Roar; Guard Dog keeps its holder in; Wind Rider takes Whirlwind as +1 Attack', () => {
+  const vs = (ability: string, move: string): Ready => play({ ...PHAZE, opp: [mon('Incineroar', ability), ...PHAZE.opp.slice(1)] },
+    [act('me', 'Garchomp', 'move', move, 'Incineroar'), act('me', 'Rillaboom', 'move', 'Swords Dance'),
+      swap(act('opp', 'Incineroar', 'move', 'Swords Dance'), 'Sinistcha'), act('opp', 'Kingambit', 'move', 'Swords Dance')])[0]!;
+  for (const [ability, move] of [['Soundproof', 'Roar'], ['Guard Dog', 'Roar'], ['Wind Rider', 'Whirlwind']] as const) {
+    const r = vs(ability, move);
+    assert.equal(dragged(r.log, 'Incineroar'), undefined, ability);
+    assert.ok(r.state.active.opp.includes('Incineroar'), ability);
+  }
+  assert.equal(vs('Wind Rider', 'Whirlwind').state.mons.opp.Incineroar!.boosts.atk, 3, 'Swords Dance +2, then Wind Rider +1');
+});
+
+test('Dragon Tail hits, then drags the target out; its Eject Button stays put', () => {
+  const [r1] = play(PHAZE, [act('me', 'Garchomp', 'move', 'Dragon Tail', 'Kingambit'), act('me', 'Rillaboom', 'move', 'Swords Dance'),
+    act('opp', 'Incineroar', 'move', 'Swords Dance'), swap(act('opp', 'Kingambit', 'move', 'Swords Dance'), 'Sinistcha')]);
+  assert.ok(hitOn(r1!.log, 'Garchomp', 'Dragon Tail').length > 0);
+  assert.equal(dragged(r1!.log, 'Kingambit'), 'Sinistcha via Dragon Tail');
+  assert.equal(r1!.state.mons.opp.Kingambit!.item, 'Eject Button', 'Eject Button not used');
+});
+
+test('Beak Blast heats up first: an attacker that touches its user before it fires is burned', () => {
+  const [r1] = play(
+    { me: [mon('Garchomp', 'Rough Skin'), mon('Rillaboom', 'Overgrow')], opp: OPP, leads: { me: ['Garchomp', 'Rillaboom'], opp: OPP_LEADS } },
+    [act('me', 'Garchomp', 'move', 'Close Combat', 'Incineroar'), act('me', 'Rillaboom', 'move', 'Swords Dance'),
+      act('opp', 'Incineroar', 'move', 'Beak Blast', 'Rillaboom'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+  );
+  assert.equal(r1!.log[0]?.type === 'effect' && r1!.log[0].text, 'starts heating up its beak');
+  assert.deepEqual(effects(r1!.log, 'Garchomp'), ["Incineroar's Beak Blast: burned"]);
+  assert.equal(r1!.state.mons.me.Garchomp!.status, 'brn');
+  assert.equal(movers(r1!.log).at(-1), 'Incineroar', 'Beak Blast (-3) moves last');
+});
+
+test('the turn editor offers "If forced out, switch to" when a foe plans Roar, Whirlwind, Dragon Tail or Circle Throw', () => {
+  const [r1] = play(PHAZE, [...idle('me', 'Garchomp', 'Rillaboom'), ...idle('opp', ...OPP_LEADS)]);
+  const st = r1!.state;
+  const incineroar = st.mons.opp.Incineroar!;
+  assert.equal(mayBeForcedOut(st, 'opp', incineroar), false);
+  assert.equal(mayBeForcedOut(st, 'opp', incineroar, ['Swords Dance']), false);
+  for (const move of ['Roar', 'Whirlwind', 'Dragon Tail', 'Circle Throw']) assert.equal(mayBeForcedOut(st, 'opp', incineroar, [move]), true, move);
+  assert.equal(mayBeForcedOut(st, 'opp', { ...incineroar, ability: 'Guard Dog' }, ['Roar']), false, 'Guard Dog can\'t be forced out');
 });
