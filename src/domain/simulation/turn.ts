@@ -8,10 +8,10 @@ import { Effects, share } from './effects.ts';
 import type { CalcEngine, HitCalc, MoveInfo } from './engine.ts';
 import type { DebuffTarget, EndMon, HitResult, LogEntry, SpeedTie, StatusTarget, TurnResult } from './log.ts';
 import type { BattleState, FieldState, MonState } from './state.ts';
-import { aliveActive, bench, effSpeed, entryOrder, heldItem, monKey, newScratch, noHazards, otherSide, outcomeOf, refreshStats, statsOf, zeroBoosts } from './state.ts';
+import { aliveActive, bench, effSpeed, entryOrder, heldItem, monKey, newScratch, noHazards, onFieldKey, otherSide, outcomeOf, refreshStats, statsOf, zeroBoosts } from './state.ts';
 import type { BoostChange, StatusId } from './tables.ts';
 import {
-  ABILITY_SETTERS, ANCHOR_ABILITIES, CLEARS_STATS, EJECT_ITEMS, EXIT_ABILITIES, PHAZING_MOVES, FIXED_ABILITIES, GRAVITY_BANNED, HAZARD_ATTACKS, HAZARD_MOVES, HEAL_MOVES,
+  ABILITY_SETTERS, ANCHOR_ABILITIES, BIND_TURNS, BINDING_MOVES, CLEARS_STATS, TRAPPING_MOVES, EJECT_ITEMS, EXIT_ABILITIES, PHAZING_MOVES, FIXED_ABILITIES, GRAVITY_BANNED, HAZARD_ATTACKS, HAZARD_MOVES, HEAL_MOVES,
   MOLD_BREAKERS, NOT_REPEATABLE, ON_HIT_ABILITIES, ON_HIT_ITEMS, ON_KO_ABILITIES, ROOM_MOVES, SCREEN_BREAKERS, TEAM_HEAL_MOVES,
   ABSORB_ABILITIES, alwaysConfuses, alwaysDrops, alwaysFlinches, alwaysSelf, alwaysStatus, CONFUSE_MOVES, FREEZE_MAX_TURNS, THAW_MOVES, BREAKS_PROTECT, CHARGE_MOVES, CONTACT_ABILITIES, CONTACT_ITEMS, CONTACT_PROTECT, 
   DEBUFF_MOVES, FIELD_MOVES, FIRST_TURN_ONLY, HITS_SEMI_INVULNERABLE, IGNORES_REDIRECT, ITEM_REMOVAL, ITEM_SWAP, NEEDS_TARGET_MOVE, PIVOT_MOVES,
@@ -105,6 +105,8 @@ class TurnRunner {
 
   /** Effective priority of the move being executed (see {@link priorityOf}). */
   private priority = 0;
+  /** Who couldn't choose to switch this turn, and why: traps are checked when actions are chosen, at the start. */
+  private trappedAtStart = new Map<string, string>();
   /** Who stood in each position when the turn's moves began, so targets follow the slot after a switch. */
   private slots: Record<Side, string[]> = { me: [], opp: [] };
   /** Replacement switches already done by {@link replaceFainted}; they don't run again with the turn. */
@@ -207,6 +209,19 @@ class TurnRunner {
       return { action, index, mon, info, priority: 0 };
     });
     for (const e of entries) this.planned.set(monKey(e.action.side, e.action.mon), e);
+    // A binding past its 4 sure turns lasts a 5th only if picked on the bound Pokémon's action; otherwise it's over.
+    for (const e of entries) {
+      if (e.mon.bound?.left !== 0) continue;
+      if (e.action.outcome?.stillBound) this.st.turn.stillBound[monKey(e.action.side, e.action.mon)] = true;
+      else e.mon.bound = null;
+    }
+    // A trapped Pokémon can't choose to switch, even if its trapper leaves earlier in the turn.
+    this.trappedAtStart = new Map();
+    for (const e of entries) {
+      if (e.action.kind !== 'switch' || e.mon.fainted || !this.st.active[e.action.side].includes(e.action.mon)) continue;
+      const trap = this.trapReason(e.action.side, e.action.mon, e.mon);
+      if (trap) this.trappedAtStart.set(monKey(e.action.side, e.action.mon), trap);
+    }
     const switches = entries.filter((e) => e.action.kind === 'switch').sort((x, y) => this.compare(x, y));
     switches.forEach((e, i) => this.noteTies(e, switches.slice(i + 1)));
     for (const e of switches) { this.execute(e); this.forcedSwitches(); }
@@ -376,6 +391,10 @@ class TurnRunner {
       this.log.push({ type: 'skip', side, mon: a.mon, why: `must recharge after ${actor.recharging}` });
       actor.recharging = null;
       return;
+    }
+    if (a.kind === 'switch') {
+      const trap = this.trappedAtStart.get(monKey(side, a.mon));
+      if (trap) { this.log.push({ type: 'skip', side, mon: a.mon, why: `can't switch out (trapped by ${trap})` }); return; }
     }
     if (a.kind === 'switch' || !e.info) { this.doSwitch(side, a.mon, a.target); return; }
     if (!this.beforeMove(side, a, actor, e.info)) return;
@@ -597,7 +616,7 @@ class TurnRunner {
     outgoing.charging = null;
     outgoing.protectStreak = false;
     Object.assign(outgoing, {
-      choiceLock: null, encore: null, disable: null, taunt: 0, imprison: false, sub: 0, yawn: 0, perish: null, seeded: null, saltCure: false,
+      choiceLock: null, encore: null, disable: null, taunt: 0, imprison: false, sub: 0, yawn: 0, perish: null, seeded: null, saltCure: false, bound: null, trapped: null,
       destinyBond: false, boosted: null, charge: false, flashFire: false, confused: 0,
     });
     // Aegislash goes back to Shield Forme when it leaves the field.
@@ -652,6 +671,46 @@ class TurnRunner {
     entry.changes = this.fx.changes(side, name, table, opts);
   }
 
+  /**
+   * What keeps this Pokémon from switching out by choice (pivot moves and forced switches still work): a binding
+   * move, a trapping move or No Retreat while their user stays in, or a foe's Shadow Tag. Ghost types and Shed Shell
+   * escape every trap. Null when it can switch.
+   */
+  private trapReason(side: Side, name: string, mon: MonState): string | null {
+    if (this.engine.typesOf(mon.species).includes('Ghost') || toID(heldItem(this.st, mon)) === 'shedshell') return null;
+    const b = mon.bound;
+    if (b && onFieldKey(this.st, b.by) && (b.left > 0 || this.st.turn.stillBound[monKey(side, name)])) return b.move;
+    if (mon.trapped && onFieldKey(this.st, mon.trapped.by)) return mon.trapped.source;
+    const foe = otherSide(side);
+    const tagger = aliveActive(this.st, foe).map((n) => this.st.mons[foe][n]!).find((m) => toID(m.ability) === 'shadowtag');
+    if (tagger && toID(mon.ability) !== 'shadowtag') return `${tagger.name}'s ${tagger.ability}`;
+    return null;
+  }
+
+  /** Traps `name` while `by` stays in (not Ghost types, not twice). Returns whether it took hold. */
+  private trap(side: Side, name: string, by: string, source: string): boolean {
+    const mon = this.st.mons[side][name];
+    if (!mon || mon.fainted || mon.trapped || this.engine.typesOf(mon.species).includes('Ghost')) return false;
+    mon.trapped = { by, source };
+    this.log.push({ type: 'effect', side, mon: name, source, text: "can't switch out" });
+    return true;
+  }
+
+  /** Mean Look, Block (through Protect) and Octolock: the target can't switch out while the user stays in. */
+  private trappingMove(side: Side, a: TurnAction, actor: MonState, info: MoveInfo, id: string): void {
+    const foe = otherSide(side);
+    if (!a.target) throw new Incomplete(`${a.mon}: pick a target for ${info.name}`);
+    const slot = this.foeInSlot(foe, a.target);
+    const name = slot ? this.redirected(actor, foe, info, slot) : null;
+    const target = name ? this.st.mons[foe][name] : undefined;
+    const note = (text: string): void => { this.log.push({ type: 'other', side, mon: a.mon, move: info.name, note: text }); };
+    if (!name || !target || target.fainted) { note('fails (no target)'); return; }
+    if (id === 'octolock' && this.st.turn.protect[monKey(foe, name)]) { note(`is blocked by ${name}'s Protect`); return; }
+    if (this.engine.typesOf(target.species).includes('Ghost')) { note(`doesn't affect ${name} (Ghost types can't be trapped)`); return; }
+    if (target.trapped) { note(`fails (${name} is already trapped)`); return; }
+    this.trap(foe, name, monKey(side, a.mon), info.name);
+  }
+
   /** Stance Change: Aegislash turns to Blade Forme to attack, and back to Shield Forme with King's Shield. */
   private stanceChange(side: Side, name: string, actor: MonState, info: MoveInfo, id: string): void {
     if (toID(actor.ability) !== 'stancechange' || !/^aegislash/i.test(actor.species)) return;
@@ -704,12 +763,14 @@ class TurnRunner {
     if (inflicts) { this.statusInflictingMove(side, a, actor, info, id, inflicts); return; }
 
     if (id === 'roar' || id === 'whirlwind') { this.phazingMove(side, a, actor, info, id); return; }
+    if (TRAPPING_MOVES[id]) { this.trappingMove(side, a, actor, info, id); return; }
 
     const setup = SETUP_MOVES[id];
     if (setup) {
       const table: BoostChange = { ...setup };
       if (id === 'growth' && this.st.field.weather === 'Sun') { table.atk = 2; table.spa = 2; }
       this.boostLog(side, a.mon, info.name, table, { own: true });
+      if (id === 'noretreat') this.trap(side, a.mon, monKey(side, a.mon), info.name);
       if (id === 'tidyup') {
         for (const s2 of SIDES) { this.st.field.hazards[s2] = noHazards(); for (const n of aliveActive(this.st, s2)) this.st.mons[s2][n]!.sub = 0; }
         this.log.push({ type: 'field', side, mon: a.mon, move: info.name, text: 'clears hazards and Substitutes' });
@@ -1392,6 +1453,16 @@ class TurnRunner {
       this.fx.berries(t.side, t.name);
       if (info.contact && !isSelf) this.contactDamage(side, a.mon, actor, target);
       if (info.contact && !isSelf && this.st.turn.beak[monKey(t.side, t.name)] && !this.contactProof(actor)) this.beakBurn(side, a.mon, actor, t.name);
+      // Binding moves (Infestation, Fire Spin...): the target is hurt at the end of each turn and can't switch out.
+      if (BINDING_MOVES.has(id) && t.side !== side && !target.fainted && !actor.fainted && !target.bound) {
+        target.bound = { by: monKey(side, a.mon), move: info.name, left: BIND_TURNS, band: toID(heldItem(this.st, actor)) === 'bindingband' };
+        this.log.push({ type: 'effect', side: t.side, mon: t.name, source: info.name, text: 'is bound for 4-5 turns' });
+      }
+      // Spirit Shackle, Anchor Shot, Jaw Lock (which traps the user too): no switching out while the user stays in.
+      if (TRAPPING_MOVES[id] && t.side !== side && !target.fainted && !actor.fainted) {
+        this.trap(t.side, t.name, monKey(side, a.mon), info.name);
+        if (TRAPPING_MOVES[id] === 'both') this.trap(side, a.mon, monKey(t.side, t.name), info.name);
+      }
       // Dragon Tail / Circle Throw: a target that's still standing is dragged out (an Eject Button or Red Card then stays put).
       if (PHAZING_MOVES.has(id) && t.side !== side && !target.fainted && !actor.fainted && !ANCHOR_ABILITIES.has(toID(target.ability))) this.fx.forceOut(t.side, t.name, info.name);
       if (!isSelf) this.reactToHit(side, a.mon, actor, t, target, info, before);
@@ -1438,6 +1509,7 @@ class TurnRunner {
     // Rapid Spin and Mortal Spin clear hazards from the user's side (Rapid Spin also raises Speed).
     if ((id === 'rapidspin' || id === 'mortalspin') && !actor.fainted) {
       this.st.field.hazards[side] = noHazards();
+      if (actor.bound) { this.log.push({ type: 'effect', side, mon: a.mon, source: info.name, text: `is freed from ${actor.bound.move}` }); actor.bound = null; }
       if (id === 'rapidspin') this.boostLog(side, a.mon, info.name, { spe: 1 }, { own: true });
     }
     if (info.sound && toID(heldItem(this.st, actor)) === 'throatspray' && !actor.fainted) {

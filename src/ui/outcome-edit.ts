@@ -33,6 +33,7 @@ export function setOutcome(action: TurnAction, kind: string, target: string, fie
       break;
     }
     case 'protectWorks': if (checked) o.protectWorks = true; else delete o.protectWorks; break;
+    case 'stillBound': if (checked) o.stillBound = true; else delete o.stillBound; break;
     case 'miss': if (checked) one().miss = true; else delete one().miss; break;
     case 'crit': if (checked) one().crit = true; else delete one().crit; break;
     case 'effect': if (field.value) one().effects = [field.value]; else delete one().effects; break;

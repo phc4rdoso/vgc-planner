@@ -75,6 +75,8 @@ export interface ActionOutcome {
   wake?: true;
   hits?: number;
   protectWorks?: true;
+  /** A binding move (Infestation, Fire Spin...) lasts a 5th turn on this Pokémon (the game's 50/50; 4 assumed). */
+  stillBound?: true;
   targets?: Record<string, TargetOutcome>;
   self?: ChanceEffect[];
 }

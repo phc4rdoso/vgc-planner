@@ -928,3 +928,90 @@ test('the turn editor offers "If forced out, switch to" when a foe plans Roar, W
   for (const move of ['Roar', 'Whirlwind', 'Dragon Tail', 'Circle Throw']) assert.equal(mayBeForcedOut(st, 'opp', incineroar, [move]), true, move);
   assert.equal(mayBeForcedOut(st, 'opp', { ...incineroar, ability: 'Guard Dog' }, ['Roar']), false, 'Guard Dog can\'t be forced out');
 });
+
+/* ---------- binding and trapping ---------- */
+
+const TRAP: Battle = {
+  me: [mon('Garchomp', 'Rough Skin'), mon('Rillaboom', 'Overgrow'), mon('Charizard', 'Blaze')],
+  opp: [mon('Incineroar', 'Blaze'), mon('Kingambit', 'Defiant'), mon('Sinistcha', 'Hospitality')],
+  leads: { me: ['Garchomp', 'Rillaboom'], opp: OPP_LEADS }, backs: { me: ['Charizard'], opp: ['Sinistcha'] },
+};
+const calmTurn = (): TurnAction[] => [...idle('me', 'Garchomp', 'Rillaboom'), ...idle('opp', ...OPP_LEADS)];
+const bindHits = (log: readonly LogEntry[], who: string, move = 'Infestation'): number[] => residuals(log, who).filter((x) => x.text === move).map((x) => x.pct);
+const skipped = (log: readonly LogEntry[], who: string): string | undefined => {
+  const s = log.find((l) => l.type === 'skip' && l.mon === who);
+  return s?.type === 'skip' ? s.why : undefined;
+};
+const infest = (target = 'Incineroar'): TurnAction[] => [act('me', 'Garchomp', 'move', 'Infestation', target), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)];
+const oppOut = (): TurnAction[] => [...idle('me', 'Garchomp', 'Rillaboom'), sw('opp', 'Incineroar', 'Sinistcha'), act('opp', 'Kingambit', 'move', 'Swords Dance')];
+
+test('Infestation hurts 1/8 at the end of each turn for 4 turns and keeps the target from switching out', () => {
+  const turns = play(TRAP, infest(), oppOut(), calmTurn(), calmTurn(), oppOut());
+  assert.deepEqual(turns.map((r) => bindHits(r.log, 'Incineroar')), [[-12.5], [-12.5], [-12.5], [-12.5], []]);
+  assert.equal(skipped(turns[1]!.log, 'Incineroar'), "can't switch out (trapped by Infestation)");
+  assert.ok(effects(turns[3]!.log, 'Incineroar').some((e) => e.startsWith('Infestation: ends now')), 'the 4th turn says it may last a 5th');
+  assert.ok(turns[4]!.state.active.opp.includes('Sinistcha'), 'free after 4 turns: the switch works');
+});
+
+test("a 5th turn bound is picked on the bound Pokémon's action: one more hit, and no switching that turn", () => {
+  const fifth = oppOut().map((a) => (a.mon === 'Incineroar' ? { ...a, outcome: { stillBound: true as const } } : a));
+  const turns = play(TRAP, infest(), calmTurn(), calmTurn(), calmTurn(), fifth, calmTurn());
+  assert.equal(skipped(turns[4]!.log, 'Incineroar'), "can't switch out (trapped by Infestation)");
+  assert.deepEqual(bindHits(turns[4]!.log, 'Incineroar'), [-12.5]);
+  assert.ok(effects(turns[4]!.log, 'Incineroar').includes('Infestation: is freed'));
+  assert.deepEqual(bindHits(turns[5]!.log, 'Incineroar'), [], 'over after the 5th');
+});
+
+test('binding ends when its user leaves; Binding Band makes it 1/6; Rapid Spin frees the user', () => {
+  const [, r2, r3] = play(TRAP, infest(),
+    [sw('me', 'Garchomp', 'Charizard'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+    [...idle('me', 'Charizard', 'Rillaboom'), sw('opp', 'Incineroar', 'Sinistcha'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+  );
+  assert.deepEqual(bindHits(r2!.log, 'Incineroar'), []);
+  assert.ok(effects(r2!.log, 'Incineroar').includes('Infestation: is freed (its user left the field)'));
+  assert.ok(r3!.state.active.opp.includes('Sinistcha'));
+
+  const band = play({ ...TRAP, me: [mon('Garchomp', 'Rough Skin', 'Binding Band'), ...TRAP.me.slice(1)] }, infest())[0]!;
+  assert.deepEqual(bindHits(band.log, 'Incineroar'), [-16.67]);
+
+  const [, spun] = play(TRAP,
+    [...idle('me', 'Garchomp', 'Rillaboom'), act('opp', 'Incineroar', 'move', 'Infestation', 'Garchomp'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+    [act('me', 'Garchomp', 'move', 'Rapid Spin', 'Kingambit'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)],
+  );
+  assert.ok(effects(spun!.log, 'Garchomp').includes('Rapid Spin: is freed from Infestation'));
+  assert.deepEqual(bindHits(spun!.log, 'Garchomp'), []);
+});
+
+test('Ghost types still take binding damage but can switch out; Shed Shell switches out too', () => {
+  const ghost: Battle = { ...TRAP, opp: [mon('Sinistcha', 'Hospitality'), mon('Kingambit', 'Defiant'), mon('Incineroar', 'Blaze')],
+    leads: { me: ['Garchomp', 'Rillaboom'], opp: ['Sinistcha', 'Kingambit'] }, backs: { me: ['Charizard'], opp: ['Incineroar'] } };
+  const [g1, g2] = play(ghost,
+    [act('me', 'Garchomp', 'move', 'Infestation', 'Sinistcha'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', 'Sinistcha', 'Kingambit')],
+    [...idle('me', 'Garchomp', 'Rillaboom'), sw('opp', 'Sinistcha', 'Incineroar'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+  );
+  assert.deepEqual(bindHits(g1!.log, 'Sinistcha'), [-12.5]);
+  assert.ok(g2!.state.active.opp.includes('Incineroar'), 'a Ghost type escapes');
+
+  const [, s2] = play({ ...TRAP, opp: [mon('Incineroar', 'Blaze', 'Shed Shell'), ...TRAP.opp.slice(1)] }, infest(), oppOut());
+  assert.ok(s2!.state.active.opp.includes('Sinistcha'), 'Shed Shell escapes');
+});
+
+test('Mean Look goes through Protect; Jaw Lock traps both; Octolock lowers Def and SpD each turn; Shadow Tag traps foes', () => {
+  const trapped = (r: Ready, who: string): boolean => skipped(r.log, who)?.startsWith("can't switch out") ?? false;
+  const bothOut = (): TurnAction[] => [sw('me', 'Garchomp', 'Charizard'), act('me', 'Rillaboom', 'move', 'Swords Dance'), sw('opp', 'Incineroar', 'Sinistcha'), act('opp', 'Kingambit', 'move', 'Swords Dance')];
+
+  const [, look] = play(TRAP,
+    [act('me', 'Garchomp', 'move', 'Mean Look', 'Incineroar'), act('me', 'Rillaboom', 'move', 'Swords Dance'), act('opp', 'Incineroar', 'move', 'Protect'), act('opp', 'Kingambit', 'move', 'Swords Dance')],
+    bothOut());
+  assert.ok(trapped(look!, 'Incineroar'), 'Mean Look, through Protect: trapped even though Garchomp switches out first');
+  assert.ok(!trapped(look!, 'Garchomp'));
+
+  const [, jaw] = play(TRAP, [act('me', 'Garchomp', 'move', 'Jaw Lock', 'Incineroar'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)], bothOut());
+  assert.ok(trapped(jaw!, 'Incineroar') && trapped(jaw!, 'Garchomp'), 'Jaw Lock traps both');
+
+  const [octo] = play(TRAP, [act('me', 'Garchomp', 'move', 'Octolock', 'Incineroar'), act('me', 'Rillaboom', 'move', 'Swords Dance'), ...idle('opp', ...OPP_LEADS)]);
+  assert.deepEqual(boostsFrom(octo!.log, 'Incineroar', 'Octolock'), { def: -1, spd: -1 });
+
+  const [tag] = play({ ...TRAP, me: [mon('Garchomp', 'Shadow Tag'), ...TRAP.me.slice(1)] }, oppOut());
+  assert.equal(skipped(tag!.log, 'Incineroar'), "can't switch out (trapped by Garchomp's Shadow Tag)");
+});

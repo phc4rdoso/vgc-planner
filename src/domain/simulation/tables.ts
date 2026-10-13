@@ -247,6 +247,14 @@ export const ON_KO_ABILITIES: Readonly<Record<string, BoostChange | 'best'>> = {
 /** Items and abilities that force a switch: the holder leaves (Eject Button, Eject Pack, Emergency Exit) or the attacker does (Red Card). */
 export const EJECT_ITEMS: ReadonlySet<string> = new Set(['ejectbutton', 'ejectpack', 'redcard']);
 export const EXIT_ABILITIES: ReadonlySet<string> = new Set(['emergencyexit', 'wimpout']);
+/** Binding moves: 1/8 HP at the end of each turn (1/6 with the user's Binding Band) and no switching, for 4-5 turns. */
+export const BINDING_MOVES: ReadonlySet<string> = new Set(['bind', 'wrap', 'firespin', 'sandtomb', 'whirlpool', 'infestation', 'snaptrap', 'magmastorm', 'clamp', 'thundercage']);
+/** End-of-turn hits a binding move surely deals (4 turns; a 5th is the game's 50/50). */
+export const BIND_TURNS = 4;
+/** Moves that keep the target from switching out while the user stays in (Jaw Lock: both of them). */
+export const TRAPPING_MOVES: Readonly<Record<string, 'target' | 'both'>> = {
+  meanlook: 'target', block: 'target', octolock: 'target', spiritshackle: 'target', anchorshot: 'target', jawlock: 'both',
+};
 /** Moves that force the target out (into a random Pokémon in the game; here the one picked on its action). */
 export const PHAZING_MOVES: ReadonlySet<string> = new Set(['roar', 'whirlwind', 'dragontail', 'circlethrow']);
 /** Abilities that keep their holder from being forced out by those moves. */

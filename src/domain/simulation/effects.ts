@@ -4,7 +4,7 @@ import type { BoostKey, Side } from '../types.ts';
 import type { CalcEngine } from './engine.ts';
 import type { LogEntry, StatChange } from './log.ts';
 import type { BattleState, FieldState, MonState } from './state.ts';
-import { aliveActive, applyBoost, bestStat, boostMult, effSpeed, heldItem, monKey, otherSide, statsOf, zeroBoosts } from './state.ts';
+import { aliveActive, applyBoost, bestStat, boostMult, effSpeed, heldItem, monKey, onFieldKey, otherSide, statsOf, zeroBoosts } from './state.ts';
 import type { BoostChange, StatusId } from './tables.ts';
 import {
   ALL_STATUS_IMMUNE, CURE_BERRIES, statEffect, ENTRY_BOOSTS, ENTRY_TERRAIN, ENTRY_WEATHER, EXIT_ABILITIES, FIXED_ABILITIES, HP_BERRIES, INTIMIDATE_IMMUNE,
@@ -629,6 +629,26 @@ export class Effects {
     step((a, max) => {
       if (a.mon.status !== 'brn' || this.indirectImmune(a.mon)) return;
       hurt(a, max, toID(a.mon.ability) === 'heatproof' ? 1 / 32 : 1 / 16, 'burn');
+    });
+
+    // Binding (Infestation, Fire Spin...): 1/8 a turn (1/6 with its user's Binding Band) while that user stays in,
+    // for 4 turns, or 5 when the 5th was picked on the bound Pokémon's action.
+    step((a, max) => {
+      const b = a.mon.bound;
+      if (!b) return;
+      const free = (why: string): void => { a.mon.bound = null; this.log.push({ type: 'effect', side: a.side, mon: a.name, source: b.move, text: `is freed${why}` }); };
+      if (!onFieldKey(this.st, b.by)) { free(' (its user left the field)'); return; }
+      const fifth = b.left === 0;
+      if (!this.indirectImmune(a.mon)) hurt(a, max, b.band ? 1 / 6 : 1 / 8, b.move);
+      if (fifth) { if (!a.mon.fainted) free(''); return; }
+      b.left--;
+      if (b.left === 0 && !a.mon.fainted) this.log.push({ type: 'effect', side: a.side, mon: a.name, source: b.move, text: 'ends now, unless it lasts a 5th turn (50%: pick it in the next turn)' });
+    });
+
+    // Octolock: -1 Defense and Sp. Def at the end of each turn while its user stays in.
+    step(({ side, name, mon }) => {
+      if (mon.trapped?.source !== 'Octolock' || !onFieldKey(this.st, mon.trapped.by)) return;
+      this.boostEntry(side, name, 'Octolock', { def: -1, spd: -1 }, { foe: true });
     });
 
     // Salt Cure: 1/8 a turn, 1/4 for Water and Steel types.

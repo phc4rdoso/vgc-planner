@@ -86,6 +86,13 @@ export interface MonState {
   /** Leech Seed: the side and position that gets the drained HP. */
   seeded: { side: Side; slot: number } | null;
   saltCure: boolean;
+  /**
+   * Bound by Infestation, Fire Spin, Wrap...: hurt at the end of each turn and can't switch out while its user (`by`,
+   * a monKey) stays in. `left`: end-of-turn hits still to come; at 0 only a 5th turn (the game's 50/50) is left.
+   */
+  bound: { by: string; move: string; left: number; band: boolean } | null;
+  /** Can't switch out (Mean Look, Block, Spirit Shackle, Anchor Shot, Jaw Lock, Octolock, No Retreat) while `by` stays in. */
+  trapped: { by: string; source: string } | null;
   /** Destiny Bond is up until its next action. */
   destinyBond: boolean;
   /** Protosynthesis / Quark Drive switched on by Booster Energy (stays on while it's in), with the stat it boosts. */
@@ -147,6 +154,8 @@ export interface TurnScratch {
   forced: { side: Side; name: string; reason: string }[];
   /** Pokémon heating up for Beak Blast (from the start of the turn until it fires): contact burns the attacker. */
   beak: Record<string, true>;
+  /** Bound Pokémon whose binding lasts a 5th turn (picked on their action). */
+  stillBound: Record<string, true>;
   /** After You / Quash: Pokémon made to act next, or last. */
   next: Record<string, boolean>;
   last: Record<string, boolean>;
@@ -172,6 +181,13 @@ export function canMegaEvolve(st: BattleState, side: Side, name: string): boolea
 export const zeroBoosts = (): BoostTable => ({ atk: 0, def: 0, spa: 0, spd: 0, spe: 0 });
 export const otherSide = (s: Side): Side => (s === 'me' ? 'opp' : 'me');
 export const monKey = (side: Side, name: string): string => `${side}:${name}`;
+/** Whether the Pokémon with this monKey is on the field and standing (a trap ends once its user leaves). */
+export function onFieldKey(st: BattleState, key: string): boolean {
+  const at = key.indexOf(':');
+  const side = key.slice(0, at) as Side;
+  const name = key.slice(at + 1);
+  return !!st.active[side]?.includes(name) && !st.mons[side]?.[name]?.fainted;
+}
 export const boostMult = (b: number): number => (b >= 0 ? (2 + b) / 2 : 2 / (2 - b));
 
 export const newField = (): FieldState => ({
@@ -212,7 +228,7 @@ export function fieldEffects(f: FieldState): FieldEffect[] {
 
 export const newScratch = (): TurnScratch => ({
   protect: {}, redirect: { me: null, opp: null }, entered: {}, wide: { me: false, opp: false }, quick: { me: false, opp: false }, helped: {}, flinched: {}, acted: {}, hitBy: {}, charged: {},
-  damaged: {}, forced: [], beak: {}, next: {}, last: {},
+  damaged: {}, forced: [], beak: {}, stillBound: {}, next: {}, last: {},
 });
 
 /** The item that counts right now: none under Magic Room (the item is still held, and comes back when it ends). */
@@ -422,7 +438,7 @@ export function initState(engine: CalcEngine, plan: Pick<PlanTab, 'selection'>, 
         status: null, toxic: 0, slept: 0, frozen: 0, item: set.item, unburden: false, entryBoosted: false,
         charging: null, recharging: null, activeTurns: 0, moveActions: 0, timesHit: 0, lastFailed: false, protectStreak: false,
         lastMove: '', lastTarget: '', choiceLock: null, encore: null, disable: null, taunt: 0, imprison: false, sub: 0, yawn: 0, perish: null,
-        seeded: null, saltCure: false, destinyBond: false, boosted: null, flashFire: false, charge: false, disguiseBroken: false, transformedFrom: null, confused: 0,
+        seeded: null, saltCure: false, bound: null, trapped: null, destinyBond: false, boosted: null, flashFire: false, charge: false, disguiseBroken: false, transformedFrom: null, confused: 0,
       };
       refreshStats(engine, mon);
       st.mons[side][set.species] = mon;

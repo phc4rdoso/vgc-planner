@@ -78,6 +78,7 @@ function readOutcome(raw: unknown, path: string): ActionOutcome | undefined {
   if (raw.wake === true) out.wake = true;
   if (raw.unknown === true) out.unknown = true;
   if (raw.protectWorks === true) out.protectWorks = true;
+  if (raw.stillBound === true) out.stillBound = true;
   if (typeof raw.hits === 'number' && Number.isInteger(raw.hits) && raw.hits >= 1 && raw.hits <= 10) out.hits = raw.hits;
   const self = readEffects(raw.self, `${path}.self`);
   if (self.length) out.self = self;
