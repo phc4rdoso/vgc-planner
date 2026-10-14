@@ -121,9 +121,9 @@ function hpRow(x: EndMon): string {
   const charging = (x.charging ? `<span class="bchip up" title="${esc(`Charging ${x.charging}: it attacks on its next action`)}">charging ${esc(x.charging)}</span>` : '')
     + (x.effects ?? []).map((fx) => `<span class="bchip vol">${esc(fx)}</span>`).join('');
   const lost = x.lostItem ? `<s class="muted lost-item" title="${esc(`${x.lostItem}: used up or removed`)}">${esc(x.lostItem)}</s>` : '';
-  return `<div class="hp-row ${x.fainted ? 'ko' : ''}" title="${esc(tip)}">${monIcon(x.species, 'xs')}<span class="hp-name">${esc(x.species)}</span>${statusChip(x.condition)}${lost}
+  return `<div class="hp-row ${x.fainted ? 'ko' : ''}" title="${esc(tip)}">${monIcon(x.species, 'xs')}<span class="hp-name">${esc(x.species)}</span>${lost}
     <span class="hp-bar"><i class="${tone}" data-w="${x.pct}"></i></span>
-    <span class="hp-pct">${x.fainted ? 'KO' : `${x.pct}%`}</span>${range}${x.mayFaint ? '<span class="ko-tag">may KO</span>' : ''}
+    <span class="hp-pct">${x.fainted ? 'KO' : `${x.pct}%`}</span>${range}${statusChip(x.condition)}${x.mayFaint ? '<span class="ko-tag">may KO</span>' : ''}
     ${x.actual !== undefined ? '<span class="actual" title="HP at the end of the turn as recorded">actual</span>' : ''}${charging}${statChips(x.boosts)}</div>`;
 }
 
