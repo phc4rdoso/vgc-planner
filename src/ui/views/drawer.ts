@@ -93,7 +93,9 @@ function monField(a: TurnAction, i: number, st: BattleState | null, actions: rea
     ? bench(st, a.side).filter((v) => v === a.mon || !taken.has(v))
     : orderedMons(a.side).filter((v) => v === a.mon || !taken.has(v));
   const label = st ? 'Replacement' : 'Pokémon';
-  return `<div><label class="lbl" for="a-mon-${i}">${label}</label><select class="field" id="a-mon-${i}" data-a="mon" data-i="${i}">${options(choices, a.mon, 'Choose…', (v) => formOf(st, a.side, v))}</select></div>`;
+  // The picked Pokémon's icon beside the list (a list's options can only hold text).
+  const icon = a.mon ? monIcon(formOf(st, a.side, a.mon), 'xs') : '';
+  return `<div><label class="lbl" for="a-mon-${i}">${label}</label><div class="act-pick">${icon}<select class="field" id="a-mon-${i}" data-a="mon" data-i="${i}">${options(choices, a.mon, 'Choose…', (v) => formOf(st, a.side, v))}</select></div></div>`;
 }
 
 const CANT_OPTIONS: readonly [string, string][] = [

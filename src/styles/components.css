@@ -26,6 +26,8 @@ label.lbl { display: block; font-size: 12px; font-weight: 600; color: var(--ink-
 .side-tag.me { background: var(--me-soft); color: var(--me); }
 .side-tag.opp { background: var(--opp-soft); color: var(--opp); }
 /* A Pokémon already on the field: shown, not chosen. */
+.act-pick { display: flex; align-items: center; gap: 6px; }
+.act-pick .field { flex: 1; min-width: 0; }
 .act-mon { display: flex; align-items: center; gap: 6px; min-height: 34px; padding: 0 2px; font-weight: 600; font-size: 13px; overflow: hidden; white-space: nowrap; }
 .icon-btn { border: 0; background: none; color: var(--ink-3); border-radius: 6px; padding: 4px 7px; font-size: 16px; line-height: 1; }
 .icon-btn:hover { background: var(--line-soft); color: var(--ink); }
