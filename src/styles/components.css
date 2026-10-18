@@ -50,12 +50,6 @@ label.lbl { display: block; font-size: 12px; font-weight: 600; color: var(--ink-
 .hint { font-size: 12px; color: var(--ink-3); }
 code.k { background: var(--line-soft); padding: 1px 5px; border-radius: 4px; font-size: 12px; }
 
-@media (max-width: 820px) {
-  .app { grid-template-columns: 1fr; grid-template-rows: auto 1fr; }
-  .sidebar { max-height: 38vh; border-right: 0; border-bottom: 1px solid var(--line-soft); }
-  .drawer { width: 100%; }
-  .top { width: 560px; }
-}
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 /* ---------- utilities (replace inline styles so a strict CSP can be used) ---------- */

@@ -22,6 +22,16 @@ export interface UiState {
   focusLine?: string | null;
   scrollX: number;
   scrollY: number;
+  /** Phones: Path (one line of play at a time) or Overview (an outline of every turn). */
+  mobileView: 'path' | 'tree';
+  /** Phones: the alternative followed at each fork (key: the parent turn's id, or the tab's id for the first turn). */
+  pathPick: Record<string, string>;
+  /** Phones: turns folded in the Overview. */
+  folded: Record<string, boolean>;
+  /** Phones: the team menu slid open. */
+  navOpen: boolean;
+  /** Phones: the "Teams, leads and backs" section opened or closed by hand (unset: open only while it needs filling). */
+  setupOpen?: boolean;
 }
 
 /**
@@ -30,7 +40,8 @@ export interface UiState {
  */
 export class AppStore {
   library: Library = { teams: [] };
-  ui: UiState = { teamId: null, planId: null, tabId: null, selectedNode: null, open: {}, expanded: {}, zoom: 1, navCollapsed: false, scrollX: 0, scrollY: 0 };
+  ui: UiState = { teamId: null, planId: null, tabId: null, selectedNode: null, open: {}, expanded: {}, zoom: 1, navCollapsed: false, scrollX: 0, scrollY: 0,
+    mobileView: 'path', pathPick: {}, folded: {}, navOpen: false };
   /** False when browser storage is unavailable and data only lives until the tab closes. */
   persistent: boolean;
   /** Set when saved data could not be read on startup. */

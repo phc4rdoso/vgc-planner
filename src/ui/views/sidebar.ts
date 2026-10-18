@@ -2,11 +2,21 @@ import { store } from '../../state/instance.ts';
 import { session } from '../../state/account.ts';
 import { esc, must } from '../dom.ts';
 import { ICON_LINK } from '../share.ts';
+import { isMobile } from '../mobile.ts';
 
-/** Collapses the sidebar to a thin rail (or expands it), following `store.ui.navCollapsed`. */
+/** Phones: the button at the start of the top bar that slides the team menu open. */
+export const NAV_BUTTON = `<button class="btn nav-open-btn m-only" data-act="open-nav" aria-controls="nav" aria-label="Teams and gameplans" title="Teams and gameplans">
+  <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M3 5h12M3 9h12M3 13h12"/></svg></button>`;
+
+/**
+ * Collapses the sidebar to a thin rail (or expands it), following `store.ui.navCollapsed`; on phones, slides it in
+ * or out as a menu, following `store.ui.navOpen`.
+ */
 export function applyNavCollapsed(): void {
   const collapsed = store.ui.navCollapsed;
-  document.querySelector('.app')?.classList.toggle('nav-collapsed', collapsed);
+  // Phones have no rail: the sidebar is a menu there, whatever was chosen on a wide screen.
+  document.querySelector('.app')?.classList.toggle('nav-collapsed', collapsed && !isMobile());
+  document.querySelector('.app')?.classList.toggle('nav-open', store.ui.navOpen);
   const toggle = document.querySelector<HTMLElement>('#nav-toggle');
   if (!toggle) return;
   const label = collapsed ? 'Expand sidebar' : 'Collapse sidebar';

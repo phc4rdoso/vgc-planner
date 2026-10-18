@@ -11,10 +11,12 @@ import { isPivotMove, refreshDrawerFoot, renderDrawer } from './drawer.ts';
 import { fieldStripHTML, hasDetails, ICON_CHEVRON, ICON_COPY, noticeHTML, resultHTML, summaryHTML } from './result-card.ts';
 import { session } from '../../state/account.ts';
 import { ICON_LINK } from '../share.ts';
-import { renderNav } from './sidebar.ts';
+import { NAV_BUTTON, renderNav } from './sidebar.ts';
 import { extLinksHTML } from '../ext-links.ts';
 import { REPLAY_BUTTON } from '../replay-import.ts';
 import { drawForkColors, legendHTML, lineClass, lineFocus } from '../lines.ts';
+import { isMobile } from '../mobile.ts';
+import { mobilePlanHTML } from './mobile-plan.ts';
 
 const PLUS_ICON = '<svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M9 3v12M3 9h12"/></svg>';
 
@@ -136,7 +138,24 @@ function focusOf(plan: Sheet): Set<string> | null {
   return set.size ? set : null;
 }
 
+/** The battle state a turn starts from: its parent's result, or the start of the battle for a first turn. */
+function startOf(parent: FlowNode | null, sim: SimView): BattleState | null {
+  if (!sim.enabled || sim.status !== 'ready') return null;
+  if (!parent) return sim.start;
+  const r = sim.results.get(parent.id);
+  return r?.status === 'ready' ? r.state : null;
+}
+
 function canvasInner(team: Team, plan: Sheet, sim: SimView): string {
+  if (isMobile()) {
+    const picks = picksOf(plan);
+    return mobilePlanHTML(plan, {
+      setup: `<div class="m-side">${teamBox('me', team.name, monsFor('me', team, plan))}${selectionBox('me', plan)}</div>
+        <div class="m-side">${teamBox('opp', plan.opponent.name || 'Opponent team', monsFor('opp', team, plan))}${selectionBox('opp', plan)}</div>`,
+      card: (n, depth, parent) => nodeHTML(n, depth, sim, startOf(parent, sim), picks),
+      outcome: (n) => outcomeOf(n, sim),
+    });
+  }
   return `<div class="top">
       <div class="col">${teamBox('me', team.name, monsFor('me', team, plan))}<div class="link"></div>${selectionBox('me', plan)}<div class="bracket"></div></div>
       <div class="col">${teamBox('opp', plan.opponent.name || 'Opponent team', monsFor('opp', team, plan))}<div class="link"></div>${selectionBox('opp', plan)}<div class="bracket"></div></div>
@@ -168,22 +187,24 @@ export function renderPlanView(main: HTMLElement, team: Team, plan: Plan): void 
   if (!sheet) return;
   const sim = simService.compute(team, sheet);
   main.innerHTML = `
-  <div class="topbar">
-    <span class="crumb">${esc(team.name)} /</span>
+  <div class="topbar plan-bar">
+    ${NAV_BUTTON}
+    <span class="crumb d-only">${esc(team.name)} /</span>
     <input class="title-input" id="plan-name" value="${esc(plan.name)}" aria-label="Gameplan name">
     <span class="spacer"></span>
-    <div class="zoom-ctl"><button class="btn sm" data-act="zoom" data-d="-1" aria-label="Zoom out">−</button><span class="lvl" id="zlvl">${Math.round(store.ui.zoom * 100)}%</span><button class="btn sm" data-act="zoom" data-d="1" aria-label="Zoom in">+</button></div>
-    ${REPLAY_BUTTON}
+    <div class="zoom-ctl d-only"><button class="btn sm" data-act="zoom" data-d="-1" aria-label="Zoom out">−</button><span class="lvl" id="zlvl">${Math.round(store.ui.zoom * 100)}%</span><button class="btn sm" data-act="zoom" data-d="1" aria-label="Zoom in">+</button></div>
+    <span class="d-only">${REPLAY_BUTTON}</span>
     ${session.shared.has(plan.id)
       ? `<button class="btn shared" data-act="share-plan" data-plan="${esc(plan.id)}" title="Shared by link: copy the link or stop sharing">${ICON_LINK}Shared</button>`
       : `<button class="btn" data-act="share-plan" data-plan="${esc(plan.id)}">Share</button>`}
-    <button class="btn" data-act="export-plan" data-team="${esc(team.id)}" data-plan="${esc(plan.id)}">Export</button>
-    ${extLinksHTML()}
+    <button class="btn d-only" data-act="export-plan" data-team="${esc(team.id)}" data-plan="${esc(plan.id)}">Export</button>
+    <button class="btn m-only more-btn" data-act="plan-more" data-team="${esc(team.id)}" data-plan="${esc(plan.id)}" aria-label="More actions" title="More actions">⋯</button>
+    <div class="d-only">${extLinksHTML()}</div>
   </div>
   <div id="notice">${noticeHTML(sim)}</div>
   <div class="line-legend" id="line-legend">${legendHTML(sheet.children, store.ui.focusLine)}</div>
   <div class="workspace">
-    <div class="canvas" id="canvas"><div class="canvas-inner" id="cinner">${canvasInner(team, sheet, sim)}</div></div>
+    <div class="canvas" id="canvas"><div class="canvas-inner ${isMobile() ? 'mobile' : ''}" id="cinner">${canvasInner(team, sheet, sim)}</div></div>
     <aside class="drawer hidden" id="drawer" aria-label="Turn editor"></aside>
   </div>
   <div class="tabbar" id="tabbar">${tabBarHTML(plan, sheet.id)}</div>`;
