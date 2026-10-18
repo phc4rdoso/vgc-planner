@@ -11,3 +11,6 @@ scripts/stats.sql
 scripts/stats.mjs
 scripts/dashboard.mjs
 scripts/dashboard.html
+
+# Promo videos (kept locally, not in the repo)
+promo-videos/
