@@ -9,3 +9,5 @@ public/sprites/
 # Local usage stats for the production database (not shared in the repo)
 scripts/stats.sql
 scripts/stats.mjs
+scripts/dashboard.mjs
+scripts/dashboard.html
