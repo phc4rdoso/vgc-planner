@@ -81,4 +81,19 @@ export const NEWS_PREVIEWS = {
     ${turnCard('Turn 1', TURN_1_ME, TURN_1_OPP, '', '', `<span class="card-btn pv-copy-btn">${ICON_COPY}<span class="pv-cursor">${ICON_CURSOR}</span></span><span class="card-btn">${ICON_CHEVRON}</span>`)}
     ${turnCard('Turn 1', TURN_1_ME, TURN_1_OPP, '', 'selected pv-copy-new', `<span class="card-btn">${ICON_COPY}</span><span class="card-btn">${ICON_CHEVRON}</span>`)}
   </div>`,
+
+  /**
+   * The top of a phone showing the Path view: the pointer taps the fork's second alternative, which lights up, and
+   * the turn below changes to that line.
+   */
+  mobile: `<div class="pv-phone">
+    <div class="pv-ph-bar"><span class="pv-ph-menu" aria-hidden="true"></span><b>vs Golisopod Rain</b><span class="pv-ph-btn">Share</span></div>
+    <div class="pv-ph-seg"><span class="on">Path</span><span>Overview</span></div>
+    <div class="pv-ph-fork">Turn 2: 2 alternatives</div>
+    <div class="pv-ph-chips"><span class="pv-chip pv-chip-a">If Drill Run</span><span class="pv-chip pv-chip-b">If Leech Life<span class="pv-cursor">${ICON_CURSOR}</span></span></div>
+    <div class="pv-ph-cards">
+      ${turnCard('Turn 2', [act('me', 'Kingambit', 'Kowtow Cleave', 'Golisopod'), act('me', 'Kommo-o', 'Flamethrower', 'Golisopod')], [act('opp', 'Golisopod-Mega', 'Drill Run', 'Kingambit'), act('opp', 'Politoed', 'Ice Beam', 'Kommo-o')], '', 'pv-card-a')}
+      ${turnCard('Turn 2', [act('me', 'Kingambit', 'Kowtow Cleave', 'Golisopod'), act('me', 'Kommo-o', 'Flamethrower', 'Golisopod')], [act('opp', 'Golisopod-Mega', 'Leech Life', 'Kingambit'), act('opp', 'Politoed', 'Ice Beam', 'Kommo-o')], '', 'pv-card-b')}
+    </div>
+  </div>`,
 } as const;

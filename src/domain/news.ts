@@ -12,6 +12,12 @@ export const NEWS = [
     title: 'Copy a turn',
     text: 'Press the copy button at the top of a turn card to get a copy right beside it, with the same moves and choices. Handy for planning a small variation, like the opponent targeting someone else.',
   },
+  {
+    id: 2,
+    date: '2026-10-18',
+    title: 'Plan on your phone',
+    text: 'On a phone, a gameplan shows one line of play at a time. Tap the chips at a fork to switch between alternatives, or open the Overview to see every turn.',
+  },
 ] as const satisfies readonly { id: number; date: string; title: string; text: string }[];
 
 export type NewsId = (typeof NEWS)[number]['id'];

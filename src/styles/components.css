@@ -136,9 +136,46 @@ textarea.paste.short { min-height: 160px; }
   88% { opacity: 1; transform: none; }
   98%, 100% { opacity: 0; transform: none; }
 }
+/* Plan on your phone: the top of a phone screen in the Path view; tapping the second alternative swaps the turn below. */
+.pv-phone { width: 330px; height: 250px; overflow: hidden; border: 6px solid var(--ink-3); border-bottom: 0; border-radius: 30px 30px 0 0; background: var(--bg); padding: 10px 12px 0; display: grid; align-content: start; gap: 8px; }
+.pv-ph-bar { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.pv-ph-bar b { flex: 1; }
+.pv-ph-menu { width: 22px; height: 18px; border-radius: 5px; border: 1px solid var(--line); background: linear-gradient(var(--ink-2), var(--ink-2)) center 4px / 10px 1.5px no-repeat, linear-gradient(var(--ink-2), var(--ink-2)) center 8px / 10px 1.5px no-repeat, linear-gradient(var(--ink-2), var(--ink-2)) center 12px / 10px 1.5px no-repeat; }
+.pv-ph-btn { font-size: 11px; font-weight: 600; border: 1px solid var(--line); border-radius: 7px; padding: 2px 8px; background: var(--panel); }
+.pv-ph-seg { display: grid; grid-template-columns: 1fr 1fr; gap: 5px; }
+.pv-ph-seg span { text-align: center; font-size: 11.5px; font-weight: 600; padding: 4px 0; border: 1px solid var(--line); border-radius: 7px; background: var(--panel); color: var(--ink-2); }
+.pv-ph-seg span.on { background: var(--me-soft); border-color: var(--me); color: var(--me); }
+.pv-ph-fork { font-size: 10.5px; color: var(--ink-3); }
+.pv-ph-chips { display: flex; gap: 6px; margin-top: -4px; }
+.pv-chip { position: relative; font-size: 11.5px; font-weight: 600; padding: 4px 11px; border-radius: 999px; border: 1px solid var(--line); background: var(--panel); color: var(--ink-2); }
+.pv-chip-a { animation: pv-mob-chip-a 5s ease infinite; }
+.pv-chip-b { animation: pv-mob-chip-b 5s ease infinite; }
+.pv-ph-cards { display: grid; }
+.pv-ph-cards > .turn { grid-area: 1 / 1; }
+.welcome-preview .pv-ph-cards .turn { width: 100%; }
+.pv-card-a { animation: pv-mob-card-a 5s ease infinite; }
+.pv-card-b { animation: pv-mob-card-b 5s ease infinite; }
+.pv-phone .pv-cursor { left: 60%; top: 60%; animation-name: pv-mob-cursor; }
+@keyframes pv-mob-cursor {
+  0% { transform: translate(-70px, 120px); opacity: 0; }
+  8% { opacity: 1; }
+  30% { transform: translate(0, 0) scale(1); }
+  34% { transform: translate(0, 0) scale(.82); }
+  38% { transform: translate(0, 0) scale(1); }
+  80% { transform: translate(0, 0); opacity: 1; }
+  90%, 100% { transform: translate(0, 0); opacity: 0; }
+}
+@keyframes pv-mob-chip-a { 0%, 33% { background: var(--me); border-color: var(--me); color: var(--on-me); } 37%, 92% { background: var(--panel); border-color: var(--line); color: var(--ink-2); } 98%, 100% { background: var(--me); border-color: var(--me); color: var(--on-me); } }
+@keyframes pv-mob-chip-b { 0%, 33% { background: var(--panel); border-color: var(--line); color: var(--ink-2); } 37%, 92% { background: var(--me); border-color: var(--me); color: var(--on-me); } 98%, 100% { background: var(--panel); border-color: var(--line); color: var(--ink-2); } }
+@keyframes pv-mob-card-a { 0%, 35% { opacity: 1; transform: none; } 45%, 90% { opacity: 0; transform: translateY(6px); } 98%, 100% { opacity: 1; transform: none; } }
+@keyframes pv-mob-card-b { 0%, 35% { opacity: 0; transform: translateY(6px); } 45%, 90% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; transform: translateY(6px); } }
+
 @media (prefers-reduced-motion: reduce) {
   .pv-copy .pv-copy-btn, .pv-copy-new { animation: none; }
   .pv-cursor { display: none; }
+  .pv-chip-a, .pv-chip-b, .pv-card-a, .pv-card-b { animation: none; }
+  .pv-chip-b { background: var(--me); border-color: var(--me); color: var(--on-me); }
+  .pv-card-a { opacity: 0; }
 }
 
 /* ---------- share links ---------- */

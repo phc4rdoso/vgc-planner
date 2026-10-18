@@ -18,6 +18,10 @@ const LOOKS: Record<NewsId, Pick<Step, 'icon' | 'preview'>> = {
     icon: svg('<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M15 9V5a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v8a2 2 0 0 0 2 2h4"/>'),
     preview: NEWS_PREVIEWS.copyTurn,
   },
+  2: {
+    icon: svg('<rect x="7" y="2.5" width="10" height="19" rx="2.5"/><path d="M11 18.5h2"/>'),
+    preview: NEWS_PREVIEWS.mobile,
+  },
 };
 
 /** At most this many items at once (someone back after a long time sees only the latest). */
