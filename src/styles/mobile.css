@@ -10,11 +10,12 @@
 
   /* Shell: the main view takes the screen; the team menu slides in over it. */
   .app { grid-template-columns: 1fr; grid-template-rows: 1fr; }
-  .sidebar { position: fixed; top: 0; bottom: 0; left: 0; z-index: 150; width: min(86vw, 320px); padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
+  /* Above the page and the turn editor, below dialogs (100) and menus (120) opened from it. */
+  .sidebar { position: fixed; top: 0; bottom: 0; left: 0; z-index: 90; width: min(86vw, 320px); padding-top: env(safe-area-inset-top, 0px); padding-bottom: env(safe-area-inset-bottom, 0px);
     transform: translateX(-102%); visibility: hidden; transition: transform .2s ease, visibility .2s; box-shadow: 0 0 40px rgba(0,0,0,.25); }
   .app.nav-open .sidebar { transform: none; visibility: visible; }
   .nav-toggle { display: none; }
-  .app.nav-open .nav-backdrop { display: block; position: fixed; inset: 0; z-index: 140; background: rgba(18,20,29,.45); }
+  .app.nav-open .nav-backdrop { display: block; position: fixed; inset: 0; z-index: 85; background: rgba(18,20,29,.45); }
   .plan-row, .folder-row { padding: 10px 8px; }
   .row-menu { opacity: 1; }
 

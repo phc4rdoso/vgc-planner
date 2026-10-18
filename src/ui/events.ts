@@ -208,8 +208,8 @@ async function handleClick(el: HTMLElement, e: MouseEvent): Promise<void> {
   }
 }
 
-/** Phones: actions in the team menu that close it (opening something, or a dialog). */
-const NAV_CLOSERS: ReadonlySet<string> = new Set(['open-team', 'open-plan', 'new-plan', 'new-team', 'import', 'export-all', 'theme', 'sign-in', 'account-menu']);
+/** Phones: actions in the team menu that close it (opening something, or a dialog). Menus opened from it keep it open. */
+const NAV_CLOSERS: ReadonlySet<string> = new Set(['open-team', 'open-plan', 'new-plan', 'new-team', 'import', 'export-all', 'theme', 'sign-in']);
 
 type Field = HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement;
 const isField = (t: EventTarget | null): t is Field => t instanceof HTMLInputElement || t instanceof HTMLTextAreaElement || t instanceof HTMLSelectElement;
