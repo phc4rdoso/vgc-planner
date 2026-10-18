@@ -43,6 +43,11 @@ export class AppStore {
   private repo: LibraryRepository;
   private readonly prefs: PrefsStore;
   private timer: ReturnType<typeof setTimeout> | null = null;
+  /**
+   * The selection saved in the preferences, kept while it isn't open yet: a signed-in user's team only exists once
+   * the account library loads, after startup has loaded the device library.
+   */
+  private wanted: Pick<UiState, 'teamId' | 'planId' | 'tabId'> | null = null;
 
   constructor(repo: LibraryRepository, prefs: PrefsStore, persistent = true) {
     this.repo = repo;
@@ -57,6 +62,7 @@ export class AppStore {
     this.ui.navCollapsed = p.navCollapsed;
     this.ui.zoom = Math.max(config.zoom.min, Math.min(config.zoom.max, p.zoom));
     this.restoreSelection(p.teamId, p.planId, p.tabId);
+    this.wanted = p.teamId !== null && this.ui.teamId === null ? { teamId: p.teamId, planId: p.planId, tabId: p.tabId } : null;
   }
 
   /**
@@ -68,7 +74,9 @@ export class AppStore {
     this.repo = repo;
     this.persistent = persistent;
     await this.loadLibrary();
-    this.restoreSelection(this.ui.teamId, this.ui.planId, this.ui.tabId);
+    const sel = this.ui.teamId !== null ? this.ui : this.wanted ?? this.ui;
+    this.wanted = null;
+    this.restoreSelection(sel.teamId, sel.planId, sel.tabId);
   }
 
   /** Where the library currently lives. */
@@ -120,7 +128,9 @@ export class AppStore {
 
   async flush(): Promise<void> {
     if (this.timer !== null) { clearTimeout(this.timer); this.timer = null; }
-    this.prefs.save({ teamId: this.ui.teamId, planId: this.ui.planId, tabId: this.ui.tabId, open: this.ui.open, zoom: this.ui.zoom, navCollapsed: this.ui.navCollapsed });
+    // Until the remembered selection gets its chance, keep it in the preferences rather than an empty one.
+    const sel = this.ui.teamId === null && this.wanted ? this.wanted : this.ui;
+    this.prefs.save({ teamId: sel.teamId, planId: sel.planId, tabId: sel.tabId, open: this.ui.open, zoom: this.ui.zoom, navCollapsed: this.ui.navCollapsed });
     this.setSaveState('saving');
     try {
       await this.repo.save(this.library);

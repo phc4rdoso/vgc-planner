@@ -71,6 +71,24 @@ test('store restores the last open plan from preferences and reports save errors
   assert.equal(errors.length, 1);
 });
 
+test('store reopens the remembered plan once the library that holds it loads', async () => {
+  const storage = new FakeStorage();
+  const prefs = new LocalStoragePrefs(storage, 'prefs');
+  const team = newTeam('A', ''); const plan = newPlan('p'); team.plans.push(plan);
+  const account = new MemoryRepository();
+  await account.save({ teams: [team] });
+  prefs.save({ teamId: team.id, planId: plan.id, tabId: null, open: {}, zoom: 1, navCollapsed: false });
+  const store = new AppStore(new MemoryRepository(), prefs);
+  await store.init();
+  assert.equal(store.ui.planId, null, 'the device library does not hold the plan');
+  await store.flush();
+  assert.equal(prefs.load().planId, plan.id, 'the remembered plan is not overwritten before the account loads');
+
+  await store.useRepository(account);
+  assert.equal(store.plan?.id, plan.id);
+  assert.equal(store.ui.tabId, plan.tabs[0]?.id);
+});
+
 test('MemoryRepository isolates stored data from later mutation', async () => {
   const repo = new MemoryRepository();
   const lib = { teams: [newTeam('A')] };
