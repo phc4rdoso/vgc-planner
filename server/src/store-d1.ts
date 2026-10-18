@@ -112,8 +112,9 @@ export class D1Store implements Store {
     const team = await this.db.prepare('SELECT 1 AS ok FROM teams WHERE user_id = ? AND id = ?').bind(userId, plan.teamId).first();
     if (!team) return null;
     return this.put('plans', userId, plan.id, baseVersion,
-      this.db.prepare('INSERT INTO plans (user_id, id, team_id, position, data, version, updated_at) VALUES (?, ?, ?, ?, ?, 1, ?) ON CONFLICT (user_id, id) DO NOTHING')
-        .bind(userId, plan.id, plan.teamId, plan.position, plan.data, now),
+      // created_at is set here only, never on update: imports always save new gameplans, so it's their import date.
+      this.db.prepare('INSERT INTO plans (user_id, id, team_id, position, data, version, updated_at, created_at) VALUES (?, ?, ?, ?, ?, 1, ?, ?) ON CONFLICT (user_id, id) DO NOTHING')
+        .bind(userId, plan.id, plan.teamId, plan.position, plan.data, now, now),
       this.db.prepare('UPDATE plans SET team_id = ?, position = ?, data = ?, version = version + 1, updated_at = ? WHERE user_id = ? AND id = ? AND version = ?')
         .bind(plan.teamId, plan.position, plan.data, now, userId, plan.id, baseVersion));
   }
