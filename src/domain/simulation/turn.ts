@@ -155,10 +155,12 @@ class TurnRunner {
         .map((a) => a.mon))];
       fainted.forEach((out, i) => { const name = comingIn[i]; if (name) swaps.push({ side, out, name }); });
     }
-    // They come in together, so their entry abilities go fastest first (a tie is picked on the turn, or assumed).
+    // They come in together: all of them are on the field before any entry ability goes, fastest first (a tie is
+    // picked on the turn, or assumed), so a faster Intimidate still reaches the foe's slower replacement.
     const { order, ties } = entryOrder(this.st, swaps, tieOrder);
     this.ties.push(...ties);
-    for (const s of order) this.doSwitch(s.side, s.out, s.name, { replace: true });
+    for (const s of order) this.doSwitch(s.side, s.out, s.name, { replace: true, enter: false });
+    for (const s of order) this.fx.enter(s.side, s.name);
   }
 
   /** Reasons the turn can't run yet; empty when every active Pokémon has a complete action. */
@@ -601,7 +603,8 @@ class TurnRunner {
     }
   }
 
-  private doSwitch(side: Side, outName: string, inName: string, opts: { replace?: true; passBoosts?: boolean; via?: string; sub?: number } = {}): void {
+  /** `enter: false` leaves the entry abilities to the caller (replacements coming in together). */
+  private doSwitch(side: Side, outName: string, inName: string, opts: { replace?: true; passBoosts?: boolean; via?: string; sub?: number; enter?: false } = {}): void {
     const incoming = this.mon(side, inName);
     if (incoming.fainted) throw new Incomplete(`${inName} has fainted and can't switch in`);
     if (this.st.active[side].includes(inName)) throw new Incomplete(`${inName} is already on the field`);
@@ -648,7 +651,7 @@ class TurnRunner {
     if (opts.replace) entry.replace = true;
     if (opts.via) entry.via = opts.via;
     this.log.push(entry);
-    this.fx.enter(side, inName);
+    if (opts.enter !== false) this.fx.enter(side, inName);
   }
 
   /** Switches the user out after a pivot move. Nothing happens if nobody is left to come in. */

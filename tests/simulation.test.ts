@@ -429,6 +429,42 @@ test('a fainted Pokémon is replaced by the benched Pokémon given an action in 
   assert.ok(again.get(t2.id)?.status === 'incomplete', 'a fainted Pokémon cannot act');
 });
 
+test('replacements after a double faint all come in before a faster Intimidate goes; in-turn switches still go one at a time', () => {
+  const mine = [set('Smeargle', 'x', '- Protect', 'EVs: 0 HP'), set('Garchomp', 'Rough Skin', '- Close Combat'), set('Incineroar', 'Intimidate', '- Protect'), set('Rillaboom', 'Grassy Surge', '- Protect')].join('\n\n');
+  const opp = [set('Smeargle', 'x', '- Protect', 'EVs: 0 HP'), set('Rillaboom', 'Grassy Surge', '- Close Combat'), set('Kingambit', 'Pressure', '- Protect'), set('Aerodactyl', 'Pressure', '- Protect')].join('\n\n');
+  const { team, plan } = setup(mine, opp, { me: ['Smeargle', 'Garchomp'], opp: ['Smeargle', 'Rillaboom'] });
+  plan.selection.me.back = ['Incineroar', 'Rillaboom'];
+  plan.selection.opp.back = ['Kingambit', 'Aerodactyl'];
+  const t1 = newNode({ actions: [
+    act('me', 'Smeargle', 'move', 'Swords Dance'), act('me', 'Garchomp', 'move', 'Close Combat', 'Smeargle'),
+    act('opp', 'Smeargle', 'move', 'Swords Dance'), act('opp', 'Rillaboom', 'move', 'Close Combat', 'Smeargle'),
+  ] });
+  // Incineroar (60 Speed) replaces faster than Kingambit (50): Intimidate still reaches Kingambit.
+  const t2 = newNode({ actions: [
+    act('me', 'Incineroar', 'move', 'Protect'), act('me', 'Garchomp', 'move', 'Protect'),
+    act('opp', 'Kingambit', 'move', 'Protect'), act('opp', 'Rillaboom', 'move', 'Protect'),
+  ] });
+  t1.children.push(t2); plan.children.push(t1);
+  const r2 = ready(run(plan, team).results.get(t2.id));
+  assert.deepEqual(r2.log.slice(0, 2).map((l) => l.type === 'switch' && `${l.side}:${l.in}`), ['me:Incineroar', 'opp:Kingambit'], 'both are in first, fastest first');
+  assert.equal(r2.state.mons.opp.Kingambit!.boosts.atk, -1);
+  assert.equal(r2.state.mons.opp.Rillaboom!.boosts.atk, -1);
+
+  // A regular switch: Garchomp (faster) brings Incineroar in, whose Intimidate goes before Rillaboom switches to
+  // Aerodactyl, so Aerodactyl comes in untouched.
+  const { team: team2, plan: plan2 } = setup(mine, opp, { me: ['Garchomp', 'Smeargle'], opp: ['Rillaboom', 'Smeargle'] });
+  plan2.selection.me.back = ['Incineroar']; plan2.selection.opp.back = ['Aerodactyl'];
+  const sw = newNode({ actions: [
+    act('me', 'Garchomp', 'switch', '', 'Incineroar'), act('me', 'Smeargle', 'move', 'Protect'),
+    act('opp', 'Rillaboom', 'switch', '', 'Aerodactyl'), act('opp', 'Smeargle', 'move', 'Protect'),
+  ] });
+  plan2.children.push(sw);
+  const r = ready(run(plan2, team2).results.get(sw.id));
+  assert.deepEqual(r.log.slice(0, 3).map((l) => l.type === 'switch' ? `switch:${l.in}` : l.type === 'boost' ? `boost:${l.mon}` : l.type),
+    ['switch:Incineroar', 'boost:Rillaboom', 'boost:Smeargle']);
+  assert.equal(r.state.mons.opp.Aerodactyl!.boosts.atk, 0, 'the slower switch-in arrives after Intimidate');
+});
+
 test('with nobody left to come in, a side with one Pokémon standing only needs that one action', () => {
   // Rillaboom is in the paste but no backs were picked, so nobody can replace Flutter.
   const mine = [set('Flutter', 'x', '- Protect', 'EVs: 0 HP'), set('Garchomp', 'Rough Skin', '- Earthquake'), set('Rillaboom', 'Grassy Surge', '- Fake Out')].join('\n\n');
