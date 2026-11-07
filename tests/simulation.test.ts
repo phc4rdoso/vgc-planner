@@ -465,6 +465,31 @@ test('replacements after a double faint all come in before a faster Intimidate g
   assert.equal(r.state.mons.opp.Aerodactyl!.boosts.atk, 0, 'the slower switch-in arrives after Intimidate');
 });
 
+test('Spicy Spray burns whoever hits its holder, contact or not, even on the hit that knocks it out', () => {
+  const mine = [set('Rillaboom', 'Spicy Spray', '- Protect'), set('Garchomp', 'Rough Skin', '- Protect')].join('\n\n');
+  const opp = [set('Incineroar', 'Blaze', '- Flare Blitz'), set('Kingambit', 'Defiant', '- Rock Slide')].join('\n\n');
+  const { team, plan } = setup(mine, opp);
+  const n = newNode({ actions: [
+    act('me', 'Rillaboom', 'move', 'Swords Dance'), act('me', 'Garchomp', 'move', 'Protect'),
+    act('opp', 'Incineroar', 'move', 'Flare Blitz', 'Rillaboom'), act('opp', 'Kingambit', 'move', 'Rock Slide', 'Both foes'),
+  ] });
+  plan.children.push(n);
+  const r = ready(run(plan, team).results.get(n.id));
+  assert.equal(r.state.mons.opp.Kingambit!.status, 'brn', 'a non-contact spread move burns the attacker');
+  assert.equal(r.state.mons.opp.Incineroar!.status, null, 'Fire types are not burned');
+
+  const ko = setup([set('Smeargle', 'Spicy Spray', '- Protect', 'EVs: 0 HP'), set('Garchomp', 'Rough Skin', '- Protect')].join('\n\n'), opp.replace('Rock Slide', 'Close Combat'),
+    { me: ['Smeargle', 'Garchomp'], opp: ['Incineroar', 'Kingambit'] });
+  const k = newNode({ actions: [
+    act('me', 'Smeargle', 'move', 'Swords Dance'), act('me', 'Garchomp', 'move', 'Protect'),
+    act('opp', 'Incineroar', 'move', 'Protect'), act('opp', 'Kingambit', 'move', 'Close Combat', 'Smeargle'),
+  ] });
+  ko.plan.children.push(k);
+  const rk = ready(run(ko.plan, ko.team).results.get(k.id));
+  assert.ok(rk.state.mons.me.Smeargle!.fainted);
+  assert.equal(rk.state.mons.opp.Kingambit!.status, 'brn');
+});
+
 test('with nobody left to come in, a side with one Pokémon standing only needs that one action', () => {
   // Rillaboom is in the paste but no backs were picked, so nobody can replace Flutter.
   const mine = [set('Flutter', 'x', '- Protect', 'EVs: 0 HP'), set('Garchomp', 'Rough Skin', '- Earthquake'), set('Rillaboom', 'Grassy Surge', '- Fake Out')].join('\n\n');

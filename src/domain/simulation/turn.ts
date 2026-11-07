@@ -1531,7 +1531,7 @@ class TurnRunner {
 
   /**
    * What a hit sets off in the target: Stamina, Weak Armor, Justified and the like, Electromorphosis / Wind Power,
-   * Cotton Down, Seed Sower, Sand Spit, Toxic Debris, Kee / Maranga Berry and the other type-triggered items,
+   * Cotton Down, Spicy Spray, Seed Sower, Sand Spit, Toxic Debris, Kee / Maranga Berry and the other type-triggered items,
    * Weakness Policy, Berserk / Anger Shell / Emergency Exit, Eject Button and Red Card.
    */
   private reactToHit(side: Side, user: string, actor: MonState, t: Target, target: MonState, info: MoveInfo, before: number): void {
@@ -1566,6 +1566,11 @@ class TurnRunner {
         if (s2 === t.side && n === t.name) continue;
         this.boostLog(s2, n, `${t.name}'s Cotton Down`, { spe: -1 }, { foe: s2 !== t.side });
       }
+    }
+    // Spicy Spray burns whoever hits the holder, contact or not, even if the hit knocks it out.
+    if (ability === 'spicyspray') {
+      const got = this.fx.inflict(side, user, target, 'brn');
+      if (got.status) this.log.push({ type: 'effect', side, mon: user, source: `${t.name}'s ${target.ability}`, text: got.cured ? `${STATUS_LABEL[got.status]}, cured by ${got.cured}` : STATUS_LABEL[got.status] });
     }
     if (ability === 'seedsower') this.fx.setTerrain('Grassy', t.side, t.name, target.ability);
     if (ability === 'sandspit') this.fx.setWeather('Sand', t.side, t.name, target.ability);
