@@ -490,6 +490,40 @@ test('Spicy Spray burns whoever hits its holder, contact or not, even on the hit
   assert.equal(rk.state.mons.opp.Kingambit!.status, 'brn');
 });
 
+test('Speed Boost goes at the end of the first turn for a lead, but not on the turn a Pokémon switches in', () => {
+  const mine = [set('Rillaboom', 'Speed Boost', '- Protect'), set('Garchomp', 'Rough Skin', '- Protect'), set('Aerodactyl', 'Speed Boost', '- Protect')].join('\n\n');
+  const { team, plan } = setup(mine);
+  plan.selection.me.back = ['Aerodactyl'];
+  const t1 = newNode({ actions: [
+    act('me', 'Rillaboom', 'move', 'Protect'), act('me', 'Garchomp', 'switch', '', 'Aerodactyl'),
+    act('opp', 'Incineroar', 'move', 'Protect'), act('opp', 'Kingambit', 'move', 'Protect'),
+  ] });
+  const t2 = newNode({ actions: [
+    act('me', 'Rillaboom', 'move', 'Swords Dance'), act('me', 'Aerodactyl', 'move', 'Swords Dance'),
+    act('opp', 'Incineroar', 'move', 'Protect'), act('opp', 'Kingambit', 'move', 'Protect'),
+  ] });
+  t1.children.push(t2); plan.children.push(t1);
+  const results = run(plan, team).results;
+  const r1 = ready(results.get(t1.id));
+  assert.equal(r1.state.mons.me.Rillaboom!.boosts.spe, 1, 'the lead gets its boost on turn 1');
+  assert.equal(r1.state.mons.me.Aerodactyl!.boosts.spe, 0, 'not on the turn it switched in');
+  const r2 = ready(results.get(t2.id));
+  assert.equal(r2.state.mons.me.Rillaboom!.boosts.spe, 2);
+  assert.equal(r2.state.mons.me.Aerodactyl!.boosts.spe, 1);
+
+  // A lead that gets Speed Boost by Mega Evolving on turn 1 didn't switch in that turn.
+  const mega = setup([set('Blaziken', 'Blaze', '- Protect', undefined, 'Blazikenite'), set('Garchomp', 'Rough Skin', '- Protect')].join('\n\n'), OPP_TEAM,
+    { me: ['Blaziken', 'Garchomp'], opp: ['Incineroar', 'Kingambit'] });
+  const m1 = newNode({ actions: [
+    act('me', 'Blaziken', 'mega', 'Protect'), act('me', 'Garchomp', 'move', 'Protect'),
+    act('opp', 'Incineroar', 'move', 'Protect'), act('opp', 'Kingambit', 'move', 'Protect'),
+  ] });
+  mega.plan.children.push(m1);
+  const rm = ready(run(mega.plan, mega.team).results.get(m1.id));
+  assert.equal(rm.state.mons.me.Blaziken!.species, 'Blaziken-Mega');
+  assert.equal(rm.state.mons.me.Blaziken!.boosts.spe, 1);
+});
+
 test('with nobody left to come in, a side with one Pokémon standing only needs that one action', () => {
   // Rillaboom is in the paste but no backs were picked, so nobody can replace Flutter.
   const mine = [set('Flutter', 'x', '- Protect', 'EVs: 0 HP'), set('Garchomp', 'Rough Skin', '- Earthquake'), set('Rillaboom', 'Grassy Surge', '- Fake Out')].join('\n\n');

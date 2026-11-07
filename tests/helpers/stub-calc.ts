@@ -21,6 +21,8 @@ export const SPECIES: Record<string, StatTable> = {
   'Charizard-Mega-Y': { hp: 78, atk: 104, def: 78, spa: 159, spd: 115, spe: 100 },
   Tyranitar: { hp: 100, atk: 134, def: 110, spa: 95, spd: 100, spe: 61 },
   'Tyranitar-Mega': { hp: 100, atk: 164, def: 150, spa: 95, spd: 120, spe: 71 },
+  Blaziken: { hp: 80, atk: 120, def: 70, spa: 110, spd: 70, spe: 80 },
+  'Blaziken-Mega': { hp: 80, atk: 160, def: 80, spa: 130, spd: 80, spe: 100 },
 };
 
 export const TYPES: Record<string, string[]> = {
@@ -28,6 +30,7 @@ export const TYPES: Record<string, string[]> = {
   Aerodactyl: ['Rock', 'Flying'], 'Aerodactyl-Mega': ['Rock', 'Flying'], Flutter: ['Ghost', 'Fairy'], 'Garchomp-Mega': ['Dragon', 'Ground'],
   Smeargle: ['Normal'], Sinistcha: ['Grass', 'Ghost'], Pelipper: ['Water', 'Flying'], Charizard: ['Fire', 'Flying'], 'Charizard-Mega-Y': ['Fire', 'Flying'],
   Tyranitar: ['Rock', 'Dark'], 'Tyranitar-Mega': ['Rock', 'Dark'],
+  Blaziken: ['Fire', 'Fighting'], 'Blaziken-Mega': ['Fire', 'Fighting'],
 };
 
 /** A slice of the type chart (attacking type id -> defending type -> multiplier); anything else is neutral. */
@@ -39,12 +42,12 @@ const CHART: Record<string, Record<string, number>> = {
 /** Mega Stones the stand-in knows, by item id. */
 const STONES: Record<string, Record<string, string>> = {
   aerodactylite: { Aerodactyl: 'Aerodactyl-Mega' }, garchompite: { Garchomp: 'Garchomp-Mega' },
-  charizarditey: { Charizard: 'Charizard-Mega-Y' }, tyranitarite: { Tyranitar: 'Tyranitar-Mega' },
+  charizarditey: { Charizard: 'Charizard-Mega-Y' }, tyranitarite: { Tyranitar: 'Tyranitar-Mega' }, blazikenite: { Blaziken: 'Blaziken-Mega' },
 };
 /** What the calculator would give a species when no ability is passed. */
 export const DEFAULT_ABILITY: Record<string, string> = {
   Aerodactyl: 'Pressure', 'Aerodactyl-Mega': 'Tough Claws', Garchomp: 'Rough Skin', 'Garchomp-Mega': 'Sand Force',
-  Charizard: 'Blaze', 'Charizard-Mega-Y': 'Drought', Tyranitar: 'Sand Stream', 'Tyranitar-Mega': 'Sand Stream',
+  Charizard: 'Blaze', 'Charizard-Mega-Y': 'Drought', Tyranitar: 'Sand Stream', 'Tyranitar-Mega': 'Sand Stream', Blaziken: 'Blaze', 'Blaziken-Mega': 'Speed Boost',
 };
 
 interface MoveData { name: string; bp: number; category: string; target: string; priority: number; type: string; contact?: boolean; sound?: boolean; recoil?: [number, number]; drain?: [number, number]; multihit?: boolean }

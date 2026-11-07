@@ -411,8 +411,9 @@ export class Effects {
   enter(side: Side, name: string, mega = false): void {
     const mon = this.mon(side, name);
     if (!mon || mon.fainted) return;
-    this.st.turn.entered[monKey(side, name)] = true;
+    // Mega Evolving (or gaining an ability) isn't switching in: Speed Boost still goes this turn, Stakeout doesn't.
     if (!mega) {
+      this.st.turn.entered[monKey(side, name)] = true;
       this.hazards(side, name);
       if (mon.fainted) return;
     }
