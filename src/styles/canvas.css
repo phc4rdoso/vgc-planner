@@ -1,6 +1,8 @@
 /* ---------- canvas ---------- */
 .canvas { flex: 1; min-width: 0; overflow: auto; background:
-  radial-gradient(circle, var(--line) 1px, transparent 1px) 0 0 / 22px 22px, var(--bg); cursor: grab; }
+  radial-gradient(circle, var(--line) 1px, transparent 1px) 0 0 / 22px 22px, var(--bg); cursor: grab;
+  /* The branches' stacking order (see drawForkColors) stays inside the canvas, under dialogs and the editor. */
+  isolation: isolate; }
 .canvas.panning { cursor: grabbing; user-select: none; }
 .canvas-inner { zoom: var(--zoom, 1); width: max-content; min-width: 100%; margin: 0 auto; padding: 36px 48px 120px; display: flex; flex-direction: column; align-items: center; cursor: default; }
 .zoom-ctl { display: flex; gap: 4px; align-items: center; }
