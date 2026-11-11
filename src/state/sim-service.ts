@@ -1,6 +1,7 @@
 import { turnResultsGate } from '../domain/simulation/gate.ts';
 import { createEngine } from '../domain/simulation/engine.ts';
 import type { CalcEngine, MoveInfo } from '../domain/simulation/engine.ts';
+import type { Dex } from '../domain/dex.ts';
 import type { CalcLoader } from '../domain/simulation/calc-types.ts';
 import type { TurnResult } from '../domain/simulation/log.ts';
 import { simulateSheet } from '../domain/simulation/plan.ts';
@@ -48,6 +49,11 @@ export class SimService {
   /** A move's data from the calculator (category, target, flags), or null until the calculator has loaded. */
   moveInfo(name: string): MoveInfo | null {
     return this.engine && name ? this.engine.moveInfo(name) : null;
+  }
+
+  /** Names for the team editor's suggestions, or null until the calculator has loaded. */
+  dex(): Dex | null {
+    return this.engine ? this.engine.dex() : null;
   }
 
   /** The calculator, loading it if needed. Rejects if it can't load. */

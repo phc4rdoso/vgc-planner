@@ -58,7 +58,27 @@ export function parseShowdown(text: string | null | undefined): PokemonSet[] {
   return mons;
 }
 
-/** True for "Aerodactyl-Mega", "Charizard-Mega-Y", "Absol-Mega-Z". */
+/**
+ * Writes one Pokémon back as a Showdown block. `parseShowdown(formatSet(m))` gives back `m`; lines the parser
+ * kept in `extra` (Tera Type, Shiny, Happiness...) go after Level, where Showdown writes them.
+ */
+export function formatSet(m: PokemonSet): string {
+  const name = m.nickname ? `${m.nickname} (${m.species})` : m.species;
+  const lines = [`${name}${m.gender ? ` (${m.gender})` : ''}${m.item ? ` @ ${m.item}` : ''}`];
+  if (m.ability) lines.push(`Ability: ${m.ability}`);
+  if (m.level !== null) lines.push(`Level: ${m.level}`);
+  lines.push(...m.extra);
+  if (m.evs) lines.push(`EVs: ${m.evs}`);
+  if (m.nature) lines.push(`${m.nature} Nature`);
+  if (m.ivs) lines.push(`IVs: ${m.ivs}`);
+  for (const move of m.moves) if (move.trim()) lines.push(`- ${move.trim()}`);
+  return lines.join('\n');
+}
+
+/** A whole team as a Showdown paste, one blank line between Pokémon. */
+export const formatShowdown = (mons: readonly PokemonSet[]): string => mons.map(formatSet).join('\n\n') + (mons.length ? '\n' : '');
+
+/** True for "Aerodactyl-Mega","Charizard-Mega-Y", "Absol-Mega-Z". */
 export const isMega = (species: string | null | undefined): boolean => /-mega(-[xyz])?$/i.test(species ?? '') || /-mega-/i.test(species ?? '');
 
 /** Soft rule checks shown to the user; they never block anything. */

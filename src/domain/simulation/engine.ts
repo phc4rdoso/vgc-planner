@@ -1,3 +1,5 @@
+import { buildDex } from '../dex.ts';
+import type { Dex } from '../dex.ts';
 import { MOVE_PRIORITY } from '../move-effects.ts';
 import { toID } from '../strings.ts';
 import { BOOST_KEYS } from '../stats.ts';
@@ -52,6 +54,8 @@ export interface HitCalc { rolls: number[]; attackerItem: string; defenderItem: 
 export interface CalcEngine {
   /** True when the loaded build has a Champions mode (checked by its stat formula). */
   readonly native: boolean;
+  /** Species, moves, items and abilities of the generation in use, for the team editor's suggestions. */
+  dex(): Dex;
   baseStats(species: string): StatTable | null;
   /** The species' types, e.g. ["Fire", "Dark"]; empty when unknown. */
   typesOf(species: string): string[];
@@ -105,6 +109,7 @@ export function createEngine(lib: CalcLib): CalcEngine {
 
   const baseCache = new Map<string, StatTable | null>();
   const typeCache = new Map<string, string[]>();
+  let dexCache: Dex | null = null;
   const buildPoke = (mon: MonState, alliesFainted = 0, abilityOn = false): InstanceType<CalcLib['Pokemon']> => {
     const options: Record<string, unknown> = { level: 50, nature: mon.set.nature || 'Serious', evs: { ...mon.sp }, boosts: { ...mon.boosts } };
     if (alliesFainted) options.alliesFainted = alliesFainted;
@@ -129,6 +134,7 @@ export function createEngine(lib: CalcLib): CalcEngine {
 
   return {
     native,
+    dex() { return (dexCache ??= buildDex(generation)); },
     baseStats(species) {
       if (!baseCache.has(species)) {
         try { baseCache.set(species, { ...new lib.Pokemon(generation, species, { level: 50 }).species.baseStats }); }

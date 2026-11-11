@@ -241,3 +241,74 @@ textarea.paste.short { min-height: 160px; }
 .toast-btn { background: transparent; border: 0; color: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; padding: 0; }
 .replay-errors { white-space: pre-line; max-height: 220px; overflow: auto; }
 
+/* ---------- team screen: Pokémon editor (views/mon-editor.ts) ---------- */
+.saved-note { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--ok); }
+.section-head .hint { margin-right: auto; }
+.me-scrim { display: none; }
+.mon-editor { margin-top: 14px; border: 1.5px solid var(--me); border-radius: var(--radius); background: var(--panel); padding: 14px 16px 16px; }
+.me-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.me-title { display: flex; flex-direction: column; min-width: 0; }
+.me-title strong { font-size: 16px; }
+.me-body { display: flex; flex-wrap: wrap; gap: 20px 28px; }
+.me-col { flex: 1 1 400px; min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.me-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 12px; margin-bottom: 6px; }
+.me-label { font-size: 11px; font-weight: 700; color: var(--ink-2); text-transform: uppercase; letter-spacing: .04em; }
+
+/* Name fields with suggestions (a combobox: a text box with a list under it). */
+.cb { position: relative; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.cb-box { display: flex; align-items: center; gap: 8px; height: 38px; padding: 0 10px; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); }
+.cb-box:hover { border-color: var(--ink-3); }
+.cb-box:focus-within { border-color: var(--me); box-shadow: 0 0 0 3px var(--me-soft); }
+.cb-input { flex: 1; min-width: 0; border: 0; background: transparent; padding: 0; font-weight: 600; font-size: 13.5px; outline: none; }
+.cb-input::placeholder { color: var(--ink-3); font-weight: 500; }
+.cb-input:focus-visible { outline: none; }
+.cb-hint { font-size: 11.5px; color: var(--ink-2); white-space: nowrap; }
+.cb.unknown .cb-box { border-color: var(--warn); background: var(--warn-soft); }
+.cb-note { margin: 0; font-size: 12px; color: var(--warn); }
+.linkish { border: 0; background: none; padding: 0; color: var(--me); font-weight: 600; text-decoration: underline; }
+.cb-list { position: absolute; top: calc(100% + 4px); left: 0; right: 0; min-width: 260px; z-index: 30; max-height: 280px; overflow-y: auto; padding: 4px;
+  background: var(--panel); border: 1px solid var(--line); border-radius: 10px; box-shadow: 0 10px 30px rgba(24,27,43,.16); }
+.cb-opt { display: flex; align-items: center; gap: 8px; padding: 7px 9px; border-radius: 7px; font-size: 13px; cursor: pointer; }
+.cb-opt .nm { flex: 1; min-width: 0; font-weight: 600; }
+.cb-opt .sub { font-size: 11.5px; color: var(--ink-2); text-align: right; white-space: nowrap; }
+.cb-opt:hover, .cb-opt[aria-selected="true"] { background: var(--me-soft); }
+.cb-opt.current .nm::after { content: " ✓"; color: var(--me); }
+.cb-empty { padding: 8px 9px; font-size: 12px; color: var(--ink-2); }
+
+.type-dot { flex: none; width: 10px; height: 10px; border-radius: 50%; background: var(--line); }
+.t-normal { background: #9a9a7a; } .t-fire { background: #e2672f; } .t-water { background: #3f7fe0; } .t-grass { background: #4c9f3a; }
+.t-electric { background: #d6a800; } .t-ice { background: #4fb3c4; } .t-fighting { background: #b5322a; } .t-poison { background: #9446a8; }
+.t-ground { background: #b98a3a; } .t-flying { background: #7f8fe0; } .t-psychic { background: #e0457b; } .t-bug { background: #8a9a1a; }
+.t-rock { background: #9a8640; } .t-ghost { background: #6a5a9a; } .t-dragon { background: #5a3fe0; } .t-dark { background: #5a4a40; }
+.t-steel { background: #7a8a9a; } .t-fairy { background: #d76fb0; }
+
+/* Stat Points */
+.sp-head { display: flex; align-items: baseline; gap: 8px; }
+.sp-total { font-variant-numeric: tabular-nums; }
+.sp-total.full { color: var(--ok); }
+.sp-meter { height: 6px; border-radius: 99px; background: var(--line-soft); overflow: hidden; }
+.sp-meter > span { display: block; height: 100%; background: var(--me); border-radius: 99px; }
+.sp-meter.full > span { background: var(--ok); }
+.sp-grid { display: grid; grid-template-columns: 46px 30px 44px 30px minmax(0, 1fr) 40px; align-items: center; gap: 6px 8px; margin-top: 4px; }
+.sp-colhead { font-size: 11px; font-weight: 700; color: var(--ink-2); }
+.sp-colhead.c { text-align: center; }
+.sp-colhead.r { text-align: right; }
+.sp-stat { font-weight: 700; font-size: 13px; }
+.sp-stat.up { color: var(--me); }
+.sp-stat.down { color: var(--warn); }
+.sp-step { width: 30px; height: 30px; border-radius: 8px; border: 1px solid var(--line); background: var(--panel); font-weight: 700; font-size: 15px; line-height: 1; padding: 0; }
+.sp-step:hover:not(:disabled) { border-color: var(--me); color: var(--me); }
+.sp-step:disabled { opacity: .35; cursor: not-allowed; }
+.sp-num { width: 44px; height: 30px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); appearance: textfield; -moz-appearance: textfield; padding: 0; }
+.sp-num::-webkit-inner-spin-button, .sp-num::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+.sp-num:hover { border-color: var(--ink-3); }
+.sp-num:focus { border-color: var(--me); box-shadow: 0 0 0 3px var(--me-soft); outline: none; background: var(--panel); }
+.sp-range { width: 100%; min-width: 0; height: 30px; margin: 0; accent-color: var(--me); cursor: pointer; }
+.sp-final { text-align: right; font-weight: 700; font-variant-numeric: tabular-nums; }
+.sp-presets { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 4px; }
+.sp-col .hint { margin: 0; }
+
+/* The paste, under the cards */
+.paste-box { margin-top: 16px; display: flex; flex-direction: column; gap: 6px; }
+.paste-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+

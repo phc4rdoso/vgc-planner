@@ -5,7 +5,7 @@ export const BOOST_KEYS: readonly BoostKey[] = ['atk', 'def', 'spa', 'spd', 'spe
 export const STAT_LABEL: Readonly<Record<StatKey, string>> = { hp: 'HP', atk: 'Atk', def: 'Def', spa: 'SpA', spd: 'SpD', spe: 'Spe' };
 
 /** [raised stat, lowered stat]. Neutral natures are absent. */
-const NATURES: Readonly<Record<string, readonly [BoostKey, BoostKey]>> = {
+export const NATURES: Readonly<Record<string, readonly [BoostKey, BoostKey]>> = {
   Lonely: ['atk', 'def'], Brave: ['atk', 'spe'], Adamant: ['atk', 'spa'], Naughty: ['atk', 'spd'],
   Bold: ['def', 'atk'], Relaxed: ['def', 'spe'], Impish: ['def', 'spa'], Lax: ['def', 'spd'],
   Timid: ['spe', 'atk'], Hasty: ['spe', 'def'], Jolly: ['spe', 'spa'], Naive: ['spe', 'spd'],

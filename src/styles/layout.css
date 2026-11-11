@@ -94,11 +94,16 @@ textarea.paste { width: 100%; min-height: 160px; resize: vertical; border: 1px s
 textarea.paste:focus, .field:focus { border-color: var(--me); outline: none; }
 .field { width: 100%; border: 1px solid var(--line); border-radius: 9px; padding: 7px 10px; background: var(--panel); }
 .mon-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); gap: 10px; margin-top: 14px; }
-.mon-card { border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px; display: flex; gap: 10px; background: var(--bg); }
-.mon-card .meta { min-width: 0; }
-.mon-card .sp { font-weight: 700; }
+.mon-card { border: 1.5px solid var(--line-soft); border-radius: 10px; padding: 10px; display: flex; gap: 10px; background: var(--bg); width: 100%; text-align: left; position: relative; transition: border-color .15s ease; }
+.mon-card:hover { border-color: var(--ink-3); }
+.mon-card.editing { border-color: var(--me); background: var(--me-soft); }
+.mon-card .meta { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.mon-card .sp { font-weight: 700; display: flex; align-items: center; gap: 6px; }
 .mon-card .sub { color: var(--ink-2); font-size: 12px; display: flex; align-items: center; gap: 4px; }
-.mon-card .moves { color: var(--ink-3); font-size: 12px; margin-top: 4px; }
+.mon-card .moves { color: var(--ink-2); font-size: 12px; margin-top: 3px; }
+.mon-card .edit-mark { position: absolute; top: 9px; right: 9px; color: var(--ink-3); opacity: 0; transition: opacity .15s ease; }
+.mon-card:hover .edit-mark, .mon-card:focus-visible .edit-mark, .mon-card.editing .edit-mark { opacity: 1; }
+.mon-card.editing .edit-mark { color: var(--me); }
 .warn { background: var(--warn-soft); color: var(--warn); border-radius: 9px; padding: 8px 12px; font-size: 13px; margin-top: 10px; font-weight: 500; }
 .plan-list { display: grid; gap: 8px; }
 .plan-card { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 12px; cursor: pointer; background: var(--panel); }
