@@ -170,6 +170,78 @@ textarea.paste.short { min-height: 160px; }
 @keyframes pv-mob-card-a { 0%, 35% { opacity: 1; transform: none; } 45%, 90% { opacity: 0; transform: translateY(6px); } 98%, 100% { opacity: 1; transform: none; } }
 @keyframes pv-mob-card-b { 0%, 35% { opacity: 0; transform: translateY(6px); } 45%, 90% { opacity: 1; transform: none; } 98%, 100% { opacity: 0; transform: translateY(6px); } }
 
+/* Edit your team: a team card beside the editor; a move is picked from the list, then the Atk slider is dragged to 32. */
+/* The whole picture fades out before the loop starts again, so nothing is seen going back (the slider sliding left). */
+.pv-te { gap: 16px; animation: pv-te-fade 7s ease infinite; }
+.welcome-preview .pv-te .mon-card { width: 250px; height: auto; padding-right: 10px; cursor: default; }
+.pv-te .saved-note { margin-top: 6px; }
+.pv-te-ed { width: 300px; margin: 0; display: grid; gap: 8px; padding: 12px 14px; }
+.pv-swap { display: inline-grid; }
+.pv-swap > * { grid-area: 1 / 1; }
+.pv-te-field { position: relative; border-color: var(--me); box-shadow: 0 0 0 3px var(--me-soft); }
+.pv-te-text { flex: 1; font-weight: 600; font-size: 13.5px; }
+.pv-caret { display: inline-block; width: 1.5px; height: 14px; margin-left: 1px; vertical-align: -2px; background: var(--ink); }
+.welcome-preview .cb-list.pv-te-list { position: absolute; top: calc(100% + 4px); min-width: 0; animation: pv-te-typed 7s ease infinite; }
+.pv-te-sp { display: grid; grid-template-columns: 46px 44px minmax(0, 1fr) 40px; align-items: center; gap: 8px; }
+.pv-te-sp .sp-num { display: inline-grid; place-items: center; }
+.pv-track { position: relative; height: 6px; border-radius: 99px; background: var(--line-soft); }
+.pv-fill { position: absolute; left: 0; top: 0; bottom: 0; border-radius: 99px; background: var(--me); animation: pv-te-fill 7s linear infinite; }
+.pv-thumb { position: absolute; top: 50%; width: 16px; height: 16px; margin: -8px 0 0 -8px; border-radius: 50%; background: var(--me); box-shadow: 0 0 0 3px var(--panel); animation: pv-te-thumb 7s linear infinite; }
+.pv-te .pv-cursor { left: 60%; top: 40%; }
+/* Above the suggestion list, which it moves onto to pick. */
+.pv-te-cur1 { z-index: 40; animation-name: pv-te-cur1; animation-duration: 7s; }
+.pv-te-cur2 { left: 2px; top: 2px; animation-name: pv-te-cur2; animation-duration: 7s; }
+.pv-te-first { animation: pv-te-first 7s ease infinite; }
+.pv-te-typed { animation: pv-te-typed 7s ease infinite; }
+.pv-te-done { animation: pv-te-done 7s ease infinite; }
+.pv-te-old { animation: pv-te-old 7s ease infinite; }
+.pv-te-new { animation: pv-te-new 7s ease infinite; }
+.pv-te-s0 { animation: pv-te-s0 7s linear infinite; }
+.pv-te-s1 { animation: pv-te-s1 7s linear infinite; }
+.pv-te-s2 { animation: pv-te-s2 7s linear infinite; }
+.pv-te-s3 { animation: pv-te-s3 7s linear infinite; }
+/* 0–20%: Low Kick; 20–38%: "kow" typed with the list open; 38%: Kowtow Cleave picked; 52–74%: the slider goes to 32 and
+   the numbers count up with it; 92–97%: everything fades out; the reset happens while nothing shows. */
+@keyframes pv-te-fade { 0% { opacity: 0; } 3%, 92% { opacity: 1; } 97%, 100% { opacity: 0; } }
+@keyframes pv-te-first { 0%, 19% { opacity: 1; } 21%, 100% { opacity: 0; } }
+@keyframes pv-te-typed { 0%, 20% { opacity: 0; } 22%, 37% { opacity: 1; } 39%, 100% { opacity: 0; } }
+@keyframes pv-te-done { 0%, 38% { opacity: 0; } 40%, 100% { opacity: 1; } }
+@keyframes pv-te-old { 0%, 39% { opacity: 1; } 42%, 100% { opacity: 0; } }
+@keyframes pv-te-new { 0%, 39% { opacity: 0; } 42%, 100% { opacity: 1; } }
+/* The slider moves at a steady pace from 20 (62.5%) to 32 points; each step shows once the thumb passes it. */
+@keyframes pv-te-fill { 0%, 52% { width: 62.5%; } 74%, 100% { width: 100%; } }
+@keyframes pv-te-thumb { 0%, 52% { left: 62.5%; } 74%, 100% { left: 100%; } }
+@keyframes pv-te-s0 { 0%, 59.3% { opacity: 1; } 59.4%, 100% { opacity: 0; } }
+@keyframes pv-te-s1 { 0%, 59.3% { opacity: 0; } 59.4%, 66.6% { opacity: 1; } 66.7%, 100% { opacity: 0; } }
+@keyframes pv-te-s2 { 0%, 66.6% { opacity: 0; } 66.7%, 73.9% { opacity: 1; } 74%, 100% { opacity: 0; } }
+@keyframes pv-te-s3 { 0%, 73.9% { opacity: 0; } 74%, 100% { opacity: 1; } }
+@keyframes pv-te-cur1 {
+  0% { transform: translate(-90px, 70px); opacity: 0; }
+  6% { opacity: 1; }
+  15% { transform: translate(0, 0) scale(1); }
+  17% { transform: translate(0, 0) scale(.82); }
+  19% { transform: translate(0, 0) scale(1); }
+  31% { transform: translate(-20px, 40px) scale(1); }
+  35% { transform: translate(-20px, 40px) scale(.82); }
+  38% { transform: translate(-20px, 40px) scale(1); opacity: 1; }
+  44%, 100% { transform: translate(-20px, 40px); opacity: 0; }
+}
+@keyframes pv-te-cur2 {
+  0%, 42% { transform: translate(40px, 40px); opacity: 0; }
+  48% { transform: translate(0, 0) scale(1); opacity: 1; }
+  51% { transform: translate(0, 0) scale(.82); }
+  75% { transform: translate(0, 0) scale(.82); }
+  78% { transform: translate(0, 0) scale(1); opacity: 1; }
+  86%, 100% { transform: translate(0, 0); opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pv-te, .pv-te-first, .pv-te-typed, .pv-te-done, .pv-te-old, .pv-te-new, .pv-te-s0, .pv-te-s1, .pv-te-s2, .pv-te-s3, .pv-fill, .pv-thumb,
+  .welcome-preview .cb-list.pv-te-list { animation: none; }
+  .pv-te-first, .pv-te-typed, .pv-te-old, .pv-te-s0, .pv-te-s1, .pv-te-s2, .welcome-preview .cb-list.pv-te-list { opacity: 0; }
+  .pv-fill { width: 100%; }
+  .pv-thumb { left: 100%; }
+}
 @media (prefers-reduced-motion: reduce) {
   .pv-copy .pv-copy-btn, .pv-copy-new { animation: none; }
   .pv-cursor { display: none; }
@@ -247,6 +319,8 @@ textarea.paste.short { min-height: 160px; }
 .me-scrim { display: none; }
 .mon-editor { margin-top: 14px; border: 1.5px solid var(--me); border-radius: var(--radius); background: var(--panel); padding: 14px 16px 16px; }
 .me-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
+.me-issues { margin: 0 0 12px; padding: 8px 12px 8px 28px; border-radius: 9px; background: var(--warn-soft); color: var(--warn); font-size: 13px; font-weight: 500; }
+.me-issues li + li { margin-top: 2px; }
 .me-title { display: flex; flex-direction: column; min-width: 0; }
 .me-title strong { font-size: 16px; }
 .me-body { display: flex; flex-wrap: wrap; gap: 20px 28px; }
@@ -312,5 +386,3 @@ textarea.paste.short { min-height: 160px; }
 .paste-box { margin-top: 16px; display: flex; flex-direction: column; gap: 6px; }
 .paste-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
-.me-issues { margin: 0 0 12px; padding: 8px 12px 8px 28px; border-radius: 9px; background: var(--warn-soft); color: var(--warn); font-size: 13px; font-weight: 500; }
-.me-issues li + li { margin-top: 2px; }

@@ -74,6 +74,13 @@ export const PREVIEWS = {
 
 const ICON_CURSOR = '<svg width="22" height="22" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3l14 8-6 1.5L10 19Z" fill="#fff" stroke="#181b2b" stroke-width="1.6" stroke-linejoin="round"/></svg>';
 
+/**
+ * A number that counts up in four steps as the editor preview's slider moves (Kingambit's Attack at 20, 24, 28 and
+ * 32 Stat Points); the steps are stacked and shown one at a time (`.pv-te-s0`…`s3`).
+ */
+const steps = (values: readonly [string, string, string, string]): string =>
+  `<span class="pv-swap">${values.map((v, i) => `<span class="pv-te-s${i}">${esc(v)}</span>`).join('')}</span>`;
+
 /** Pictures for the "What's new" box (news.ts); each one loops a short animation of the feature. */
 export const NEWS_PREVIEWS = {
   /** The pointer presses a turn card's copy button and the copy slides in right beside it. */
@@ -94,6 +101,32 @@ export const NEWS_PREVIEWS = {
     <div class="pv-ph-cards">
       ${turnCard('Turn 2', [act('me', 'Kingambit', 'Kowtow Cleave', 'Golisopod'), act('me', 'Kommo-o', 'Flamethrower', 'Golisopod')], [act('opp', 'Golisopod-Mega', 'Drill Run', 'Kingambit'), act('opp', 'Politoed', 'Ice Beam', 'Kommo-o')], '', 'pv-card-a')}
       ${turnCard('Turn 2', [act('me', 'Kingambit', 'Kowtow Cleave', 'Golisopod'), act('me', 'Kommo-o', 'Flamethrower', 'Golisopod')], [act('opp', 'Golisopod-Mega', 'Leech Life', 'Kingambit'), act('opp', 'Politoed', 'Ice Beam', 'Kommo-o')], '', 'pv-card-b')}
+    </div>
+  </div>`,
+
+  /**
+   * The team screen's editor: the pointer opens a move field, types "kow" and picks Kowtow Cleave, and the card's
+   * moves change with a "Saved" tick; then it drags the Atk slider from 20 to 32 points, and the total and the final
+   * stat follow. Text that changes is stacked in `.pv-swap` and cross-faded.
+   */
+  teamEditor: `<div class="pv-row pv-top pv-te">
+    <div class="mon-card editing">${monIcon('Kingambit')}<span class="meta">
+      <span class="sp">Kingambit <span class="chip">Editing</span></span>
+      <span class="sub">${itemIcon('Black Glasses', 'xs')}Black Glasses</span><span class="sub">Defiant</span>
+      <span class="moves">Sucker Punch · Iron Head · Protect · <span class="pv-swap"><span class="pv-te-old">Low Kick</span><span class="pv-te-new">Kowtow Cleave</span></span></span>
+      <span class="saved-note pv-te-new"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Saved</span></span></div>
+    <div class="mon-editor pv-te-ed">
+      <span class="me-label">Move 4</span>
+      <div class="cb"><div class="cb-box pv-te-field">
+        <span class="pv-swap"><span class="type-dot t-fighting pv-te-old"></span><span class="type-dot t-dark pv-te-done"></span></span>
+        <span class="pv-swap pv-te-text"><span class="pv-te-first">Low Kick</span><span class="pv-te-typed">kow<i class="pv-caret"></i></span><span class="pv-te-done">Kowtow Cleave</span></span>
+        <span class="pv-cursor pv-te-cur1">${ICON_CURSOR}</span></div>
+        <div class="cb-list pv-te-list"><div class="cb-opt" aria-selected="true"><span class="type-dot t-dark"></span><span class="nm">Kowtow Cleave</span><span class="sub">Dark · Physical · 85</span></div></div></div>
+      <div class="sp-head"><span class="me-label">Stat Points</span><span class="spacer"></span><strong class="sp-total">${steps(['54 / 66', '58 / 66', '62 / 66', '66 / 66'])}</strong></div>
+      <div class="pv-te-sp"><span class="sp-stat up">Atk +</span>
+        <span class="sp-num">${steps(['20', '24', '28', '32'])}</span>
+        <span class="pv-track"><span class="pv-fill"></span><span class="pv-thumb"><span class="pv-cursor pv-te-cur2">${ICON_CURSOR}</span></span></span>
+        <span class="sp-final">${steps(['192', '196', '201', '205'])}</span></div>
     </div>
   </div>`,
 } as const;

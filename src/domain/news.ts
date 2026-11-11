@@ -18,6 +18,12 @@ export const NEWS = [
     title: 'Plan on your phone',
     text: 'On a phone, a gameplan shows one line of play at a time. Tap the chips at a fork to switch between alternatives, or open the Overview to see every turn.',
   },
+  {
+    id: 3,
+    date: '2026-11-11',
+    title: 'Edit your team without the paste',
+    text: 'Click a Pokémon on the team screen to change its moves, item, ability, nature and Stat Points, with names suggested as you type. Add, remove and reorder your team, undo any change, and when an edit touches a gameplan, update its turns in one go.',
+  },
 ] as const satisfies readonly { id: number; date: string; title: string; text: string }[];
 
 export type NewsId = (typeof NEWS)[number]['id'];
