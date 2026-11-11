@@ -102,6 +102,11 @@
   .sp-step { width: 44px; height: 38px; }
   .sp-num { font-size: 16px; }
   .section-head .hint { display: none; }
+
+  /* Cards can't be dragged on a touch screen: up/down arrows on each card move it instead. */
+  .mon-card { padding-right: 60px; min-height: 148px; }
+  .mon-more { top: 6px; right: 6px; width: 44px; height: 40px; }
+  .mon-arrows { display: flex; flex-direction: column; gap: 6px; position: absolute; right: 6px; bottom: 6px; }
 }
 
 @media (max-width: 820px) and (prefers-reduced-motion: reduce) {

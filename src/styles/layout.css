@@ -101,9 +101,24 @@ textarea.paste:focus, .field:focus { border-color: var(--me); outline: none; }
 .mon-card .sp { font-weight: 700; display: flex; align-items: center; gap: 6px; }
 .mon-card .sub { color: var(--ink-2); font-size: 12px; display: flex; align-items: center; gap: 4px; }
 .mon-card .moves { color: var(--ink-2); font-size: 12px; margin-top: 3px; }
-.mon-card .edit-mark { position: absolute; top: 9px; right: 9px; color: var(--ink-3); opacity: 0; transition: opacity .15s ease; }
-.mon-card:hover .edit-mark, .mon-card:focus-visible .edit-mark, .mon-card.editing .edit-mark { opacity: 1; }
-.mon-card.editing .edit-mark { color: var(--me); }
+.mon-card { height: 100%; padding-right: 40px; }
+.mon-card.has-issues:not(.editing) { border-color: var(--warn); }
+.mon-card .issue { display: flex; align-items: center; gap: 5px; margin-top: 4px; font-size: 12px; font-weight: 600; color: var(--warn); }
+.mon-card .issue svg { flex: none; }
+.mon-card .issue.more { font-weight: 500; }
+.mon-slot { position: relative; min-width: 0; }
+.mon-slot.dragging { opacity: .45; }
+.mon-slot.drop-target .mon-card { border-color: var(--me); border-style: dashed; }
+.mon-more { position: absolute; top: 6px; right: 6px; width: 32px; height: 32px; display: inline-flex; align-items: center; justify-content: center; padding: 0;
+  border: 1px solid transparent; border-radius: 8px; background: transparent; color: var(--ink-2); }
+.mon-more:hover, .mon-more[aria-expanded="true"] { border-color: var(--line); background: var(--panel); color: var(--ink); }
+.mon-arrows { display: none; }
+.mon-arrow { width: 44px; height: 40px; display: inline-flex; align-items: center; justify-content: center; padding: 0; border: 1px solid var(--line); border-radius: 9px; background: var(--panel); color: var(--ink-2); }
+.mon-arrow:disabled { opacity: .3; }
+.impact-list { margin: 0; padding-left: 20px; font-size: 13px; color: var(--ink-2); }
+.impact-list li + li { margin-top: 4px; }
+.mon-add { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 6px; min-height: 96px; padding: 12px; border: 1.5px dashed var(--line); border-radius: 10px; }
+.mon-add .cb-box { color: var(--ink-2); }
 .warn { background: var(--warn-soft); color: var(--warn); border-radius: 9px; padding: 8px 12px; font-size: 13px; margin-top: 10px; font-weight: 500; }
 .plan-list { display: grid; gap: 8px; }
 .plan-card { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 12px; cursor: pointer; background: var(--panel); }

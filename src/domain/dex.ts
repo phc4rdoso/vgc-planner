@@ -9,7 +9,8 @@ import type { StatTable } from './types.ts';
 
 export interface DexSpecies { name: string; types: string[]; base: StatTable; abilities: string[] }
 export interface DexMove { name: string; type: string; category: string; bp: number }
-export interface DexItem { name: string; megaStone: boolean; berry: boolean }
+/** `megaFor`: for a Mega Stone, base species -> the Mega it becomes ("Charizard" -> "Charizard-Mega-Y"). */
+export interface DexItem { name: string; megaStone: boolean; berry: boolean; megaFor: Record<string, string> }
 
 export interface Dex {
   species: DexSpecies[];
@@ -48,7 +49,10 @@ export function buildDex(gen: unknown): Dex {
     .filter((m) => m.name && m.name !== '(No Move)' && !m.isZ && !m.isMax)
     .map((m) => ({ name: m.name, type: m.type ?? '', category: m.category ?? 'Status', bp: m.basePower ?? 0 }))
     .sort(byName);
-  const items: DexItem[] = iterable(g.items).map((i) => ({ name: i.name, megaStone: !!i.megaStone, berry: !!i.isBerry })).sort(byName);
+  const items: DexItem[] = iterable(g.items).map((i) => ({
+    name: i.name, megaStone: !!i.megaStone, berry: !!i.isBerry,
+    megaFor: i.megaStone && typeof i.megaStone === 'object' ? { ...(i.megaStone as Record<string, string>) } : {},
+  })).sort(byName);
   const abilities = iterable(g.abilities).map((a) => a.name).filter(Boolean).sort((a, b) => a.localeCompare(b));
   return makeDex(species, moves, items, abilities);
 }

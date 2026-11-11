@@ -312,3 +312,5 @@ textarea.paste.short { min-height: 160px; }
 .paste-box { margin-top: 16px; display: flex; flex-direction: column; gap: 6px; }
 .paste-head { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 
+.me-issues { margin: 0 0 12px; padding: 8px 12px 8px 28px; border-radius: 9px; background: var(--warn-soft); color: var(--warn); font-size: 13px; font-weight: 500; }
+.me-issues li + li { margin-top: 2px; }

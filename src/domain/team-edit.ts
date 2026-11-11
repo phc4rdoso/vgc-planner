@@ -21,6 +21,42 @@ export function editMon(paste: string, index: number, edit: (mon: PokemonSet) =>
   return formatShowdown(mons);
 }
 
+/** A new team member: just the species at level 50, with its usual ability when known. */
+export function blankMon(species: string, ability = ''): PokemonSet {
+  return { nickname: '', species: species.trim(), gender: '', item: '', ability, level: 50, nature: '', evs: '', ivs: '', moves: [], extra: [] };
+}
+
+/** The paste with `mon` added at the end. */
+export const addMon = (paste: string, mon: PokemonSet): string => formatShowdown([...parseShowdown(paste), mon]);
+
+/** The paste without the Pokémon at `index`. */
+export function removeMon(paste: string, index: number): string {
+  const mons = parseShowdown(paste);
+  if (!mons[index]) return paste;
+  mons.splice(index, 1);
+  return formatShowdown(mons);
+}
+
+/** The paste with a copy of the Pokémon at `index` right after it. */
+export function duplicateMon(paste: string, index: number): string {
+  const mons = parseShowdown(paste);
+  const mon = mons[index];
+  if (!mon) return paste;
+  mons.splice(index + 1, 0, structuredClone(mon));
+  return formatShowdown(mons);
+}
+
+/** The paste with the Pokémon at `from` moved to position `to` (clamped to the team). */
+export function moveMon(paste: string, from: number, to: number): string {
+  const mons = parseShowdown(paste);
+  if (!mons[from]) return paste;
+  const target = Math.max(0, Math.min(mons.length - 1, to));
+  if (target === from) return paste;
+  const [mon] = mons.splice(from, 1);
+  mons.splice(target, 0, mon!);
+  return formatShowdown(mons);
+}
+
 /** Sets a text field; trims it. */
 export function setField(mon: PokemonSet, field: MonField, value: string): void {
   mon[field] = value.trim();

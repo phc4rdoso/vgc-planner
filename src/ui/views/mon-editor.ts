@@ -7,10 +7,13 @@ import { closest, natureText, search } from '../../domain/dex.ts';
 import type { Dex } from '../../domain/dex.ts';
 import { calcStats, NATURES, STAT_KEYS, STAT_LABEL, statPoints } from '../../domain/stats.ts';
 import { toID } from '../../domain/strings.ts';
+import { swapSpecies } from '../../domain/team-check.ts';
+import type { MonIssue } from '../../domain/team-check.ts';
 import { setField, setMove, setSpread, setStatPoints, SP_MAX_STAT, SP_MAX_TOTAL, spOf, spRoom, spTotal } from '../../domain/team-edit.ts';
-import type { MonField } from '../../domain/team-edit.ts';
 import type { PokemonSet, StatKey } from '../../domain/types.ts';
 import { simService } from '../../state/instance.ts';
+import { bindCombobox, typeDot } from '../combobox.ts';
+import type { ComboOption } from '../combobox.ts';
 import { esc } from '../dom.ts';
 import { monIcon } from '../icons.ts';
 
@@ -29,15 +32,14 @@ const slotOf = (f: `move${0 | 1 | 2 | 3}`): number => Number(f.slice(4));
 
 const valueOf = (mon: PokemonSet, f: EditField): string => (isMove(f) ? mon.moves[slotOf(f)] ?? '' : mon[f]);
 
-/** The change that sets `field` to `value`. */
+/** The change that sets `field` to `value`. A new species keeps what still fits (see swapSpecies). */
 export function editFor(field: EditField, value: string): MonEdit {
   return (mon) => {
     if (isMove(field)) setMove(mon, slotOf(field), value);
-    else setField(mon, field satisfies MonField, value);
+    else if (field === 'species') swapSpecies(mon, value, simService.dex());
+    else setField(mon, field, value);
   };
 }
-
-const typeDot = (type: string): string => `<span class="type-dot${type ? ` t-${toID(type)}` : ''}" aria-hidden="true"></span>`;
 
 function moveSub(dex: Dex | null, name: string, long = false): string {
   const m = dex?.findMove(name);
@@ -121,15 +123,18 @@ function statsHTML(dex: Dex | null, mon: PokemonSet): string {
 }
 
 /** The editor panel for one Pokémon. On phones it shows as a sheet from the bottom (see mobile.css). */
-export function monEditorHTML(mon: PokemonSet): string {
+export function monEditorHTML(mon: PokemonSet, issues: readonly MonIssue[] = []): string {
   const dex = simService.dex();
   const types = dex?.findSpecies(mon.species)?.types ?? [];
   const title = mon.nickname ? `${mon.nickname} (${mon.species})` : mon.species;
+  // Unknown names are marked on their own field; the rest (missing moves, Mega Stone, limits) are listed here.
+  const listed = issues.filter((i) => !i.text.startsWith('Unknown'));
   return `<div class="me-scrim" data-mon-close></div>
   <section class="mon-editor" id="mon-editor" aria-label="Edit ${esc(title)}">
     <div class="me-head">${monIcon(mon.species)}<div class="me-title"><strong>${esc(title)}</strong>
       <span class="hint">${types.length ? esc(types.join(' / ')) : dex ? '' : 'Loading Pokémon data…'}</span></div>
       <span class="spacer"></span><button type="button" class="btn primary sm" id="me-done" data-mon-close>Done</button></div>
+    ${listed.length ? `<ul class="me-issues">${listed.map((i) => `<li>${esc(i.text)}</li>`).join('')}</ul>` : ''}
     <div class="me-body">
       <div class="me-col">
         <div class="me-grid">${(['species', 'item', 'ability', 'nature'] as const).map((f) => fieldHTML(dex, mon, f)).join('')}</div>
@@ -141,9 +146,7 @@ export function monEditorHTML(mon: PokemonSet): string {
   </section>`;
 }
 
-interface Option { value: string; sub: string; type?: string }
-
-function optionsFor(dex: Dex, mon: PokemonSet, field: EditField, query: string): Option[] {
+function optionsFor(dex: Dex, mon: PokemonSet, field: EditField, query: string): ComboOption[] {
   if (field === 'species') return search(dex.species, query, (s) => s.name).map((s) => ({ value: s.name, sub: s.types.join(' / ') }));
   if (field === 'item') return search(dex.items, query, (i) => i.name).map((i) => ({ value: i.name, sub: i.megaStone ? 'Mega Stone' : i.berry ? 'Berry' : '' }));
   if (field === 'nature') return search(dex.natures, query, (n) => n, 25).map((n) => ({ value: n, sub: natureText(n) }));
@@ -159,7 +162,7 @@ function optionsFor(dex: Dex, mon: PokemonSet, field: EditField, query: string):
 }
 
 /**
- * Wires the editor: the suggestion lists, Stat Point steppers and presets. `commit` applies one change and redraws;
+ * Wires the editor: the suggestion lists, Stat Point controls and presets. `commit` applies one change and redraws;
  * `close` hides the editor.
  */
 export function bindMonEditor(root: HTMLElement, mon: PokemonSet, commit: (edit: MonEdit) => void, close: () => void): void {
@@ -167,101 +170,28 @@ export function bindMonEditor(root: HTMLElement, mon: PokemonSet, commit: (edit:
   if (!editor) return;
   root.querySelectorAll<HTMLElement>('[data-mon-close]').forEach((el) => el.addEventListener('click', close));
 
-  const listOf = (input: HTMLInputElement): HTMLElement | null => root.querySelector<HTMLElement>(`#${input.id}-list`);
-  let active = -1;
-
-  const hide = (input: HTMLInputElement): void => {
-    const list = listOf(input);
-    if (list) { list.hidden = true; list.innerHTML = ''; }
-    input.setAttribute('aria-expanded', 'false');
-    input.removeAttribute('aria-activedescendant');
-    active = -1;
-  };
-
-  const setActive = (input: HTMLInputElement, i: number): void => {
-    const opts = [...(listOf(input)?.querySelectorAll<HTMLElement>('[role="option"]') ?? [])];
-    if (!opts.length) return;
-    active = (i + opts.length) % opts.length;
-    opts.forEach((o, j) => o.setAttribute('aria-selected', String(j === active)));
-    const el = opts[active]!;
-    input.setAttribute('aria-activedescendant', el.id);
-    el.scrollIntoView({ block: 'nearest' });
-  };
-
-  const show = (input: HTMLInputElement, query: string): void => {
-    const list = listOf(input);
-    const field = asField(input.dataset.field);
-    if (!list || !field) return;
-    const dex = simService.dex();
-    if (!dex) {
-      list.innerHTML = '<div class="cb-empty">Loading Pokémon data…</div>';
-      list.hidden = false;
-      simService.ready().then(() => { if (document.activeElement === input) show(input, input.value === input.dataset.orig ? '' : input.value); }).catch(() => {
-        list.innerHTML = '<div class="cb-empty">Suggestions are unavailable right now; you can still type a name.</div>';
-      });
-      return;
-    }
-    const current = toID(valueOf(mon, field));
-    let opts = optionsFor(dex, mon, field, query);
-    // Before anything is typed the list is a long alphabetical one: start it with the current value.
-    if (!query && current) {
-      const cur = optionsFor(dex, mon, field, valueOf(mon, field)).find((o) => toID(o.value) === current);
-      if (cur) opts = [cur, ...opts.filter((o) => toID(o.value) !== current)];
-    }
-    list.innerHTML = opts.length
-      ? opts.map((o, i) => `<div role="option" class="cb-opt${toID(o.value) === current ? ' current' : ''}" id="${input.id}-opt-${i}" data-value="${esc(o.value)}" aria-selected="false">
-          ${isMove(field) ? typeDot(o.type ?? '') : ''}<span class="nm">${esc(o.value)}</span><span class="sub">${esc(o.sub)}</span></div>`).join('')
-      : `<div class="cb-empty">No match. Press Enter to keep “${esc(query)}”.</div>`;
-    list.hidden = false;
-    input.setAttribute('aria-expanded', 'true');
-    active = -1;
-    if (query && opts.length) setActive(input, 0);
-  };
-
-  const pick = (input: HTMLInputElement, value: string): void => {
-    const field = asField(input.dataset.field);
-    hide(input);
-    input.value = value;
-    if (!field || value.trim() === (input.dataset.orig ?? '')) return;
-    input.dataset.orig = value.trim();
-    commit(editFor(field, value));
-  };
-
   editor.querySelectorAll<HTMLInputElement>('.cb-input').forEach((input) => {
-    input.addEventListener('focus', () => {
-      // Focus put back after a redraw (see team-view.ts) leaves the list closed.
-      if (document.body.dataset.restoringFocus) return;
-      input.select();
-      show(input, '');
-    });
-    input.addEventListener('input', () => show(input, input.value));
-    input.addEventListener('blur', () => {
-      // Leaving the field takes the highlighted suggestion ("stone e" + Tab -> Stone Edge); with none, it keeps what
-      // was typed, known or not, so a typo never deletes anything.
-      const opt = active >= 0 ? listOf(input)?.querySelectorAll<HTMLElement>('[role="option"]')[active] : null;
-      const value = opt?.dataset.value ?? input.value;
-      hide(input);
-      if (value.trim() !== (input.dataset.orig ?? '')) pick(input, value);
-    });
-    input.addEventListener('keydown', (e) => {
-      const open = !(listOf(input)?.hidden ?? true);
-      if (e.key === 'ArrowDown') { e.preventDefault(); if (!open) show(input, ''); setActive(input, active + 1); }
-      else if (e.key === 'ArrowUp') { e.preventDefault(); if (!open) show(input, ''); setActive(input, active - 1); }
-      else if (e.key === 'Enter') {
-        e.preventDefault();
-        const opt = active >= 0 ? listOf(input)?.querySelectorAll<HTMLElement>('[role="option"]')[active] : null;
-        pick(input, opt?.dataset.value ?? input.value);
-      } else if (e.key === 'Escape') {
-        e.stopPropagation();
-        if (open) { hide(input); input.value = input.dataset.orig ?? ''; input.select(); }
-        else close();
-      }
-    });
-    // mousedown, so the field keeps focus (and doesn't commit the half-typed text) before the pick.
-    listOf(input)?.addEventListener('mousedown', (e) => {
-      const opt = e.target instanceof Element ? e.target.closest<HTMLElement>('[role="option"]') : null;
-      e.preventDefault();
-      if (opt?.dataset.value) pick(input, opt.dataset.value);
+    const field = asField(input.dataset.field);
+    const list = root.querySelector<HTMLElement>(`#${input.id}-list`);
+    if (!field || !list) return;
+    const current = valueOf(mon, field);
+    bindCombobox(input, list, {
+      current,
+      dots: isMove(field),
+      options: (query) => {
+        const dex = simService.dex();
+        if (!dex) return null;
+        const opts = optionsFor(dex, mon, field, query);
+        // Before anything is typed the list is a long alphabetical one: start it with the current value.
+        if (query || !current) return opts;
+        const cur = optionsFor(dex, mon, field, current).find((o) => toID(o.value) === toID(current));
+        return cur ? [cur, ...opts.filter((o) => toID(o.value) !== toID(current))] : opts;
+      },
+      load: () => simService.ready(),
+      // Leaving a field takes the highlighted suggestion ("stone e" + Tab -> Stone Edge); with none it keeps what was
+      // typed, known or not, so a typo never deletes anything.
+      pick: (value) => commit(editFor(field, value)),
+      escape: close,
     });
   });
 
