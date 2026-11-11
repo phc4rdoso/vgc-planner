@@ -313,6 +313,18 @@ textarea.paste.short { min-height: 160px; }
 .toast-btn { background: transparent; border: 0; color: inherit; font-weight: 700; text-decoration: underline; cursor: pointer; padding: 0; }
 .replay-errors { white-space: pre-line; max-height: 220px; overflow: auto; }
 
+/* ---------- New team: build it here, or paste a team (actions.ts createTeam) ---------- */
+.start-opts { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
+.start-opt { display: flex; flex-direction: column; align-items: flex-start; gap: 6px; text-align: left; padding: 12px 14px; border-radius: 12px; border: 1.5px solid var(--line); background: var(--panel); }
+.start-opt:hover { border-color: var(--ink-3); }
+.start-opt[aria-checked="true"] { border-color: var(--me); background: var(--me-soft); }
+.start-head { display: flex; align-items: center; gap: 8px; }
+.start-icon { width: 30px; height: 30px; border-radius: 8px; display: inline-flex; align-items: center; justify-content: center; background: var(--line-soft); color: var(--ink-2); }
+.start-opt[aria-checked="true"] .start-icon { background: var(--me); color: var(--on-me); }
+.start-title { font-weight: 700; }
+.start-text { font-size: 12.5px; color: var(--ink-2); }
+#nt-later { margin: 0; }
+
 /* ---------- team screen: Pokémon editor (views/mon-editor.ts) ---------- */
 .saved-note { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; color: var(--ok); }
 .section-head .hint { margin-right: auto; }

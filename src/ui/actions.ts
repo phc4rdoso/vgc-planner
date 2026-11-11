@@ -19,16 +19,68 @@ import { renderTabBar, rerenderCanvas, revealTurn } from './views/plan-view.ts';
 
 /* ------------------------------ teams & plans ------------------------------ */
 
+const ICON_BUILD = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16z"/><path d="M13.5 6.5l4 4"/></svg>';
+const ICON_PASTE = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/></svg>';
+
+/**
+ * New team: built here from nothing (the team screen's editor then adds the Pokémon), or from a Showdown paste.
+ * Building it here is the default; the paste box shows only when "Paste a team" is picked.
+ */
 export async function createTeam(): Promise<void> {
-  const input = await modal<{ name: string; paste: string }>({
-    title: 'New team', desc: `Paste your team in Showdown format, ${PASTE_LINK_HINT}.`,
+  const choice = (mode: 'build' | 'paste', icon: string, title: string, text: string): string =>
+    `<button type="button" class="start-opt" role="radio" data-start="${mode}" aria-checked="${mode === 'build'}" aria-label="${title}" aria-describedby="nt-${mode}-text">
+      <span class="start-head"><span class="start-icon">${icon}</span><span class="start-title">${title}</span></span>
+      <span class="start-text" id="nt-${mode}-text">${text}</span></button>`;
+  const pending = modal<{ name: string; paste: string; mode: 'build' | 'paste' }>({
+    title: 'New team', desc: 'Build your team here, or paste one you already have.',
     body: `<div><label class="lbl" for="nt-name">Team name</label><input class="field" id="nt-name" placeholder="e.g. Rain offense"></div>
-           <div><label class="lbl" for="nt-paste">Showdown paste</label><textarea class="paste" id="nt-paste" data-team-paste data-name-field="#nt-name" placeholder="Rillaboom @ Assault Vest&#10;Ability: Grassy Surge&#10;- Fake Out&#10;- Grassy Glide&#10;&#10;…${PASTE_LINK_HINT}"></textarea></div>`,
+           <div class="start-opts" role="radiogroup" aria-label="How to start">
+             ${choice('build', ICON_BUILD, 'Build it here', 'Start empty and add Pokémon one at a time, with names suggested as you type.')}
+             ${choice('paste', ICON_PASTE, 'Paste a team', `Showdown format, ${PASTE_LINK_HINT}.`)}
+           </div>
+           <div id="nt-paste-box" hidden><label class="lbl" for="nt-paste">Showdown paste</label><textarea class="paste" id="nt-paste" data-team-paste data-name-field="#nt-name" placeholder="Rillaboom @ Assault Vest&#10;Ability: Grassy Surge&#10;- Fake Out&#10;- Grassy Glide&#10;&#10;…${PASTE_LINK_HINT}"></textarea></div>
+           <p class="hint" id="nt-later">You can still paste a whole team later, from the team screen.</p>`,
     actions: [
       { label: 'Cancel', value: null },
-      { label: 'Create team', cls: 'primary', run: (ov) => ({ name: must<HTMLInputElement>('#nt-name', ov).value.trim(), paste: must<HTMLTextAreaElement>('#nt-paste', ov).value }) },
+      {
+        label: 'Create empty team', cls: 'primary',
+        run: (ov) => {
+          const mode = ov.querySelector<HTMLElement>('[data-start][aria-checked="true"]')?.dataset.start === 'paste' ? 'paste' : 'build';
+          return { name: must<HTMLInputElement>('#nt-name', ov).value.trim(), paste: mode === 'paste' ? must<HTMLTextAreaElement>('#nt-paste', ov).value : '', mode };
+        },
+      },
     ],
   });
+
+  // The dialog is on screen once modal() returns: wire the two choices (a radio group: click, or arrow keys).
+  const overlay = document.querySelector<HTMLElement>('.overlay:last-child');
+  if (overlay) {
+    const options = [...overlay.querySelectorAll<HTMLButtonElement>('[data-start]')];
+    const createBtn = [...overlay.querySelectorAll<HTMLButtonElement>('.modal-foot .btn')].pop();
+    const pick = (mode: string, focus = false): void => {
+      options.forEach((o) => {
+        const on = o.dataset.start === mode;
+        o.setAttribute('aria-checked', String(on));
+        o.tabIndex = on ? 0 : -1;
+        if (on && focus) o.focus();
+      });
+      must('#nt-paste-box', overlay).hidden = mode !== 'paste';
+      must('#nt-later', overlay).hidden = mode === 'paste';
+      if (createBtn) createBtn.textContent = mode === 'paste' ? 'Create team' : 'Create empty team';
+      if (mode === 'paste' && !focus) must<HTMLTextAreaElement>('#nt-paste', overlay).focus();
+    };
+    options.forEach((o, i) => {
+      o.addEventListener('click', () => pick(o.dataset.start ?? 'build'));
+      o.addEventListener('keydown', (e) => {
+        if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(e.key)) return;
+        e.preventDefault();
+        pick(options[(i + 1) % options.length]!.dataset.start ?? 'build', true);
+      });
+    });
+    pick('build');
+  }
+
+  const input = await pending;
   if (!input) return;
   const mons = parseShowdown(input.paste);
   const team = newTeam(input.name || (mons[0] ? `${mons[0].species} team` : 'My team'), input.paste);
@@ -38,6 +90,8 @@ export async function createTeam(): Promise<void> {
   store.persist();
   requestRender();
   teamWarnings(mons).forEach((w) => toast(w, true));
+  // An empty team starts with the cursor in its "Add your first Pokémon" box.
+  if (!mons.length) document.getElementById('add-mon')?.focus();
 }
 
 export async function createPlan(teamId: string): Promise<void> {

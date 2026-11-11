@@ -107,6 +107,12 @@
   .mon-card { padding-right: 60px; min-height: 148px; }
   .mon-more { top: 6px; right: 6px; width: 44px; height: 40px; }
   .mon-arrows { display: flex; flex-direction: column; gap: 6px; position: absolute; right: 6px; bottom: 6px; }
+  /* New team: the two ways to start are stacked rows. */
+  .start-opts { grid-template-columns: 1fr; gap: 8px; }
+  .start-opt { min-height: 64px; padding: 10px 12px; }
+
+  /* Empty places are just a reminder of the room left: short rows on a phone. */
+  .mon-empty { min-height: 46px; justify-content: flex-start; padding: 0 14px; }
 }
 
 @media (max-width: 820px) and (prefers-reduced-motion: reduce) {

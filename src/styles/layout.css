@@ -50,6 +50,10 @@
 .btn.ghost { border-color: transparent; background: transparent; color: var(--ink-2); }
 .btn.ghost:hover { background: var(--line-soft); }
 .btn.sm { padding: 4px 9px; font-size: 12px; }
+.btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+.btn:disabled:hover { border-color: var(--line); }
+.btn.primary:disabled:hover { border-color: var(--primary); }
+.btn.ghost:disabled:hover { border-color: transparent; background: transparent; }
 .btn.block { width: 100%; justify-content: center; }
 
 .main { display: flex; flex-direction: column; min-width: 0; min-height: 0; position: relative; }
@@ -119,6 +123,8 @@ textarea.paste:focus, .field:focus { border-color: var(--me); outline: none; }
 .impact-list li + li { margin-top: 4px; }
 .mon-add { position: relative; display: flex; flex-direction: column; justify-content: center; gap: 6px; min-height: 96px; padding: 12px; border: 1.5px dashed var(--line); border-radius: 10px; }
 .mon-add .cb-box { color: var(--ink-2); }
+.mon-add.first { border-color: var(--me); background: var(--me-soft); }
+.mon-empty { min-height: 96px; display: flex; align-items: center; justify-content: center; border: 1.5px dashed var(--line); border-radius: 10px; color: var(--ink-3); font-size: 12px; font-weight: 600; }
 .warn { background: var(--warn-soft); color: var(--warn); border-radius: 9px; padding: 8px 12px; font-size: 13px; margin-top: 10px; font-weight: 500; }
 .plan-list { display: grid; gap: 8px; }
 .plan-card { display: flex; align-items: center; gap: 12px; border: 1px solid var(--line-soft); border-radius: 10px; padding: 10px 12px; cursor: pointer; background: var(--panel); }

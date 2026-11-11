@@ -63,8 +63,9 @@ function monCard(m: PokemonSet, i: number, count: number, editing: boolean, issu
   </div>`;
 }
 
-const addSlot = (): string => `<div class="mon-add">
-  <label class="me-label" for="add-mon">Add a Pokémon</label>
+/** The box that adds a team member; on an empty team it is the first thing to fill, and says so. */
+const addSlot = (count: number): string => `<div class="mon-add${count ? '' : ' first'}">
+  <label class="me-label" for="add-mon">${count ? 'Add a Pokémon' : 'Add your first Pokémon'}</label>
   <div class="cb-box"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
     <input id="add-mon" class="cb-input" data-orig="" placeholder="Type a name…" role="combobox" aria-autocomplete="list" aria-expanded="false" aria-controls="add-mon-list" autocomplete="off" spellcheck="false"></div>
   <div class="cb-list" id="add-mon-list" role="listbox" aria-label="Pokémon suggestions" hidden></div></div>`;
@@ -210,7 +211,10 @@ export function renderTeamView(main: HTMLElement, team: Team): void {
   const issues = teamIssues(mons, simService.dex());
   const tooMany = mons.length > REGULATION.teamSize ? `<div class="warn">This team has ${mons.length} Pokémon; a team has at most ${REGULATION.teamSize}.</div>` : '';
   // A team with no Pokémon yet can still start from a paste, so the box is open then.
-  const pasteOpen = view.pasteOpen || !mons.length;
+  const pasteOpen = view.pasteOpen;
+  const size = REGULATION.teamSize;
+  // The places still free after the Add box, so an empty or part-built team shows how much room is left.
+  const empties = Array.from({ length: Math.max(0, size - mons.length - 1) }, (_, i) => `<div class="mon-empty" aria-hidden="true">Pokémon ${mons.length + i + 2}</div>`).join('');
   const saved = view.savedAt ? `<span class="saved-note" role="status"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>Saved</span>` : '';
   main.innerHTML = `
   <div class="topbar">${NAV_BUTTON}<input class="title-input" id="team-name" value="${esc(team.name)}" aria-label="Team name">
@@ -219,19 +223,21 @@ export function renderTeamView(main: HTMLElement, team: Team): void {
     <button class="btn danger" data-act="delete-team" data-team="${esc(team.id)}">Delete</button><div class="d-only">${extLinksHTML()}</div></div>
   <div class="page"><div class="page-inner">
     <div class="section"><div class="section-head"><h3>Team</h3>
-        ${mons.length ? '<span class="hint">Click a Pokémon to edit it, or drag to reorder</span>' : ''}<span class="spacer"></span>${saved}
+        <span class="hint">${mons.length ? `${mons.length} of ${size} · Click a Pokémon to edit it, or drag to reorder` : `Empty: add up to ${size} Pokémon`}</span><span class="spacer"></span>${saved}
         <button class="btn sm ghost" id="undo-team"${view.undo.length ? '' : ' disabled'} title="Undo the last change (Ctrl+Z)">Undo</button>
-        <button class="btn sm" id="toggle-paste" aria-expanded="${pasteOpen}" aria-controls="paste-box"${mons.length ? '' : ' hidden'}>${pasteOpen ? 'Hide paste' : 'Edit as text'}</button></div>
+        <button class="btn sm" id="toggle-paste" aria-expanded="${pasteOpen}" aria-controls="paste-box">${pasteOpen ? 'Hide paste' : mons.length ? 'Edit as text' : '<span class="d-only">Paste a team instead</span><span class="m-only">Paste instead</span>'}</button></div>
       ${tooMany}
-      <div class="mon-grid">${mons.map((m, i) => monCard(m, i, mons.length, i === editing, issues[i] ?? [])).join('')}${mons.length < REGULATION.teamSize ? addSlot() : ''}</div>
+      <div class="mon-grid">${mons.map((m, i) => monCard(m, i, mons.length, i === editing, issues[i] ?? [])).join('')}${mons.length < size ? addSlot(mons.length) + empties : ''}</div>
+      ${mons.length ? '' : '<p class="hint mt-s">Pick a Pokémon, then click its card to set its item, ability, nature, moves and Stat Points.</p>'}
       ${editing !== null ? monEditorHTML(mons[editing]!, issues[editing]) : ''}
       ${pasteOpen ? `<div class="paste-box" id="paste-box">
         <div class="paste-head"><label class="me-label" for="team-paste">Showdown paste</label>
-          <span class="hint">${mons.length ? 'Updates as you edit the Pokémon above. To change many at once, edit here and press Update team.' : 'Or paste a whole team in Showdown format.'}</span>
+          <span class="hint">${mons.length ? 'Updates as you edit the Pokémon above. To change many at once, edit here and press Update team.' : `Paste a whole team in Showdown format, ${PASTE_LINK_HINT}.`}</span>
           <span class="spacer"></span><button class="btn primary sm" id="save-paste">Update team</button></div>
         <textarea class="paste" id="team-paste" data-team-paste placeholder="Paste your team in Showdown format, ${PASTE_LINK_HINT}">${esc(team.paste)}</textarea></div>` : ''}
     </div>
-    <div class="section"><div class="section-head"><h3>Gameplans</h3><button class="btn primary sm" data-act="new-plan" data-team="${esc(team.id)}">New gameplan</button></div>
+    <div class="section"><div class="section-head"><h3>Gameplans</h3>
+      <button class="btn primary sm" data-act="new-plan" data-team="${esc(team.id)}"${mons.length ? '' : ' disabled title="Add your Pokémon first"'}>New gameplan</button></div>
       ${team.plans.length ? `<div class="plan-list">${team.plans.map((p) => {
         const turns = countPlanTurns(p);
         const tabs = p.tabs.length;
@@ -239,7 +245,7 @@ export function renderTeamView(main: HTMLElement, team: Team): void {
           <span class="nm">${esc(p.name)}</span>
           <span class="icon-row">${oppMons(p).map((m) => monIcon(m.species, 'sm')).join('')}</span>
           <span class="muted">${tabs > 1 ? `${tabs} tabs · ` : ''}${turns} turn${turns === 1 ? '' : 's'}</span></div>`;
-      }).join('')}</div>` : '<p class="hint">No gameplans yet. Create one for each opponent team you want to prepare for.</p>'}
+      }).join('')}</div>` : `<p class="hint">${mons.length ? 'No gameplans yet. Create one for each opponent team you want to prepare for.' : 'Add your Pokémon first: a gameplan picks its leads and backs from them.'}</p>`}
     </div></div></div>`;
   applyDynamicStyles(main);
   const page = main.querySelector('.page');
